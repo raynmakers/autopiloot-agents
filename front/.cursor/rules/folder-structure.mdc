@@ -1,0 +1,186 @@
+---
+alwaysApply: true
+---
+
+# Next.js Firebase Template - Project Structure
+
+This project follows a modular architecture pattern for Next.js applications with Firebase integration and Material-UI components.
+
+## Folder Structure
+
+### `src/` - Source Code
+
+#### Core Directories
+
+- **app/** - Next.js App Router
+  - **layout.tsx** - Root layout with providers
+  - **page.tsx** - Home page
+  - **(authenticated)/** - Protected routes (requires auth)
+  - **(public)/** - Public routes (signin, signup, etc.)
+  - **api/** - API routes (if needed)
+
+- **components/** - Reusable UI Components
+  - **common/** - Shared components (LoadingScreen, SplashScreen, EmptyContent)
+  - **forms/** - Form components (LoadingButton, etc.)
+  - **guards/** - Authorization guards
+    - **AuthGuard/** - Protected route wrapper
+    - **GuestGuard/** - Public route wrapper
+  - **layouts/** - Layout components
+  - **ui/** - Basic UI components
+
+- **sections/** - Page-specific sections
+  - Each page gets its own folder
+  - Complex components that are page-specific
+
+- **lib/** - Core Libraries & Services
+  - **firebase.ts** - Firebase initialization
+  - **firestore.ts** - Firestore operations & collections
+  - **storage.ts** - Firebase Storage operations
+  - **functions.ts** - Firebase Functions calls
+
+- **auth/** - Authentication System
+  - **AuthProvider.tsx** - Auth context provider
+  - **authContext.ts** - Context definition
+  - **authOperations.ts** - Auth functions (login, signup, etc.)
+  - **useAuth.ts** - Auth hook
+  - **types.ts** - Auth-related types
+
+- **theme/** - MUI Theme Configuration
+  - **ThemeProvider.tsx** - Theme context provider
+  - **palette.ts** - Color definitions
+  - **typography.ts** - Font settings
+  - **components/** - Component overrides
+  - **customColors.ts** - Custom color definitions
+
+- **hooks/** - Custom React Hooks
+  - **useFirestore.ts** - Firestore real-time subscriptions
+  - **useStorage.ts** - File upload/download hooks
+  - **useSnackbar.ts** - Notification hook
+  - **useResponsive.ts** - Responsive breakpoints
+
+- **utils/** - Utility Functions
+  - **format.ts** - Data formatting
+  - **validation.ts** - Form validation
+  - **constants.ts** - App constants
+
+- **types/** - TypeScript Definitions
+  - **firestore.ts** - Firestore document types
+  - **api.ts** - API response types
+  - **common.ts** - Shared types
+
+### `public/` - Static Assets
+
+- **images/** - Static images
+- **fonts/** - Custom fonts
+- **icons/** - Icon files
+
+## Development Rules
+
+### 1. Component Organization
+
+- Keep components small and focused
+- Use composition over inheritance
+- Separate presentational and container components
+- Always export from index files for clean imports
+
+### 2. State Management
+
+- Use React Context for global state (auth, theme, settings)
+- Avoid Redux unless absolutely necessary
+- Use local state for component-specific data
+- Leverage Firebase real-time listeners for live data
+
+### 3. Firebase Integration
+
+- All Firestore operations through lib/firestore.ts
+- Define collection references as constants
+- Use TypeScript interfaces for document types
+- Implement proper error handling for all Firebase operations
+
+### 4. Routing & Navigation
+
+- Use Next.js App Router conventions
+- Group routes by authentication status
+- Implement proper loading states
+- Use Link component with href attribute
+- For MUI Link, use router.push
+
+### 5. Theme & Styling
+
+- Use MUI theme variables for all styling
+- Define custom colors in theme configuration
+- Use sx prop for component-specific styles
+- Maintain consistent spacing with theme.spacing()
+
+### 6. Type Safety
+
+- Define all data types in types/ directory
+- Use strict TypeScript configuration
+- Avoid 'any' type - use 'unknown' if necessary
+- Create proper interfaces for all Firebase documents
+
+## Common Patterns
+
+### Protected Route
+
+```tsx
+// app/(authenticated)/layout.tsx
+export default function AuthenticatedLayout({ children }) {
+  return <AuthGuard>{children}</AuthGuard>;
+}
+```
+
+### Firestore Collection Hook
+
+```tsx
+// hooks/useCollection.ts
+export function useCollection(collectionName: string) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, collectionName),
+      (snapshot) => {
+        setData(
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+        );
+        setLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [collectionName]);
+
+  return { data, loading };
+}
+```
+
+## File Naming Conventions
+
+- Components: PascalCase (e.g., `UserProfile.tsx`)
+- Hooks: camelCase with 'use' prefix (e.g., `useAuth.ts`)
+- Utils: camelCase (e.g., `formatDate.ts`)
+- Types: PascalCase for interfaces/types (e.g., `UserDoc`)
+- Constants: UPPER_SNAKE_CASE (e.g., `MAX_FILE_SIZE`)
+
+## Import Order
+
+1. React/Next.js imports
+2. Third-party libraries (MUI, Firebase, etc.)
+3. Absolute imports (@/ paths)
+4. Relative imports
+5. Type imports
+
+Example:
+
+```tsx
+import { useState, useEffect } from "react";
+import { Box, Button } from "@mui/material";
+import { collection, onSnapshot } from "firebase/firestore";
+import { useAuth } from "@/auth/useAuth";
+import { LoadingScreen } from "../components/LoadingScreen";
+import type { UserDoc } from "@/types/firestore";
+```

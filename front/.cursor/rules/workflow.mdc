@@ -1,0 +1,302 @@
+---
+alwaysApply: true
+---
+
+# Frontend Development Workflow
+
+## Architecture
+
+This project uses Next.js with Firebase integration and Material-UI components. The architecture follows a component-based pattern with clear separation of concerns between presentation, business logic, and data management.
+
+## Primary Rules
+
+Below are the rules that you must follow when developing frontend functionality:
+
+### Template and Components
+
+- Use Material-UI components as the foundation
+- Explore MUI documentation for ready-to-use components before creating custom ones
+- Mix components from different MUI versions if necessary (with caution)
+- Keep unused template components during early development stages
+- Make components reusable but maintainable and understandable
+
+### Theme and Context
+
+- Customize application through theme context (`ThemeProvider`)
+- Use separate contexts for different themes if needed (app theme, widget theme)
+- Place theme contexts at the appropriate level (top-level for app, specific for widgets)
+- Disable CssBaseline for widget themes to avoid style conflicts
+- Always use theme variables for styling (colors, spacing, typography)
+- Add custom colors in theme configuration (e.g., `theme.palette.customColors.primaryDark`)
+
+### User Experience (UX)
+
+- **Always** adopt the perspective of a critical user
+- Use `LoadingScreen` or skeletons for loading states
+- Display `EmptyContent` component for empty tables/lists
+- Use `LoadingButton` for form actions (`loading={isSubmitting}`)
+- Show informative error messages using snackbar notifications
+- Ensure the app is self-explanatory - users should never wonder "what's happening?"
+- Test on various mobile devices and large screens
+- Use `100dvh` instead of `100vh` for mobile compatibility
+
+### Code Quality
+
+- Balance code quality with development speed
+- Add comments where logic is complex
+- Use TypeScript strictly - avoid 'any' type
+- Keep functions and components focused (single responsibility)
+- Use proper error boundaries and error handling
+
+### State Management
+
+- Use React Context for global state (avoid Redux unless necessary)
+- Leverage Firebase real-time listeners for live data
+- Use local state for component-specific data
+- Implement optimistic UI updates where appropriate
+
+### Performance Optimization
+
+- Use `useCallback` and `useMemo` efficiently
+- Pay attention to dependency arrays in hooks
+- Lazy load components when appropriate
+- Implement proper code splitting
+
+### Authorization
+
+- Use auth context with `onAuthStateChanged`
+- Use `AuthGuard` for protected content
+- Always show loading indicators during auth processes
+- Handle auth errors gracefully
+
+## Workflow
+
+When building new features, follow this systematic workflow:
+
+### 0. Planning Phase
+
+Before starting, create a comprehensive to-do list following this exact process:
+
+- Understand the feature requirements
+- Identify affected components and pages
+- List all necessary UI components
+- Plan the data flow and state management
+- Consider edge cases and error states
+
+### 1. Design Analysis
+
+- Review existing components that can be reused
+- Identify new components that need to be created
+- Plan responsive behavior for all screen sizes
+
+### 2. Component Development
+
+```tsx
+// Start with the component structure
+// components/features/NewFeature.tsx
+import { useState, useEffect } from "react";
+import { Box, Paper, Typography, Skeleton } from "@mui/material";
+import { useAuth } from "@/auth/useAuth";
+import { useSnackbar } from "notistack";
+
+export function NewFeature() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const { user } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
+
+  // Always handle loading states
+  if (loading) {
+    return <Skeleton variant="rectangular" height={200} />;
+  }
+
+  // Always handle empty states
+  if (!data) {
+    return <EmptyContent title="No data available" />;
+  }
+
+  return <Paper sx={{ p: 3 }}>{/* Component content */}</Paper>;
+}
+```
+
+### 3. Firebase Integration
+
+```tsx
+// lib/firestore.ts - Define operations
+export const dataOperations = {
+  async create(data: DataType) {
+    try {
+      const docRef = await addDoc(collections.data, data);
+      return docRef.id;
+    } catch (error) {
+      console.error("Error creating document:", error);
+      throw error;
+    }
+  },
+
+  async getById(id: string) {
+    const docRef = doc(collections.data, id);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() : null;
+  },
+};
+
+// hooks/useData.ts - Create real-time hook
+export function useData(dataId: string) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      doc(db, "data", dataId),
+      (doc) => {
+        setData(doc.exists() ? doc.data() : null);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching data:", error);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, [dataId]);
+
+  return { data, loading };
+}
+```
+
+### 4. Form Handling
+
+```tsx
+// Always use controlled components with proper validation
+import { useForm, Controller } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+
+const schema = yup.object({
+  name: yup.string().required("Name is required"),
+  email: yup.string().email("Invalid email").required("Email is required"),
+});
+
+export function DataForm() {
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: yupResolver(schema),
+  });
+  const { enqueueSnackbar } = useSnackbar();
+
+  const onSubmit = async (data) => {
+    try {
+      await dataOperations.create(data);
+      enqueueSnackbar("Data saved successfully", { variant: "success" });
+    } catch (error) {
+      enqueueSnackbar(error.message, { variant: "error" });
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <Controller
+        name="name"
+        control={control}
+        render={({ field }) => (
+          <TextField
+            {...field}
+            label="Name"
+            error={!!errors.name}
+            helperText={errors.name?.message}
+            fullWidth
+            margin="normal"
+          />
+        )}
+      />
+
+      <LoadingButton
+        type="submit"
+        variant="contained"
+        loading={isSubmitting}
+        fullWidth
+      >
+        Submit
+      </LoadingButton>
+    </form>
+  );
+}
+```
+
+### 5. Testing
+
+- Check if front end compiles and runs.
+-
+
+## Common Patterns
+
+### Notification Pattern
+
+```tsx
+const { enqueueSnackbar } = useSnackbar();
+
+// Success
+enqueueSnackbar("Operation successful", { variant: "success" });
+
+// Error
+enqueueSnackbar("Something went wrong", { variant: "error" });
+
+// Info
+enqueueSnackbar("Please note...", { variant: "info" });
+```
+
+### Protected Route Pattern
+
+```tsx
+// Use AuthGuard wrapper
+<AuthGuard>
+  <ProtectedContent />
+</AuthGuard>;
+
+// Or conditional rendering
+const { isAuthenticated } = useAuth();
+if (!isAuthenticated) {
+  return <Navigate to="/signin" />;
+}
+```
+
+## Navigation Rules
+
+### Next.js Link
+
+```tsx
+// Correct - use href
+<Link href="/dashboard">
+  <Button>Go to Dashboard</Button>
+</Link>
+```
+
+### MUI Link with Navigation
+
+```tsx
+// Correct - use router.push
+import { useRouter } from "next/navigation";
+
+const router = useRouter();
+<MuiLink component="button" onClick={() => router.push("/dashboard")}>
+  Dashboard
+</MuiLink>;
+```
+
+## Debugging Checklist
+
+When something doesn't work:
+
+1. Check browser console for errors
+2. Verify Firebase configuration
+3. Check network tab for API calls
+4. Verify authentication state
+5. Check component props and state
+6. Verify data types match interfaces
+7. Check for race conditions
+8. Verify cleanup functions in useEffect

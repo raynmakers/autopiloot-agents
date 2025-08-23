@@ -1,0 +1,340 @@
+---
+description: Log of all the key backend architectural decisions.
+alwaysApply: false
+---
+
+# Architecture Decision Log
+
+<!--
+ADR_AGENT_PROTOCOL v1.0
+
+You (the agent) manage this file as the single source of truth for all ADRs.
+
+INVARIANTS
+- Keep this exact file structure and headings.
+- All ADR entries use H2 headings: "## ADR-XXXX — <Title>" (4-digit zero-padded ID).
+- Allowed Status values: Proposed | Accepted | Superseded
+- Date format: YYYY-MM-DD
+- New entries must be appended to the END of the file.
+- The Index table between the INDEX markers must always reflect the latest state and be sorted by ID desc (newest on top).
+- Each ADR MUST contain: Date, Status, Owner, Context, Decision, Consequences.
+- Each ADR must include an explicit anchor `<a id="adr-XXXX"></a>` so links remain stable.
+
+HOW TO ADD A NEW ADR
+1) Read the whole file.
+2) Compute next ID:
+   - Scan for headings matching: ^## ADR-(\d{4}) — .+$
+   - next_id = (max captured number) + 1, left-pad to 4 digits.
+3) Create a new ADR section using the “New ADR Entry Template” below.
+   - Place it AFTER the last ADR section in the file.
+   - Add an `<a id="adr-XXXX"></a>` line immediately below the heading.
+4) Update the Index (between the INDEX markers):
+   - Insert/replace the row for this ADR keeping the table sorted by ID descending.
+   - Title in the Index MUST link to the anchor: [<Title>](#adr-XXXX)
+   - If this ADR supersedes another: set “Supersedes” in this row, and update that older ADR:
+       a) Change its Status to “Superseded”
+       b) Add “Superseded by: ADR-XXXX” in its Consequences block
+       c) Update the older ADR’s Index row “Superseded by” column to ADR-XXXX
+5) Validate before saving:
+   - Exactly one heading exists for ADR-XXXX
+   - All required fields are present and non-empty
+   - Index contains a row for ADR-XXXX and remains properly sorted
+6) Concurrency resolution:
+   - If a merge conflict or duplicate ID is detected after reading: recompute next_id from the current file state, rename your heading, anchor, and Index row accordingly, and retry once.
+
+COMMIT MESSAGE SUGGESTION
+- "ADR-XXXX: <Short Title> — <Status>"
+
+END ADR_AGENT_PROTOCOL
+-->
+
+## Index
+
+<!-- BEGIN:ADR_INDEX -->
+
+| ID   | Title                                                     | Date       | Status   | Supersedes | Superseded by |
+| ---- | --------------------------------------------------------- | ---------- | -------- | ---------- | ------------- |
+| 0007 | [Test Fixture Cleanup Strategy](#adr-0007)                | 2025-01-27 | Accepted | —          | —             |
+| 0006 | [Automated Test Runner Implementation](#adr-0006)         | 2025-01-27 | Accepted | —          | —             |
+| 0005 | [Database Class Consolidation](#adr-0005)                 | 2025-01-27 | Accepted | —          | —             |
+| 0004 | [Real Firebase Emulators Over Mocked Services](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
+| 0003 | [Test Utilities Organization in util/ Folder](#adr-0003)  | 2025-01-27 | Accepted | —          | —             |
+| 0002 | [Firebase Emulator Integration Pattern](#adr-0002)        | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Template Testing Strategy](#adr-0001)                    | 2025-01-27 | Accepted | —          | —             |
+
+<!-- END:ADR_INDEX -->
+
+---
+
+## ADR-0001 — Template Testing Strategy
+
+<a id="adr-0001"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Python Firebase template needed a robust testing strategy that supports both rapid development and comprehensive integration testing. Tests needed to work with and without Firebase emulators running.
+
+### Alternatives
+
+- **All tests require emulators**: Simple but slow for basic function logic testing
+- **Mock all Firebase services**: Fast but doesn't test real Firebase behavior
+- **Mixed approach with clear categorization**: Support both scenarios with proper documentation
+
+### Decision
+
+Implement a mixed testing strategy where tests are categorized by emulator requirements:
+
+- Tests that only validate function logic can run without emulators
+- Integration tests that require database operations use real Firebase emulators
+- Clear documentation distinguishes between test types
+- Environment variable `SKIP_EMULATORS=true` allows bypassing emulator startup
+
+### Consequences
+
+- **Pros**: Fast feedback for logic tests, comprehensive integration testing, flexible CI/CD options
+- **Cons / risks**: Developers need to understand test categories, some complexity in setup
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Tests documented in `tests/README.md` with clear examples. CI can run both modes: quick logic tests and full integration tests.
+
+---
+
+## ADR-0002 — Firebase Emulator Integration Pattern
+
+<a id="adr-0002"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The template needed reliable Firebase emulator management for integration testing. The existing github-app project had a proven pattern for emulator lifecycle management that should be adapted.
+
+### Alternatives
+
+- **Manual emulator management**: Developers start/stop emulators manually
+- **Test-level emulator fixtures**: Each test manages its own emulator instance
+- **Session-level emulator management**: Emulators start once per test session (github-app pattern)
+
+### Decision
+
+Adopt the github-app emulator pattern with session-level management:
+
+- `tests/util/firebase_emulator.py` handles emulator lifecycle
+- Automatic port cleanup and process management
+- Configurable emulator services (functions, firestore, storage)
+- Robust timeout and error handling
+- Optional automatic startup with `setup_emulators` fixture
+
+### Consequences
+
+- **Pros**: Proven pattern, reliable cleanup, supports multiple emulator services, good error handling
+- **Cons / risks**: More complex than manual setup, requires Firebase CLI installation
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Tests use `firebase_emulator` fixture. Emulator utilities must handle port conflicts and process cleanup. Pattern consistency with github-app project.
+
+---
+
+## ADR-0003 — Test Utilities Organization in util/ Folder
+
+<a id="adr-0003"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+Test fixtures and utilities were mixed in `conftest.py`, making them harder to reuse and maintain. The `ItemFlowSetup` class and Firebase emulator utilities needed better organization for template users.
+
+### Alternatives
+
+- **Keep everything in conftest.py**: Simple but becomes unwieldy
+- **Split by functionality**: Separate files for different utilities
+- **Move to tests/util/**: Follow common Python testing patterns
+
+### Decision
+
+Move shared test utilities to `tests/util/` folder:
+
+- `tests/util/firebase_emulator.py`: Emulator management and fixtures
+- `tests/util/item_flow_setup.py`: Database setup fixtures for integration tests
+- Import utilities in `conftest.py` for backwards compatibility
+- Clear separation of concerns
+
+### Consequences
+
+- **Pros**: Better organization, easier to find and maintain utilities, follows Python conventions
+- **Cons / risks**: Minor refactoring needed for imports, slightly more complex structure
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+All test utilities under `tests/util/` with proper imports. New utilities should follow this pattern.
+
+---
+
+## ADR-0004 — Real Firebase Emulators Over Mocked Services
+
+<a id="adr-0004"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+Integration tests needed to validate Firebase Functions behavior including database operations, triggers, and Firebase service interactions. The choice was between mocking Firebase services or using real emulators.
+
+### Alternatives
+
+- **Mock Firebase services**: Fast but doesn't test real Firebase behavior or edge cases
+- **Use production Firebase**: Real but expensive, slow, and affects live data
+- **Use Firebase emulators**: Real Firebase behavior in isolated environment
+
+### Decision
+
+Use real Firebase emulators for all integration testing:
+
+- Tests connect to actual Firestore emulator (localhost:8080)
+- Real Firebase Functions emulator (localhost:5001) for function execution
+- Real document operations in emulator database
+- Only mock Firestore trigger events (event object creation, not database operations)
+
+### Consequences
+
+- **Pros**: Tests real Firebase behavior, catches Firebase-specific issues, validates complete workflows
+- **Cons / risks**: Requires Firebase CLI, slower than mocks, more complex setup
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Integration tests must use emulator connections. No mocking of Firebase database operations. Trigger events can be mocked for testing purposes.
+
+---
+
+## ADR-0005 — Database Class Consolidation
+
+<a id="adr-0005"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The template had two database classes: `Db` (base class) and `ProjectDb` (project-specific subclass). This created unnecessary inheritance complexity and indirection for a template that serves as a starting point for new projects.
+
+### Alternatives
+
+- **Keep ProjectDb inheritance**: Maintains separation but adds complexity for template users
+- **Multiple database singletons**: Each with different collections but more confusing
+- **Consolidate into single Db class**: Simplify by merging ProjectDb functionality into base Db class
+
+### Decision
+
+Consolidate ProjectDb functionality directly into the base Db class:
+
+- Merge project-specific collections (items, categories, itemActivities) into base `_init_collections()` method
+- Replace all `ProjectDb.get_instance()` calls with `Db.get_instance()`
+- Remove ProjectDb class entirely
+- Update all imports and type hints across the codebase
+
+### Consequences
+
+- **Pros**: Simpler codebase for template users, fewer concepts to understand, easier to extend
+- **Cons / risks**: Less separation of concerns, template users may need to modify collections directly
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+All references to ProjectDb removed from codebase. Single Db class used throughout with project collections included by default.
+
+---
+
+## ADR-0006 — Automated Test Runner Implementation
+
+<a id="adr-0006"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+Developers needed an easy way to run tests with proper Firebase emulator management. Manual emulator startup/shutdown was error-prone and the existing pytest commands required knowledge of emulator setup.
+
+### Alternatives
+
+- **Manual emulator management**: Simple but error-prone, requires developer to remember setup steps
+- **Docker-based testing**: Isolated but complex setup, requires Docker knowledge
+- **Automated test runner script**: Single command handles emulator lifecycle and test execution
+
+### Decision
+
+Implement `run_tests.py` script with automated emulator management:
+
+- Automatic Firebase emulator startup/shutdown with proper cleanup
+- Command-line options for test types (unit, integration, all)
+- Support for existing emulators via `--no-emulator` flag
+- Optional emulator log viewing with `--show-logs`
+- Graceful error handling and forced cleanup on failures
+
+### Consequences
+
+- **Pros**: Better developer experience, reliable emulator cleanup, flexible test execution options
+- **Cons / risks**: Additional script to maintain, requires Firebase CLI installation
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Test runner documented in README with examples. Script handles all emulator lifecycle automatically. Command-line help available via `--help`.
+
+---
+
+## ADR-0007 — Test Fixture Cleanup Strategy
+
+<a id="adr-0007"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The `conftest.py` file contained unused test fixtures (`test_category`, `test_item`, `mock_callable_request`) that were not referenced anywhere in the test suite. These created confusion and maintenance overhead.
+
+### Alternatives
+
+- **Keep all fixtures**: Simple but maintains dead code and confusion
+- **Move to test utilities**: Relocate unused fixtures to utils for potential future use
+- **Remove unused fixtures**: Clean up conftest.py to only contain actively used fixtures
+
+### Decision
+
+Remove unused test fixtures from conftest.py:
+
+- Remove `test_category`, `test_item`, and `mock_callable_request` fixtures
+- Keep only `firebase_app`, `db`, and `test_user_id` fixtures that are actively used
+- Move complex test setup logic to dedicated utility modules when needed
+- Clean up any broken import references
+
+### Consequences
+
+- **Pros**: Cleaner conftest.py, reduces confusion for new developers, easier maintenance
+- **Cons / risks**: Fixtures need to be recreated if later needed, requires verification that nothing uses them
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+No references to removed fixtures exist in codebase. Tests continue to pass without the removed fixtures. New test fixtures should only be added when actively used.

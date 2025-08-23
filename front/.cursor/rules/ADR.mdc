@@ -1,0 +1,353 @@
+---
+description: Architectural Decision Records
+globs:
+alwaysApply: false
+---
+
+# Architecture Decision Log
+
+<!--
+ADR_AGENT_PROTOCOL v1.0
+
+You (the agent) manage this file as the single source of truth for all ADRs.
+
+INVARIANTS
+- Keep this exact file structure and headings.
+- All ADR entries use H2 headings: "## ADR-XXXX — <Title>" (4-digit zero-padded ID).
+- Allowed Status values: Proposed | Accepted | Superseded
+- Date format: YYYY-MM-DD
+- New entries must be appended to the END of the file.
+- The Index table between the INDEX markers must always reflect the latest state and be sorted by ID desc (newest on top).
+- Each ADR MUST contain: Date, Status, Owner, Context, Decision, Consequences.
+- Each ADR must include an explicit anchor `<a id="adr-XXXX"></a>` so links remain stable.
+
+HOW TO ADD A NEW ADR
+1) Read the whole file.
+2) Compute next ID:
+   - Scan for headings matching: ^## ADR-(\d{4}) — .+$
+   - next_id = (max captured number) + 1, left-pad to 4 digits.
+3) Create a new ADR section using the “New ADR Entry Template” below.
+   - Place it AFTER the last ADR section in the file.
+   - Add an `<a id="adr-XXXX"></a>` line immediately below the heading.
+4) Update the Index (between the INDEX markers):
+   - Insert/replace the row for this ADR keeping the table sorted by ID descending.
+   - Title in the Index MUST link to the anchor: [<Title>](#adr-XXXX)
+   - If this ADR supersedes another: set “Supersedes” in this row, and update that older ADR:
+       a) Change its Status to “Superseded”
+       b) Add “Superseded by: ADR-XXXX” in its Consequences block
+       c) Update the older ADR’s Index row “Superseded by” column to ADR-XXXX
+5) Validate before saving:
+   - Exactly one heading exists for ADR-XXXX
+   - All required fields are present and non-empty
+   - Index contains a row for ADR-XXXX and remains properly sorted
+6) Concurrency resolution:
+   - If a merge conflict or duplicate ID is detected after reading: recompute next_id from the current file state, rename your heading, anchor, and Index row accordingly, and retry once.
+
+COMMIT MESSAGE SUGGESTION
+- "ADR-XXXX: <Short Title> — <Status>"
+
+END ADR_AGENT_PROTOCOL
+-->
+
+## Index
+
+<!-- BEGIN:ADR_INDEX -->
+
+| ID  | Title                                        | Date       | Status   |
+| --- | -------------------------------------------- | ---------- | -------- |
+| 009 | Testing Strategy - Firebase Emulator Support | 2024-08-23 | Accepted |
+| 008 | TypeScript Configuration                     | 2024-08-23 | Accepted |
+| 007 | Project Structure - Essential Files Only     | 2024-08-23 | Accepted |
+| 006 | Hook Patterns - Status Enum Approach         | 2024-08-23 | Accepted |
+| 005 | Firebase Initialization Strategy             | 2024-08-23 | Accepted |
+| 004 | Form Handling - React Hook Form + Yup        | 2024-08-23 | Accepted |
+| 003 | Firebase Security - Remove App Check         | 2024-08-23 | Accepted |
+| 002 | State Management - React Context over Jotai  | 2024-08-23 | Accepted |
+
+<!-- END:ADR_INDEX -->
+
+## ADR-002: State Management - React Context over Jotai
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+The original codebase used Jotai for state management, but we needed to simplify the template for broader adoption.
+
+### Decision
+
+Use React Context API instead of Jotai atoms for authentication state management.
+
+### Rationale
+
+- Reduces external dependencies
+- Built into React - no additional learning curve
+- Sufficient for authentication state needs
+- Easier to understand for developers new to the codebase
+- Maintains compatibility with existing patterns
+
+### Consequences
+
+- Less performant than Jotai for complex state scenarios
+- More boilerplate code required
+- Limited to simple state management patterns
+
+---
+
+## ADR-003: Firebase Security - Remove App Check
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+App Check with reCAPTCHA was included in the original setup but adds complexity to the template.
+
+### Decision
+
+Remove Firebase App Check and reCAPTCHA integration from the template.
+
+### Rationale
+
+- Simplifies initial setup and development
+- Reduces dependencies
+- App Check can be added later when needed for production
+- Template focuses on core functionality
+- Easier testing during development
+
+### Consequences
+
+- Less security protection out of the box
+- Users need to implement App Check separately for production
+- Potential for abuse during development phase
+
+---
+
+## ADR-004: Form Handling - React Hook Form + Yup
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Forms are essential for authentication and data input in web applications.
+
+### Decision
+
+Use React Hook Form with Yup for validation.
+
+### Rationale
+
+- Performance benefits from uncontrolled components
+- Built-in validation support
+- TypeScript integration
+- Minimal re-renders
+- Yup provides comprehensive validation schemas
+- Industry standard approach
+
+### Consequences
+
+- Additional dependencies to manage
+- Learning curve for form-specific patterns
+- More setup required for complex forms
+
+---
+
+## ADR-005: Firebase Initialization Strategy
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Firebase initialization needed to handle server-side rendering and missing credentials gracefully.
+
+### Decision
+
+Implement conditional Firebase initialization with fallback empty objects.
+
+### Rationale
+
+- Prevents SSR errors during build time
+- Graceful handling of missing credentials
+- Allows template to build successfully without Firebase setup
+- Clear error messages when credentials are missing
+
+### Implementation
+
+```typescript
+let firebaseApp: FirebaseApp | undefined;
+if (FIREBASE_CONFIG.apiKey) {
+  firebaseApp = initializeApp(FIREBASE_CONFIG);
+}
+export const auth = firebaseApp ? getAuth(firebaseApp) : ({} as Auth);
+```
+
+### Consequences
+
+- Additional conditional checks required
+- Potential runtime errors if Firebase methods are called without proper initialization
+- More complex initialization logic
+
+---
+
+## ADR-006: Hook Patterns - Status Enum Approach
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Needed consistent patterns for data fetching hooks across the application.
+
+### Decision
+
+Use status enum (`"loading" | "error" | "success"`) pattern instead of separate boolean states.
+
+### Rationale
+
+- Matches existing codebase patterns
+- Prevents impossible states (loading + error)
+- More maintainable than multiple boolean flags
+- Clear state transitions
+- Better TypeScript inference
+
+### Implementation
+
+```typescript
+const [status, setStatus] = useState<"loading" | "error" | "success">(
+  "loading"
+);
+```
+
+### Consequences
+
+- Consistent with existing codebase
+- Easier state management
+- Clear separation of loading states
+
+---
+
+## ADR-007: Project Structure - Essential Files Only
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Template needed to be minimal while providing complete Firebase integration.
+
+### Decision
+
+Include only essential files for Firebase integration and authentication.
+
+### Included Components
+
+- Firebase services (auth, firestore, storage, functions)
+- Authentication system with React Context
+- Basic pages (home, signin, signup, dashboard)
+- Essential hooks for data fetching
+- Material-UI theme configuration
+
+### Excluded Components
+
+- Complex state management solutions
+- Advanced routing patterns
+- Non-essential UI components
+- Advanced Firebase features (Analytics, Remote Config, etc.)
+
+### Rationale
+
+- Faster onboarding for new projects
+- Easier to understand and modify
+- Reduces maintenance burden
+- Clear separation of concerns
+
+### Consequences
+
+- May require additional setup for complex applications
+- Users need to add advanced features themselves
+- More opinionated structure
+
+---
+
+## ADR-008: TypeScript Configuration
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Template needed strong typing for Firebase operations and React components.
+
+### Decision
+
+Use strict TypeScript configuration with comprehensive type definitions.
+
+### Features
+
+- Strict mode enabled
+- Custom type definitions for Firebase documents
+- Proper interface definitions for hooks
+- Type-safe Firebase operations
+
+### Rationale
+
+- Better developer experience
+- Compile-time error catching
+- Self-documenting code
+- Industry best practices
+
+### Consequences
+
+- Steeper learning curve for JavaScript developers
+- More verbose code in some cases
+- Additional type maintenance required
+
+---
+
+## ADR-009: Testing Strategy - Firebase Emulator Support
+
+**Status:** Accepted  
+**Date:** 2024-08-23
+
+### Context
+
+Development and testing needed to work without affecting production Firebase resources.
+
+### Decision
+
+Include Firebase emulator configuration for local development.
+
+### Implementation
+
+- Emulator configuration in firebase.json
+- Environment-based Firebase initialization
+- Test mode Firestore rules
+
+### Rationale
+
+- Safe local development
+- Faster iteration cycles
+- Cost-effective testing
+- Offline development capability
+
+### Consequences
+
+- Additional setup required
+- Emulator-specific behaviors may differ from production
+- Need to manage emulator lifecycle
+
+---
+
+## Future ADRs
+
+The following decisions may be documented in future ADRs:
+
+- Authentication provider selection
+- Deployment strategy
+- Error handling patterns
+- Performance optimization approaches
+- Security rule implementations
+- Monitoring and analytics integration
