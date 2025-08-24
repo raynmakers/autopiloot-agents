@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: back/**
+alwaysApply: false
 ---
 
 # Backend Development Workflow
@@ -12,7 +13,7 @@ This project uses the broker architecture pattern with Firebase Functions. All b
 
 You must always start from tests. We primarily use integration tests that test the user flow from start to finish. For example, for testing item management flow, you would test: creating item -> updating item -> archiving item -> deleting item -> etc. Inside each test case you must check the results in firestore. Test is considered passed, when all document properties are as expected.
 
-**Important**: We check real documents in firestore after running each firebase function. We only use mock data for external services or unit tests.
+**Important**: We check real documents in firestore after running each firebase function. The same with external services. Never create useless unit tests that just test properties of the class. Instead, test the actual functionality of the class.
 
 # Development Principles
 
@@ -29,14 +30,16 @@ All code must be clearly readable and maintainable. It must read like a story. E
 
 Below are the rules that you must follow when developing backend functionality:
 
-- All firestore documents must be modified **strictly** within `DocumentBase` classes. You must **never** modify documents outside of these classes.
+- All firestore documents must be modified **strictly** within `DocumentBase` classes located in `src/documents/DocumentBase.py`. You must **never** modify documents outside of these classes.
+- All third party APIs/clients must be wrapped in API wrapper classes located in `src/apis/`.
 - Never make calls to firestore directly. Always use `Db` class located in `src/apis/Db.py`.
 - All firestore document types should always be updated in `src/models/firestore_types.py`.
 - If you are creating multiple documents from an event (like creating items from CSV file) - create a Factory class with a method `.from_csv(csv_path)` - this method should return an array of Document classes.
-- Rules for new types must **always** be up to date in `firestore.rules` or `storage.rules`. Define them as soon as possible.
+- Rules for new firestore and storage types must **always** be up to date in `firestore.rules` or `storage.rules`. Define them as soon as possible.
 - All third party APIs must be wrapped in API wrapper classes.
 - All firestore function request and response types must be in `src/models/function_types.py`.
 - Functions should be named as `{action}_{resource}_callable` or `on_{resource}_{event}`.
+- All complex functionality that involves multiple documents, other APIBase classes, or complex logic should be wrapped in a Service class, located in `src/services/`.
 
 ## Workflow
 
@@ -52,6 +55,43 @@ When building new features, you must always start from creating new test files o
 5. Keep iterating until all tests are passing. Do not stop until all tests are passing.
 6. Export any new brokers from the `main.py` file for deployment.
 7. Document any key architecture decisions (if any)in the `back/.cursor/rules/ADR.mdc` file.
+8. Ensure firestore rules and storage rules are updated to reflect the new functionality in the `firestore.rules` and `storage.rules` files.
+
+## Common Patterns
+
+### Creating a Callable Function
+
+```python
+@https_fn.on_call(
+    cors=options.CorsOptions(cors_origins=["*"]),
+    ingress=options.IngressSetting.ALLOW_ALL,
+)
+def function_name(req: https_fn.CallableRequest):
+    uid = db_auth_wrapper(req)
+    # Implementation
+```
+
+### Creating a Document Class
+
+```python
+class MyDocument(ProjectDocumentBase[MyDocType]):
+    pydantic_model = MyDocType
+
+    def __init__(self, id: str, doc: Optional[dict] = None):
+        self.collection_ref = self.db.collections["my_collection"]
+        super().__init__(id, doc)
+```
+
+### Creating a Service
+
+```python
+class MyService:
+    def __init__(self, doc: MyDocument):
+        self.document = doc
+
+    def complex_operation(self):
+        # Orchestrate multiple documents
+```
 
 ## Guardrails
 

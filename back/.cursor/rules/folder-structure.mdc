@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: back/**
+alwaysApply: false
 ---
 
 # Python Firebase Functions - Broker Architecture

@@ -1,0 +1,139 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `.cursor/tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it’s large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model’s context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** clearly how the feature will be tested and integrated into the extisting test suites.
+
+---
+
+id: "<unique-id-or-ticket>" # e.g., TASK-0123
+title: "<short, action-oriented task title>" # e.g., "Add quartile-colored bar chart"
+status: "planned" # planned, in-progress, blocked, done
+priority: "P1" # P0, P1, P2
+labels: ["feature", "cli", "charts"] # free-form tags
+dependencies: ["<other-task-file>"] # list other task files that must be completed first
+created: "YYYY-MM-DD"
+
+# 1) High-Level Objective
+
+<One sentence that describes the user-facing end state. Avoid technical jargon.>
+
+# 2) Background / Context (Optional but recommended)
+
+<Short rationale or business context for why this task exists. Link any tickets/PRDs.>
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: <If any info is missing, state the pragmatic assumption here.>
+- Constraint: <e.g., “Use only deps listed in package.json/pyproject.toml”.>
+- Constraint: <e.g., “Prefer TypeScript for app, Python for scripts”.>
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- tasks/<other-task-file>.md
+- files/<required-existing-file-or-schema>
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- src/main.ts
+- src/types.ts
+- package.json _(read-only)_
+- pyproject.toml _(read-only)_
+
+**End state (must exist after completion):**
+
+- src/charts/bar.ts
+- src/charts/index.ts
+- tests/charts/bar.test.ts
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+> Write concrete, atomic steps. Include **file paths, exact names, signatures, params with defaults, return types**.
+
+1. **Create bar chart module**
+
+   - File: `src/charts/bar.ts`
+   - Exported API:
+     ```ts
+     export type WordCounts = Record<string, number>; // or import from src/types.ts
+     export function renderQuartileBarChart(
+       counts: WordCounts,
+       options?: { minCount?: number; outputPath?: string }
+     ): Promise<void>;
+     ```
+   - Details:
+     - Filter out entries with `count < options.minCount ?? 10`
+     - Sort desc, keep top 100
+     - Color top quartile green, bottom red, remaining blue
+     - Write PNG to `options.outputPath ?? "charts/word_freq_bar.png"`
+
+2. **Re-export in index**
+
+   - File: `src/charts/index.ts`
+   - Add: `export * from "./bar";`
+
+3. **CLI wire-up**
+
+   - File: `src/main.ts`
+   - Add flag `--chart-type bar`, and when selected, call:
+     ```ts
+     await renderQuartileBarChart(result.counts, {
+       minCount: flags.minCount,
+       outputPath: flags.output,
+     });
+     ```
+   - Update help text accordingly.
+
+4. **Tests**
+   - File: `tests/charts/bar.test.ts` (Jest)
+   - Cases:
+     - Renders without error with mixed frequencies
+     - Respects `minCount` filter
+     - Produces output file path when provided
+
+# 7) Types & Interfaces (if applicable)
+
+> Define or reference types here so the model has a stable contract.
+
+```ts
+// src/types.ts
+export interface TranscriptAnalysis {
+  summary: string;
+  keywords: string[];
+}
+export type WordCounts = Record<string, number>;
+```
+
+# 8) Acceptance Criteria
+
+- `src/charts/bar.ts` exports `renderQuartileBarChart(...)` with the exact signature above.
+- Running `uv run main --chart-type bar --output charts/out.png` writes a PNG file.
+- All tests in `tests/charts/bar.test.ts` pass locally.
+
+# 9) Testing Strategy
+
+- Implement unit tests for the new functionality during development.
+- Add new functionality to the end-to-end tests.
+- Run tests locally and ensure they pass.
+
+# 10) Notes / Links
+
+- Reference spec section: <link or section name>
+- Related tasks: <list others>
