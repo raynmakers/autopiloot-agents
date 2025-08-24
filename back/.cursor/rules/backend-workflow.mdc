@@ -7,7 +7,7 @@ alwaysApply: false
 
 ## Architecture
 
-This project uses the broker architecture pattern with Firebase Functions. All business logic is organized into brokers that handle different types of requests and events.
+This project uses the event driven broker architecture pattern with Firebase Functions. All business logic is organized into brokers that handle different types of requests and events. The data is saved in firestore and updated on the front end automatically through firestore hooks.
 
 ## Testing
 

@@ -53,11 +53,11 @@ END ADR_AGENT_PROTOCOL
 
 <!-- BEGIN:ADR_INDEX -->
 
-| ID   | Title                                                     | Date       | Status   | Supersedes | Superseded by |
-| ---- | --------------------------------------------------------- | ---------- | -------- | ---------- | ------------- |
-| 0003 | [Simplified Database Architecture](#adr-0003)             | 2025-01-27 | Accepted | —          | —             |
-| 0002 | [Monorepo Structure with Frontend and Backend](#adr-0002) | 2025-01-27 | Accepted | —          | —             |
-| 0001 | [Full-Stack Firebase Template Architecture](#adr-0001)    | 2025-01-27 | Accepted | —          | —             |
+| ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
+| ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0004 | [Event-Driven Broker Architecture with Firestore](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
+| 0002 | [Monorepo Structure with Frontend and Backend](#adr-0002)    | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Full-Stack Firebase Template Architecture](#adr-0001)       | 2025-01-27 | Accepted | —          | —             |
 
 <!-- END:ADR_INDEX -->
 
@@ -106,7 +106,7 @@ END ADR_AGENT_PROTOCOL
 ## ADR-0001 — Full-Stack Firebase Template Architecture
 
 <a id="adr-0001"></a>
-**Date**: 2025-01-27  
+**Date**: 2025-01-27 `
 **Status**: Accepted  
 **Owner**: AI Agent
 
@@ -180,5 +180,46 @@ Implement side-by-side monorepo structure:
 ### Compliance / Verification
 
 Directory structure clearly separates frontend and backend. Firebase CLI recognizes backend functions source in configuration. Both components can be developed independently.
+
+---
+
+## ADR-0004 — Event-Driven Broker Architecture with Firestore
+
+<a id="adr-0004"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+Modern full-stack applications require consistent data state between frontend and backend components. Traditional request-response patterns create tight coupling and require complex state synchronization logic. Real-time applications need immediate UI updates when data changes, regardless of the source of the change.
+
+### Alternatives
+
+- **Direct API communication**: Backend returns data directly to frontend, requires manual state management
+- **Event streaming with external broker**: Use services like Redis Pub/Sub or RabbitMQ, adds infrastructure complexity
+- **WebSocket connections**: Real-time but requires connection management and doesn't persist data
+- **Firestore as event-driven broker**: Leverages built-in real-time capabilities and acts as single source of truth
+
+### Decision
+
+Implement event-driven broker architecture where Firestore serves as both the data store and event broker:
+
+- All data mutations flow through Firestore exclusively
+- Backend functions save data to Firestore without returning responses to frontend
+- Frontend subscribes to Firestore collections/documents using hooks for real-time updates
+- Firestore acts as the single source of truth for both backend and frontend
+- UI updates automatically through Firestore real-time listeners
+
+### Consequences
+
+- **Pros**: Eliminates data synchronization issues, automatic real-time updates, reduced coupling between frontend and backend, simplified state management, leverages Firebase's built-in capabilities
+- **Cons / risks**: Increased Firestore read operations, requires proper security rules design, potential data consistency challenges with complex operations, network dependency for all data access
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Backend functions must only perform Firestore writes without returning data responses. Frontend components must use Firestore hooks (useFirestore, real-time listeners) for all data access. No direct API data responses to frontend. All data mutations trigger UI updates through Firestore change events.
 
 ---

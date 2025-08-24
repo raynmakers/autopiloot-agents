@@ -1,45 +1,42 @@
 ---
-alwaysApply: true
+description:
+globs:
+alwaysApply: false
 ---
 
-# AI-Powered Cold DM Video Personalization System
+# <Product / Feature Name>
 
-**TL;DR:** For B2B salespeople, marketing agencies, and individual entrepreneurs, build an AI-powered video personalization tool so they can replace generic greetings with personalized names using voice synthesis, increasing cold outreach conversion rates.
+<TL;DR: 1–2 sentences: For [target user], build [capability] so they can [value].>
 
 ---
 
 ## Users & Value
 
-- **Primary user / persona:** B2B salespeople, marketing agencies, and individual entrepreneurs conducting cold outreach campaigns (20-40 DMs per day) on platforms like LinkedIn, Instagram, and Twitter.
+- **Primary user / persona:** <who specifically>
 - **Jobs-to-be-done (JTBD):**
-  - When I'm doing cold outreach at scale, I want to personalize my video messages with each prospect's name, so I can increase response rates and stand out from generic messages.
-  - When I record a single pitch video, I want to automatically generate personalized versions for multiple prospects, so I can maintain the personal touch without recording individual videos for each contact.
+  - When <situation>, I want <motivation>, so I can <outcome>.
+  - When <situation>, I want <motivation>, so I can <outcome>.
 
 ---
 
 ## Success Metrics
 
-- **Primary Goal:** Create seamlessly natural-sounding personalized videos where the AI-generated name replacement is indistinguishable from the original speaker's voice.
-- **Success Criteria:** Audio seamlessness quality score based on user feedback and A/B testing (target: >90% of users rate the voice replacement as "natural" or "very natural")
+- **Primary Goal:** <what success looks like in plain words>
+- **Success Criteria:** <what you will measure, with formula> (target: <value>)
 
 ---
 
 ## Scope
 
-| Must‑have (MVP)                         | Nice‑to‑have (Later)          | Explicitly Out (Not now)     |
-| --------------------------------------- | ----------------------------- | ---------------------------- |
-| Single video upload interface           | CSV batch processing          | Social platform integrations |
-| 11Labs Voice ID input                   | Campaign tracking & analytics | Advanced video editing       |
-| AI voice generation & audio replacement | User management system        | Real-time processing status  |
-| Firebase Storage for output videos      | Multiple voice ID profiles    | Video templates library      |
-| Support for MP4/MOV formats             | Download/sharing options      | Payment processing           |
+| Must‑have (MVP) | Nice‑to‑have (Later) | Explicitly Out (Not now) |
+| --------------- | -------------------- | ------------------------ |
+| <bullet>        | <bullet>             | <bullet>                 |
+| <bullet>        | <bullet>             | <bullet>                 |
 
 - **Definition of Done (MVP):**
-  - [ ] User can upload a single video file (MP4/MOV) containing "Hey Watermelon!" placeholder
-  - [ ] User can input 11Labs Voice ID and prospect's first name
-  - [ ] System generates natural-sounding AI voice saying the prospect's name and seamlessly replaces the original audio
-  - [ ] Processed video is stored in Firebase Storage and download link is provided to user
-  - [ ] Audio replacement quality is indistinguishable from original speaker's voice
+  - [ ] <clear acceptance criterion 1>
+  - [ ] <clear acceptance criterion 2>
+  - [ ] <clear acceptance criterion 3>
 
 ---
 
