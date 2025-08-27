@@ -15,6 +15,8 @@ You must always start from tests. We primarily use integration tests that test t
 
 **Important**: We check real documents in firestore after running each firebase function. The same with external services. Never create useless unit tests that just test properties of the class. Instead, test the actual functionality of the class.
 
+Emulator is started automatically when executing `back/run_tests.py` file.
+
 # Development Principles
 
 All code must be clearly readable and maintainable. It must read like a story. Everything should be self-explanatory. You should not need tons of comments to understand what it does. The key idea is to make sure I can understand what the code does in 5 seconds. If I can't, you should refactor the code. Below is a list of principles that you must follow to achieve this:
@@ -36,7 +38,7 @@ Below are the rules that you must follow when developing backend functionality:
 - All firestore document types should always be updated in `src/models/firestore_types.py`.
 - If you are creating multiple documents from an event (like creating items from CSV file) - create a Factory class with a method `.from_csv(csv_path)` - this method should return an array of Document classes.
 - Rules for new firestore and storage types must **always** be up to date in `firestore.rules` or `storage.rules`. Define them as soon as possible.
-- All third party APIs must be wrapped in API wrapper classes.
+- All third party APIs must be wrapped in APIWrapperBase class located in `src/apis/APIWrapperBase.py`.
 - All firestore function request and response types must be in `src/models/function_types.py`.
 - Functions should be named as `{action}_{resource}_callable` or `on_{resource}_{event}`.
 - All complex functionality that involves multiple documents, other APIBase classes, or complex logic should be wrapped in a Service class, located in `src/services/`.

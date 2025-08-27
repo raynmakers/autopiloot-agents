@@ -9,7 +9,7 @@ alwaysApply: false
 This file is a single, self-contained TASK for an AI agent. **One task = one file.**
 Follow the steps below when creating new tasks.
 
-1. **Name your file**: place under `.cursor/tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
 2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
 3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
 4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
@@ -17,7 +17,7 @@ Follow the steps below when creating new tasks.
 6. **Keep scope tight**: this task should be completable independently. If it’s large, split into multiple task files and add them to `dependencies`.
 7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
 8. **Context plan** must list the files to add to the model’s context at the start (mark dep files read-only) and which files must exist at the end.
-9. **Testing strategy** clearly how the feature will be tested and integrated into the extisting test suites.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
 
 ---
 
@@ -129,9 +129,9 @@ export type WordCounts = Record<string, number>;
 
 # 9) Testing Strategy
 
-- Implement unit tests for the new functionality during development.
-- Add new functionality to the end-to-end tests.
-- Run tests locally and ensure they pass.
+- Create an integration test that draws a quartile bar chart and writes it to a file.
+- Run the test and ensure the file exists.
+- Integrate into the existing end-to-end tests.
 
 # 10) Notes / Links
 
