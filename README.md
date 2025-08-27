@@ -1,30 +1,32 @@
-# Next.js + Firebase Full-Stack Template
+# Next.js + Firebase Full-Stack Template with AI-First Development
 
-A comprehensive, production-ready template for building full-stack web applications with Next.js frontend and Python Firebase Functions backend.
+A production-ready template featuring event-driven broker architecture, designed for rapid AI-assisted development. Build full-stack applications with Next.js frontend and Python Firebase Functions backend using parallel AI agents.
 
-## 🚀 Features
+## 🚀 Key Features
+
+### Architecture & Development
+- 🤖 **AI-First Development** - Optimized for multi-agent parallel development
+- 📊 **Event-Driven Architecture** - Database as single source of truth
+- 📝 **Built-in AI Rules** - PRD, ADR, and task templates for AI agents
+- 🔄 **Real-time Updates** - Firestore subscriptions for automatic UI updates
 
 ### Frontend (Next.js)
-
-- 🔐 **Firebase Authentication** - Email/Password, Google Sign-In, Anonymous auth
-- 📊 **Firestore Database** - Real-time NoSQL database integration
+- 🔐 **Firebase Authentication** - Email/Password & Google Sign-In
+- 📊 **Firestore Database** - Real-time NoSQL with subscription hooks
 - 📁 **Firebase Storage** - File upload and management
-- 🎨 **Material-UI (MUI)** - Modern React component library
-- 🔄 **State Management** - React Context for authentication state
-- 🎨 **Form Handling** - React Hook Form with Yup validation
-- 📨 **Notifications** - Notistack for user feedback
+- 🎨 **Material-UI (MUI)** - Modern React components
+- 🔄 **State Management** - React Context for auth
 - 📝 **TypeScript** - Full type safety
-- 🚀 **Next.js 14** - React framework with App Router
+- 🚀 **Next.js 14** - App Router with server components
 
 ### Backend (Python Firebase Functions)
-
-- ⚡ **Firebase Functions** - Serverless Python backend
-- 🏗️ **Broker Architecture** - Organized function structure
-- 📊 **Firestore Integration** - DocumentBase classes for data management
-- 🔒 **Authentication** - Built-in auth wrappers and security
-- 🧪 **Testing Framework** - Comprehensive test suite with Firebase emulators
-- 📦 **Type Safety** - Pydantic models for validation
-- 🎯 **TDD Approach** - Test-first development workflow
+- ⚡ **Serverless Functions** - Auto-scaling Python backend
+- 🏗️ **Broker Architecture** - Event-driven, decoupled design
+- 📊 **DocumentBase Classes** - Structured Firestore management
+- 🔒 **Authentication Wrappers** - Built-in security
+- 🧪 **Integration Testing** - Real API testing with emulators
+- 📦 **Pydantic Models** - Runtime validation
+- 🎯 **TDD Workflow** - Test-first development
 
 ## 📋 Prerequisites
 
@@ -39,7 +41,7 @@ A comprehensive, production-ready template for building full-stack web applicati
 
 1. Go to [Firebase Console](https://console.firebase.google.com)
 2. Click **"Create a project"** or **"Add project"**
-3. Enter your project name (e.g., "my-fullstack-app")
+3. Enter your project name
 4. Choose whether to enable Google Analytics (optional)
 5. Wait for the project to be created
 
@@ -56,6 +58,7 @@ A comprehensive, production-ready template for building full-stack web applicati
 1. Go to **Firestore Database** > **Create database**
 2. Choose **Start in test mode** for development
 3. Select a location closest to your users
+4. Note: You'll secure it with rules before production
 
 #### Storage
 
@@ -66,7 +69,10 @@ A comprehensive, production-ready template for building full-stack web applicati
 #### Functions
 
 1. Go to **Functions** > **Get started**
-2. Follow the setup instructions
+2. **Note**: Requires Blaze (Pay as you go) plan
+   - Firebase has generous free tiers
+   - Required for Functions and advanced features
+3. Follow the setup instructions
 
 ### 3. Get Firebase Configuration
 
@@ -81,26 +87,29 @@ A comprehensive, production-ready template for building full-stack web applicati
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd front
+cd <project-directory>
 
-# Install Firebase CLI
+# Install Firebase CLI globally
 npm install -g firebase-tools
 
 # Login to Firebase
 firebase login
+
+# Configure Firebase project
+# Edit .firebaserc and replace with your project ID
 ```
 
 ## 🖥️ Frontend Setup (Next.js)
 
-Navigate to the frontend directory and set up:
+Navigate to the frontend directory:
 
 ```bash
 cd front
 
 # Install dependencies
-npm install
-# or
 yarn install
+# or
+npm install
 
 # Create environment file
 cp .env.example .env.local
@@ -123,53 +132,76 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 ### Run Frontend Development Server
 
 ```bash
-npm run dev
-# or
 yarn dev
+# or
+npm run dev
 ```
 
 Visit [http://localhost:3000](http://localhost:3000) to see your app.
 
 ## 🐍 Backend Setup (Python Firebase Functions)
 
-Navigate to the backend directory and set up:
+### Setup Python Environment
 
 ```bash
 cd back
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
 
-# Configure your Firebase project (optional but recommended)
-python setup.py
+### Configure Service Account
+
+1. Go to Firebase Console > Project Settings > Service Accounts
+2. Click "Generate new private key" and download the JSON file
+3. Place the JSON file in the `back/` directory
+4. Create `.env` file in `back/` directory:
+
+```bash
+cp .env.example .env
+# Edit .env and add:
+# FIREBASE_SERVICE_ACCOUNT_PATH=./your-service-account-key.json
+# Add any other API keys your project needs
 ```
 
 ### Backend Development Workflow
 
 ```bash
-# Start Firebase emulators (required for development and testing)
+# Start Firebase emulators (required for testing)
 firebase emulators:start
 
 # In another terminal, run tests
 cd back
-source venv/bin/activate  # Activate virtual environment
-pytest
+source venv/bin/activate
 
-# Run with coverage
-pytest --cov=src
+# Run all tests with emulators (recommended)
+python run_tests.py
+
+# Run only unit tests (fast, no emulator needed)
+python run_tests.py --test-type unit --no-emulator
 
 # Run only integration tests
-pytest tests/integration/ -m integration
+python run_tests.py --test-type integration
+
+# Manual testing with pytest
+pytest  # Ensure emulators are running first
 ```
 
 ### Deploy Functions
 
 ```bash
+# Deploy functions only
 firebase deploy --only functions
+
+# Deploy security rules
+firebase deploy --only firestore:rules,storage:rules
+
+# Deploy everything
+firebase deploy
 ```
 
 ## 📁 Project Structure
@@ -196,56 +228,42 @@ nextjs-firebase-ai-coding-template/
 │   │   │   └── storage.ts         # Storage operations
 │   │   ├── theme/                 # MUI theme configuration
 │   │   └── config.ts              # App configuration
+│   ├── .env.example              # Environment variables template
 │   ├── package.json
-│   └── README.md
+│   └── FRONTEND_RULES.md         # Frontend-specific AI rules
 ├── back/                          # Python Firebase Functions Backend
 │   ├── main.py                    # Firebase function exports
 │   ├── run_tests.py              # Test runner with emulator management
 │   ├── requirements.txt           # Python dependencies
 │   ├── pytest.ini                # Pytest configuration
-│   ├── Makefile                  # Build and deployment commands
+│   ├── .env.example              # Backend environment template
+│   ├── BACKEND_RULES.md         # Backend-specific AI rules
+│   ├── ADR.md                    # Architecture Decision Records
 │   ├── src/
 │   │   ├── apis/                  # Database interfaces and API clients
-│   │   │   └── Db.py              # Database singleton with Db
-│   │   ├── brokers/
+│   │   │   └── Db.py              # Database singleton
+│   │   ├── brokers/               # Firebase function handlers
 │   │   │   ├── callable/          # Client-callable functions
-│   │   │   │   ├── create_item.py
-│   │   │   │   ├── get_item.py
-│   │   │   │   └── example_callable.py
 │   │   │   ├── https/             # HTTP endpoints
-│   │   │   │   ├── health_check.py
-│   │   │   │   └── webhook_handler.py
-│   │   │   └── triggered/         # Event triggers
-│   │   │       ├── on_item_created.py
-│   │   │       ├── on_item_updated.py
-│   │   │       └── on_item_deleted.py
+│   │   │   └── triggered/         # Event-triggered functions
 │   │   ├── documents/             # Firestore document classes
 │   │   │   ├── DocumentBase.py    # Base document class
-│   │   │   ├── items/             # Items collection
-│   │   │   │   ├── Item.py        # Document class
-│   │   │   │   └── ItemFactory.py # Factory class
-│   │   │   └── categories/        # Categories collection
-│   │   │       ├── Category.py    # Document class
-│   │   │       └── CategoryFactory.py # Factory class
+│   │   │   └── [collections]/     # Collection-specific classes
 │   │   ├── models/                # Data models and types
-│   │   │   ├── firestore_types.py
-│   │   │   ├── function_types.py
-│   │   │   ├── util_types.py
-│   │   │   └── user_types.py
+│   │   │   ├── firestore_types.py # Firestore document types
+│   │   │   ├── function_types.py  # Function request/response types
+│   │   │   └── util_types.py      # Utility types
 │   │   ├── services/              # Business logic services
-│   │   │   └── item_service.py
 │   │   ├── util/                  # Utility functions
-│   │   │   ├── cors_response.py
-│   │   │   ├── db_auth_wrapper.py
-│   │   │   └── logger.py
 │   │   └── exceptions/            # Custom exceptions
-│   │       └── CustomError.py
 │   └── tests/
 │       ├── conftest.py            # Pytest fixtures
 │       ├── integration/           # Integration tests
-│       │   └── test_item_flow.py
-│       ├── unit/                  # Unit tests
-│       └── util/                  # Test utilities
+│       └── unit/                  # Unit tests
+├── tasks/                         # AI Development Templates
+│   ├── PRD.md                    # Product Requirements Document template
+│   └── TASK_TEMPLATE.md          # Task breakdown template
+├── AGENTS.md                     # AI agent instructions
 ├── firebase.json                  # Firebase configuration
 ├── firestore.rules               # Firestore security rules
 ├── storage.rules                 # Storage security rules
@@ -285,51 +303,89 @@ service firebase.storage {
 }
 ```
 
-## 💻 Development Workflow
+## 🤖 AI-Assisted Development Workflow
+
+### 1. Project Scoping (GPT-4o or similar)
+
+```bash
+# Generate PRD from requirements
+# Use tasks/PRD.md template
+# Ask AI to interview you until it can fill the PRD
+
+# Break down into tasks
+# Use tasks/TASK_TEMPLATE.md
+# Have AI create specific, actionable tasks with dependencies
+```
+
+### 2. Parallel Agent Development
+
+Launch multiple AI agents (Cursor, Claude Code, etc.) in parallel:
+
+```bash
+# Agent 1: Frontend auth
+@AGENTS.md @FRONTEND_RULES.md implement [task1.md]
+
+# Agent 2: Backend API
+@AGENTS.md @BACKEND_RULES.md implement [task2.md]
+
+# Agent 3: Database models
+@AGENTS.md @BACKEND_RULES.md implement [task3.md]
+
+# Agent 4: Integration tests
+@AGENTS.md implement integration tests for [feature]
+```
+
+### 3. Testing Workflow
+
+```bash
+# Backend: Always write integration tests first
+cd back
+source venv/bin/activate
+python run_tests.py  # Tests with real APIs
+
+# Frontend: Test with emulators
+firebase emulators:start
+cd front && yarn dev
+```
+
+### 4. Documentation
+
+After significant changes, update ADR:
+
+```bash
+# Tell agent to document decisions
+"Document the key architectural decisions in back/ADR.md"
+```
+
+## 💻 Traditional Development Workflow
 
 ### Frontend Development
 
 ```bash
 cd front
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Run linting
-npm run lint
+yarn dev          # Start development server
+yarn build        # Build for production
+yarn lint         # Run linting
 ```
 
 ### Backend Development
 
 ```bash
 cd back
-
-# Activate virtual environment
 source venv/bin/activate
 
-# Run all tests with emulators (recommended)
-python run_tests.py
-
-# Run only unit tests (fast)
-python run_tests.py --test-type unit --no-emulator
-
-# Run only integration tests
-python run_tests.py --test-type integration
-
-# Manual testing alternative
-firebase emulators:start  # In one terminal
-pytest                    # In another terminal
+# Run tests
+python run_tests.py                    # All tests with emulators
+python run_tests.py --test-type unit   # Unit tests only
+python run_tests.py --test-type integration  # Integration tests only
 ```
 
 ### Full-Stack Development
 
 1. Start Firebase emulators: `firebase emulators:start`
-2. In one terminal: `cd front && npm run dev`
-3. In another terminal: `cd back && source venv/bin/activate`
-4. Test both frontend and backend integration
+2. Frontend terminal: `cd front && yarn dev`
+3. Backend terminal: `cd back && source venv/bin/activate`
+4. Make changes and test integration
 
 ## 📚 Usage Examples
 
@@ -428,11 +484,9 @@ cd back
 firebase deploy --only functions
 ```
 
-### Environment Configuration
+### Production Configuration
 
-Update the following files with your Firebase project details:
-
-**`back/src/apis/Db.py`** - Update the AppConfiguration class:
+1. **Update Project IDs** in `back/src/apis/Db.py`:
 
 ```python
 def is_prod_environment(self) -> bool:
@@ -442,80 +496,127 @@ def is_dev_environment(self) -> bool:
     return self.project_id in ["your-dev-project-id"]
 ```
 
-## 🧪 Testing
+2. **Deploy Security Rules**:
 
-### Backend Testing Principles
+```bash
+# Review and customize rules first
+cat firestore.rules
+cat storage.rules
 
-1. **Start with integration tests** - Test actual Firebase Functions via HTTP
-2. **Test error scenarios first** - Missing params, invalid data, auth failures
-3. **Test success scenarios** - Verify both HTTP response AND Firestore documents
-4. **Use Firebase emulators** - Never mock Firebase/Firestore operations
-5. **Test complete workflows** - End-to-end user journeys
+# Deploy rules
+firebase deploy --only firestore:rules,storage:rules
+```
+
+3. **Set Firebase Indexes** (if needed):
+- Check console for index requirements
+- Click provided links to create indexes
+
+## 🧪 Testing Strategy
+
+### Testing Philosophy
+
+1. **Integration First** - Test real Firebase Functions, not mocks
+2. **Error Cases First** - Test failure scenarios before success
+3. **Full Verification** - Check both API responses and database state
+4. **Use Emulators** - Never mock Firebase services
+5. **End-to-End** - Test complete user workflows
+
+### AI Testing Guidelines
+
+When working with AI agents:
+
+```bash
+# Always tell AI to:
+1. Write integration tests with real data
+2. Run tests and verify they pass
+3. Test with actual files/APIs, not mocks
+4. Show you where to find generated outputs
+```
 
 ### Example Test Pattern
 
 ```python
-def test_create_item_success(self, firebase_emulator, setup):
-    # Act - Call actual Firebase Function
+def test_feature_integration(self, firebase_emulator, setup):
+    # Arrange - Prepare test data
+    test_data = {"field": "value"}
+    
+    # Act - Call real Firebase Function
     response = requests.post(
-        f"{firebase_emulator['base_url']}/create_item_callable",
-        json={"data": {"name": "Test Item"}},
+        f"{firebase_emulator['base_url']}/function_name",
+        json={"data": test_data},
         headers={"User-Id": setup.user_id}
     )
 
-    # Assert HTTP response
+    # Assert - Verify response
     assert response.status_code == 200
     result = response.json()["result"]
-    assert result["success"] is True
-
-    # Assert Firestore document was created correctly
-    item = Item(result["itemId"])
-    assert item.doc.name == "Test Item"
-    assert item.doc.ownerUid == setup.user_id
+    
+    # Assert - Verify database state
+    doc = DocumentClass(result["docId"])
+    assert doc.exists
+    assert doc.data.field == "value"
 ```
 
-## 🎯 Key Principles
+## 🎯 Architecture Principles
 
-### Backend Architecture
+### Event-Driven Broker Architecture
 
-- All Firestore documents must be modified **strictly** within `DocumentBase` classes
-- Never make calls to Firestore directly - always use the `Db` class
-- Each document type should have its own class extending `DocumentBase`
-- Factory classes are co-located with their document classes in collection subfolders
+- **Database as Truth** - Firestore is the single source of truth
+- **No Direct Responses** - Backend saves to DB, frontend subscribes
+- **Real-time Updates** - UI updates automatically via Firestore hooks
+- **Decoupled Design** - Frontend and backend communicate through database
+
+### Backend Principles
+
+- **DocumentBase Pattern** - All Firestore operations through DocumentBase classes
+- **No Direct DB Calls** - Always use the Db singleton
+- **One Class Per File** - Maintain clear file organization
+- **Broker Pattern** - Handlers stay thin, logic in services
 
 ### Type Safety
 
-- All Firestore document types should be defined in `models/firestore_types.py`
-- Function request/response types should be defined in `models/function_types.py`
-- Use Pydantic models for validation
+- **Pydantic Models** - Define all types in models/
+- **Runtime Validation** - Catch errors early
+- **Type as Documentation** - Types serve as API contracts
 
-### Code Organization
+### AI Development Principles
 
-- One class per file
-- Keep brokers focused on request/response handling
-- Business logic belongs in services or document classes
-- Factories handle complex object creation
+- **Parallel Agents** - Run multiple agents simultaneously
+- **Test-Driven** - AI must write and run tests
+- **Documentation** - Update ADR after major decisions
+- **Real APIs** - Never let AI mock critical services
 
-## 📜 Scripts
+## 📜 Available Commands
 
-### Frontend Scripts
+### Frontend Commands
 
 ```bash
 cd front
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run start    # Start production server
-npm run lint     # Run ESLint
+yarn dev         # Start development server
+yarn build       # Build for production
+yarn start       # Start production server
+yarn lint        # Run ESLint
+yarn type-check  # Run TypeScript checks
 ```
 
-### Backend Scripts
+### Backend Commands
 
 ```bash
 cd back
-make test        # Run tests
-make coverage    # Run tests with coverage
-make deploy-dev  # Deploy to development
-make deploy-prod # Deploy to production
+python run_tests.py              # Run all tests with emulators
+python run_tests.py --test-type unit  # Unit tests only
+python run_tests.py --test-type integration  # Integration tests
+pytest --cov=src                 # Run with coverage report
+```
+
+### Firebase Commands
+
+```bash
+firebase emulators:start         # Start local emulators
+firebase deploy                  # Deploy everything
+firebase deploy --only functions # Deploy functions only
+firebase deploy --only hosting   # Deploy frontend only
+firebase deploy --only firestore:rules  # Deploy Firestore rules
 ```
 
 ## 🔧 Environment Variables
@@ -532,17 +633,38 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
 
-### Backend Environment Variables
+### Environment Variables
 
-Required environment variables for Firebase Functions:
+**Backend (`back/.env`)**:
+- `FIREBASE_SERVICE_ACCOUNT_PATH` - Path to service account JSON
+- `[YOUR_API_KEYS]` - Any third-party API keys needed
 
-- `GCLOUD_PROJECT` - Firebase project ID
-- `FIREBASE_CONFIG` - Firebase configuration (auto-set in Functions)
-- `SIGNED_URL_SERVICE_ACCOUNT_JSON` - For generating signed URLs (optional)
+**Frontend (`front/.env.local`)**:
+- All `NEXT_PUBLIC_FIREBASE_*` variables from Firebase config
+- Any other public environment variables
 
-## 📄 License
+**Note**: Never commit `.env` files or service account keys to version control!
 
-MIT
+## 🚀 Quick Start Checklist
+
+- [ ] Create Firebase project
+- [ ] Enable Authentication, Firestore, Storage, Functions
+- [ ] Download service account key
+- [ ] Configure environment variables
+- [ ] Install dependencies (front & back)
+- [ ] Start emulators
+- [ ] Run tests
+- [ ] Launch development servers
+- [ ] Create PRD with AI
+- [ ] Generate tasks from PRD
+- [ ] Launch parallel AI agents
+
+## 📚 Resources
+
+- [Firebase Documentation](https://firebase.google.com/docs)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Cursor AI Editor](https://cursor.sh)
+- [Claude Code](https://claude.ai/code)
 
 ## 🆘 Support
 
@@ -550,4 +672,4 @@ For issues and questions, please open an issue on GitHub.
 
 ---
 
-Built with ❤️ using Next.js, Firebase, and Python
+Built for the AI development era with Next.js, Firebase, and Python
