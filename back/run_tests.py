@@ -71,7 +71,7 @@ if __name__ == "__main__":
         emulator_proc = start_functions_emulator(
             use_firestore_emulator=True, 
             use_storage_emulator=True, 
-            show_logs=args.show_logs
+            show_logs=args.show_logs or True  # Show logs by default for debugging
         )
 
         # Environment variables are set by start_functions_emulator but verify

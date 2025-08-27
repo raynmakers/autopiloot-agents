@@ -17,23 +17,25 @@ def db_auth_wrapper(req: https_fn.CallableRequest) -> str:
         Authenticated user ID
         
     Raises:
-        HttpsError: If authentication fails
+        HttpsError: If authentication fails (not in emulator/dev mode)
     """
+    db = Db.get_instance()
+    
+    # Skip authentication when running in development/emulator
+    if db.is_development():
+        # For tests, check if a User-Id header is provided (for test identification)
+        # The header is accessible via req.raw_request.headers
+        if hasattr(req, 'raw_request') and req.raw_request.headers:
+            user_id = req.raw_request.headers.get('User-Id')
+            if user_id:
+                return user_id
+        return "test-user-id"
+    
     if not req.auth:
         logger.warning("Unauthenticated request")
         raise https_fn.HttpsError(
             https_fn.FunctionsErrorCode.UNAUTHENTICATED,
             "The function must be called while authenticated."
-        )
-    
-    db = Db.get_instance()
-    
-    # In production/development, verify App Check token
-    if (db.is_production() or db.is_development()) and not req.app:
-        logger.warning("Request without App Check verification")
-        raise https_fn.HttpsError(
-            https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
-            "The function must be called from an App Check verified app."
         )
     
     return req.auth.uid

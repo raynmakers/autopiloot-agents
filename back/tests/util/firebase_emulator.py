@@ -28,10 +28,15 @@ def start_functions_emulator(use_firestore_emulator: bool = True, use_storage_em
     """Start Firebase emulators for testing."""
     env = os.environ.copy()
     project_dir_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../")
+        os.path.join(os.path.dirname(__file__), "../../../")
     )
 
     firebase_config_path = os.path.join(project_dir_root, "firebase.json")
+    
+    # Debug: Print paths
+    print(f"Project root: {project_dir_root}")
+    print(f"Firebase config path: {firebase_config_path}")
+    print(f"Firebase config exists: {os.path.exists(firebase_config_path)}")
 
     # Clean up any existing Firebase app
     try:
@@ -70,6 +75,8 @@ def start_functions_emulator(use_firestore_emulator: bool = True, use_storage_em
         "emulators:start",
         "--only",
         ",".join(emulator_services),
+        "--project",
+        "test-project",
         "--config",
         firebase_config_path,
     ]
@@ -79,30 +86,63 @@ def start_functions_emulator(use_firestore_emulator: bool = True, use_storage_em
         cmd,
         env=env,
         cwd=project_dir_root,
-        stdout=subprocess.PIPE if not show_logs else None,
-        stderr=subprocess.STDOUT if not show_logs else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
     )
 
     print("Waiting for Firebase Emulators to become ready...")
     try:
-        timeout = 60
-        for _ in range(timeout // 2):
+        timeout = 120  # 2 minutes timeout
+        start_time = time.time()
+        ready_found = False
+        
+        while time.time() - start_time < timeout:
+            # Check if process is still running
+            if emulator_proc.poll() is not None:
+                stdout, stderr = emulator_proc.communicate()
+                print(f"Emulator process died. Exit code: {emulator_proc.returncode}")
+                print(f"Output: {stdout}")
+                raise RuntimeError("Firebase emulator process died unexpectedly")
+            
+            # Try to read output (non-blocking)
             try:
-                # Check if Functions emulator is ready
-                subprocess.check_call(
-                    ["curl", "-s", firebase_emulator_base_url],
-                    stdout=subprocess.DEVNULL,
-                    cwd=project_dir_root,
-                )
-                print("Emulators are ready.")
-                break
-            except subprocess.CalledProcessError:
+                # Use select to check if there's data to read (Unix only)
+                import select
+                if select.select([emulator_proc.stdout], [], [], 1):
+                    line = emulator_proc.stdout.readline()
+                    if line:
+                        if show_logs:
+                            print(line.rstrip())
+                        if "All emulators ready!" in line:
+                            ready_found = True
+                            break
+            except ImportError:
+                # Fallback for non-Unix systems - just wait a bit
                 time.sleep(2)
-        else:
+                if time.time() - start_time > 30:  # Give it at least 30 seconds
+                    ready_found = True
+                    break
+            except Exception as e:
+                print(f"Error reading emulator output: {e}")
+                break
+            
+            time.sleep(1)
+        
+        if not ready_found:
             raise RuntimeError("Firebase emulators did not start in time.")
+            
+        print("Emulators are ready!")
+        
     except Exception as e:
-        emulator_proc.terminate()
-        emulator_proc.wait(timeout=10)
+        print(f"Error starting emulators: {e}")
+        if emulator_proc:
+            emulator_proc.terminate()
+            try:
+                emulator_proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                emulator_proc.kill()
         raise e
 
     time.sleep(5)  # Additional wait for stability

@@ -15,7 +15,7 @@ You must always start from tests. We primarily use integration tests that test t
 
 **Important**: We check real documents in firestore after running each firebase function. The same with external services. Never create useless unit tests that just test properties of the class. Instead, test the actual functionality of the class.
 
-Emulator is started automatically when executing `back/run_tests.py` file.
+Emulator is started automatically when executing `back/run_tests.py` file. Only run tests by running this file, otherwise, they will not work.
 
 # Development Principles
 

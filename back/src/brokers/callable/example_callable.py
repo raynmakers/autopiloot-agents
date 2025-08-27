@@ -35,11 +35,14 @@ def example_callable(req: https_fn.CallableRequest):
         
         logger.info(f"Example callable invoked by user {uid} with message: {message}")
         
+        from src.apis.Db import Db
+        db = Db.get_instance()
+        
         return {
             "success": True,
             "echo": message,
             "userId": uid,
-            "timestamp": https_fn.firestore.SERVER_TIMESTAMP
+            "timestamp": db.timestamp_now().isoformat()
         }
         
     except https_fn.HttpsError:

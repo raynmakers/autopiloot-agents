@@ -40,7 +40,7 @@ def health_check(req: https_fn.Request):
         # Prepare response
         response_data = {
             "status": "healthy" if db_status == "healthy" else "degraded",
-            "timestamp": https_fn.firestore.SERVER_TIMESTAMP,
+            "timestamp": db.timestamp_now().isoformat(),
             "environment": "production" if db.is_production() else "development",
             "services": {
                 "database": db_status,

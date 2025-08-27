@@ -86,6 +86,28 @@ class Category(DocumentBase[CategoryDoc]):
         
         return items_count[0][0].value if items_count else 0
     
+    def increment_item_count(self, increment_by: int = 1):
+        """Increment the item count for this category.
+        
+        Args:
+            increment_by: Amount to increment by (default: 1)
+        """
+        self.db.increment_counter(f"categories/{self.id}", "itemCount", increment_by)
+        # Update local document if it exists
+        if hasattr(self, '_doc') and self._doc:
+            current_count = getattr(self._doc, 'itemCount', 0) or 0
+            self._doc.itemCount = current_count + increment_by
+        logger.info(f"Incremented category {self.id} item count by {increment_by}")
+    
+    def decrement_item_count(self, decrement_by: int = 1):
+        """Decrement the item count for this category.
+        
+        Args:
+            decrement_by: Amount to decrement by (default: 1)
+        """
+        self.increment_item_count(-decrement_by)
+        logger.info(f"Decremented category {self.id} item count by {decrement_by}")
+    
     def validate_permissions(self, user_id: str) -> bool:
         """Check if user has permissions for this category.
         

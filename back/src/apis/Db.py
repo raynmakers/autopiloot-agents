@@ -25,8 +25,6 @@ class Db(ABC):
     _app_config = None  # Class-level AppConfiguration instance
     server_timestamp = firestore.firestore.SERVER_TIMESTAMP
 
-    collections: Dict[str, Any] = {}
-
     def __new__(cls, *args, **kwargs):
         """Ensure only one instance per class exists"""
         if cls.__name__ not in cls._instances:
@@ -39,31 +37,48 @@ class Db(ABC):
         if hasattr(self, "_initialized"):
             return
 
-        self._init_firestore()
+        # Delay Firestore initialization until it's actually needed
+        self._firestore = None
+        self.logger = logging.getLogger("firebase-functions")
         self._init_collections()
         self._initialized = True
 
+    @property
+    def firestore(self):
+        """Lazy initialization of Firestore client."""
+        if self._firestore is None:
+            self._init_firestore()
+        return self._firestore
+
     def _init_firestore(self):
         """Initialize Firestore client and base configuration."""
-        self.firestore = firestore.client()
-        self.logger = logging.getLogger("firebase-functions")
+        # Firebase app should already be initialized by main.py
+        # Just create the Firestore client
+        self._firestore = firestore.client()
         self.logger.info("Firestore initialized")
 
     def _init_collections(self):
-        """Initialize collection references."""
-        self.collections = {
-            # Base collection that all projects need
-            "users": self.firestore.collection("users"),
-            
-            # Project-specific collections
-            "items": self.firestore.collection("items"),
-            "categories": self.firestore.collection("categories"),
-            "itemActivities": lambda item_id: self.firestore.collection(f"items/{item_id}/activities"),
-            
-            # Add more collections as needed
-            # "collection_name": self.firestore.collection("collection_name"),
-            # "subcollection": lambda parent_id: self.firestore.collection(f"parent/{parent_id}/subcollection"),
-        }
+        """Initialize collection references with lazy evaluation."""
+        self._collections = None
+
+    @property
+    def collections(self):
+        """Lazy initialization of collection references."""
+        if self._collections is None:
+            self._collections = {
+                # Base collection that all projects need
+                "users": self.firestore.collection("users"),
+                
+                # Project-specific collections
+                "items": self.firestore.collection("items"),
+                "categories": self.firestore.collection("categories"),
+                "itemActivities": lambda item_id: self.firestore.collection(f"items/{item_id}/activities"),
+                
+                # Add more collections as needed
+                # "collection_name": self.firestore.collection("collection_name"),
+                # "subcollection": lambda parent_id: self.firestore.collection(f"parent/{parent_id}/subcollection"),
+            }
+        return self._collections
 
     @classmethod
     def get_instance(cls):
@@ -187,6 +202,35 @@ class Db(ABC):
             blob.delete()
 
     # Utility functions
+    def increment_counter(self, document_path: str, field: str, increment_by: int = 1):
+        """Increment a counter field in a document atomically.
+        
+        Args:
+            document_path: Path to document (e.g., "categories/cat123")
+            field: Name of the field to increment
+            increment_by: Amount to increment by (default: 1)
+        """
+        doc_ref = self.firestore.document(document_path)
+        doc_ref.update({
+            field: firestore.firestore.Increment(increment_by)
+        })
+    
+    def timestamp_now(self) -> datetime:
+        """Get current timestamp for use in documents.
+        
+        Returns:
+            Current UTC datetime
+        """
+        return datetime.now(timezone.utc)
+    
+    def get_created_at(self) -> datetime:
+        """Get timestamp for document creation.
+        
+        Returns:
+            Current UTC datetime
+        """
+        return self.timestamp_now()
+    
     def converter(self, cls: Type[object]):
         return {
             "toFirestore": lambda doc: doc.__dict__,
@@ -195,12 +239,16 @@ class Db(ABC):
 
     @staticmethod
     def is_production():
-        """Check if running in production environment using AppConfiguration"""
+        """Check if running in production environment using AppConfiguration and FUNCTIONS_EMULATOR."""
+        if os.getenv("FUNCTIONS_EMULATOR", "false").lower() == "true":
+            return False
         return os.getenv("ENV") == "production"
 
     @staticmethod
     def is_development():
-        """Check if running in development environment using AppConfiguration"""
+        """Check if running in development environment using AppConfiguration and FUNCTIONS_EMULATOR."""
+        if os.getenv("FUNCTIONS_EMULATOR", "false").lower() == "true":
+            return True
         return os.getenv("ENV") == "development"
 
     @staticmethod

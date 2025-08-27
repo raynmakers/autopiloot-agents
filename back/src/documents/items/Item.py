@@ -1,6 +1,7 @@
 """Item document class."""
 
 from typing import Optional, List
+from firebase_admin import firestore
 from src.documents.DocumentBase import DocumentBase
 from src.apis.Db import Db
 from src.models.firestore_types import ItemDoc, ItemActivityDoc
@@ -91,7 +92,7 @@ class Item(DocumentBase[ItemDoc]):
             itemId=self.id,
             action=action,
             userId=user_id,
-            details=details,
+            details=details or {},
             createdAt=self.db.get_created_at(),
             lastUpdatedAt=self.db.get_created_at(),
         )
@@ -111,7 +112,7 @@ class Item(DocumentBase[ItemDoc]):
         activities_collection = self.db.collections["itemActivities"](self.id)
         activities = (
             activities_collection
-            .order_by("createdAt", direction="DESCENDING")
+            .order_by("createdAt", direction=firestore.Query.DESCENDING)
             .limit(limit)
             .get()
         )
@@ -143,7 +144,7 @@ class Item(DocumentBase[ItemDoc]):
                 activity.reference.delete()
             
             # Delete the item document
-            super().delete()
+            self.collection_ref.document(self.id).delete()
             logger.info(f"Deleted item {self.id} and all associated data")
             
         except Exception as e:

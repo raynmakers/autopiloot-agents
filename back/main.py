@@ -8,18 +8,27 @@ from firebase_admin import initialize_app
 from firebase_admin import credentials
 import os
 
+# Set emulator environment variables if running in emulators
+if os.getenv('FUNCTIONS_EMULATOR') == 'true':
+    # These are typically already set by the test runner, but ensure they're set
+    if not os.getenv('FIRESTORE_EMULATOR_HOST'):
+        os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:8080'
+    if not os.getenv('FIREBASE_AUTH_EMULATOR_HOST'):
+        os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = 'localhost:9099'
+    if not os.getenv('FIREBASE_STORAGE_EMULATOR_HOST'):
+        os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = 'localhost:9199'
+
 # Initialize Firebase Admin SDK
-if os.getenv("ENV") == "production":
-    initialize_app()
-else:
-    # For development/testing with service account
-    service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
-    if service_account_path and os.path.exists(service_account_path):
-        cred = credentials.Certificate(service_account_path)
-        initialize_app(cred)
-    else:
-        # Use default credentials if no service account specified
+# The SDK automatically detects emulator environment variables
+# No credentials needed when running in emulators
+try:
+    import firebase_admin
+    # Only initialize if no app exists yet
+    if not firebase_admin._apps:
         initialize_app()
+except ValueError:
+    # App already initialized (can happen in tests)
+    pass
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

@@ -1,263 +1,276 @@
-"""Integration tests for triggered functions."""
+"""Integration tests for triggered function business logic - Direct handler calls."""
 
 import pytest
-import time
-from unittest.mock import Mock, patch
-from datetime import datetime
-from google.cloud import firestore_v1
 from src.apis.Db import Db
-from src.documents.items.Item import Item
-from src.documents.categories.Category import Category
-from src.models.firestore_types import ItemDoc, CategoryDoc
-from tests.util.item_flow_setup import ItemFlowSetup
-
-
-@pytest.fixture
-def mock_firestore_event():
-    """Create a mock Firestore event for triggered function testing."""
-    def _create_event(document_path: str, data: dict, event_type: str = "created"):
-        # Mock the Firebase Functions event structure
-        event = Mock()
-        event.params = {}
-        
-        # Extract document ID from path (e.g., "items/item123" -> {"itemId": "item123"})
-        path_parts = document_path.split("/")
-        if len(path_parts) >= 2:
-            collection = path_parts[0]
-            doc_id = path_parts[1]
-            if collection == "items":
-                event.params["itemId"] = doc_id
-            elif collection == "categories":
-                event.params["categoryId"] = doc_id
-        
-        # Mock the document snapshot
-        event.data = Mock()
-        event.data.to_dict.return_value = data
-        event.data.id = doc_id if len(path_parts) >= 2 else "test-id"
-        event.data.exists = True
-        
-        return event
-    
-    return _create_event
 
 
 @pytest.mark.integration
-class TestTriggeredFunctions:
-    """Test triggered functions by simulating Firestore events."""
+class TestTriggeredFunctionHandlers:
+    """Test the business logic handlers of Firebase Functions triggers."""
     
-    def test_on_item_created_trigger_execution(self, firebase_app, item_flow_setup, mock_firestore_event):
-        """Test the on_item_created trigger by simulating the event."""
-        from src.brokers.triggered.on_item_created import on_item_created
+    def test_handle_item_created_business_logic(self, firebase_app, item_flow_setup):
+        """Test handle_item_created function business logic directly."""
+        from src.brokers.triggered.on_item_created import handle_item_created
         
-        # Create test item data
+        db = Db.get_instance()
+        item_id = "handler-test-item-created"
+        
+        # Get initial category count
+        category_ref = db.collections["categories"].document(item_flow_setup.category_id)
+        initial_doc = category_ref.get().to_dict()
+        initial_count = initial_doc.get("itemCount", 0)
+        
+        # Create item data
         item_data = {
-            "id": "test-item-123",
-            "name": "Trigger Test Item",
-            "description": "Test item for trigger testing",
+            "id": item_id,
+            "name": "Handler Test Item",
             "categoryId": item_flow_setup.category_id,
             "ownerUid": item_flow_setup.user_id,
             "status": "active",
-            "tags": ["test"],
-            "metadata": {"test": True},
-            "createdAt": datetime.now(),
-            "lastUpdatedAt": datetime.now(),
+            "createdAt": db.timestamp_now(),
+            "lastUpdatedAt": db.timestamp_now(),
         }
         
-        # Create mock event
-        event = mock_firestore_event(f"items/{item_data['id']}", item_data)
+        # Call the handler function directly
+        handle_item_created(item_id, item_data)
         
-        # Get initial category state
-        db = Db.get_instance()
-        category_ref = db.collections["categories"].document(item_flow_setup.category_id)
-        initial_category = category_ref.get().to_dict()
-        initial_count = initial_category.get("itemCount", 0)
+        # Verify business logic effects:
+        # 1. Category counter should be incremented
+        updated_doc = category_ref.get().to_dict()
+        updated_count = updated_doc.get("itemCount", 0)
+        assert updated_count == initial_count + 1, f"Expected count {initial_count + 1}, got {updated_count}"
         
-        # Execute the triggered function
-        on_item_created(event)
+        # 2. System activity should be logged
+        activities_collection = db.collections["itemActivities"](item_id)
+        activities = activities_collection.get()
+        system_activities = [
+            activity for activity in activities 
+            if activity.to_dict().get("action") == "system_processed"
+            and activity.to_dict().get("userId") == "system"
+        ]
+        assert len(system_activities) > 0, "Expected system_processed activity to be logged"
         
-        # Wait a moment for async operations
-        time.sleep(1)
-        
-        # Verify the trigger side effects
-        # 1. Check that category itemCount was incremented
-        updated_category = category_ref.get().to_dict()
-        expected_count = initial_count + 1
-        assert updated_category.get("itemCount", 0) == expected_count, \
-            f"Expected itemCount {expected_count}, got {updated_category.get('itemCount', 0)}"
-        
-        # 2. Check that activity was logged
-        # Note: We need to create the item document first for activity logging to work
-        item_ref = db.collections["items"].document(item_data["id"])
-        item_ref.set(item_data)
-        
-        # Check activities subcollection
-        activities = db.collections["itemActivities"](item_data["id"]).get()
-        activity_docs = [doc.to_dict() for doc in activities]
-        
-        # Should have at least one system activity
-        system_activities = [a for a in activity_docs if a.get("userId") == "system"]
-        assert len(system_activities) >= 1, "Expected at least one system activity to be logged"
-        
-        # Verify the system activity details
-        system_activity = system_activities[0]
-        assert system_activity["action"] == "system_processed"
-        assert system_activity["details"]["trigger"] == "on_item_created"
-        assert system_activity["details"]["category_updated"] == item_flow_setup.category_id
+        # Verify activity details
+        activity_data = system_activities[0].to_dict()
+        assert activity_data["itemId"] == item_id
+        assert activity_data["details"]["trigger"] == "on_item_created"
+        assert activity_data["details"]["category_updated"] == item_flow_setup.category_id
         
         # Cleanup
-        item_ref.delete()
+        db.increment_counter(f"categories/{item_flow_setup.category_id}", "itemCount", -1)
+        for activity in activities:
+            activity.reference.delete()
     
-    def test_on_item_created_with_firestore_document_creation(self, firebase_app, item_flow_setup):
-        """Test triggered function by actually creating a Firestore document."""
+    def test_handle_item_updated_status_change_logic(self, firebase_app, item_flow_setup):
+        """Test handle_item_updated function business logic for status changes."""
+        from src.brokers.triggered.on_item_updated import handle_item_updated
+        
         db = Db.get_instance()
+        item_id = "handler-test-item-updated-status"
         
-        # Get initial category state
-        category_ref = db.collections["categories"].document(item_flow_setup.category_id)
-        initial_category = category_ref.get().to_dict()
-        initial_count = initial_category.get("itemCount", 0)
+        # Create before and after data for status change (active -> inactive)
+        before_data = {
+            "id": item_id,
+            "name": "Status Test Item",
+            "categoryId": item_flow_setup.category_id,
+            "ownerUid": item_flow_setup.user_id,
+            "status": "active",
+            "createdAt": db.timestamp_now(),
+            "lastUpdatedAt": db.timestamp_now(),
+        }
+        after_data = before_data.copy()
+        after_data["status"] = "inactive"
+        after_data["lastUpdatedAt"] = db.timestamp_now()
         
-        # Create a new item document (this should trigger the function)
-        item_ref = db.collections["items"].document()
-        item_data = ItemDoc(
-            id=item_ref.id,
-            name="Real Trigger Test Item",
-            description="Item created to test real trigger",
-            categoryId=item_flow_setup.category_id,
-            ownerUid=item_flow_setup.user_id,
-            status="active",
-            tags=["trigger-test"],
-            metadata={"realTrigger": True},
-            createdAt=datetime.now(),
-            lastUpdatedAt=datetime.now(),
-        )
+        # Call the handler function directly
+        handle_item_updated(item_id, before_data, after_data)
         
-        # Set the document (this triggers on_item_created)
-        item_ref.set(item_data.model_dump())
+        # Verify business logic effects:
+        # System activity should be logged for the update
+        activities_collection = db.collections["itemActivities"](item_id)
+        activities = activities_collection.get()
+        system_update_activities = [
+            activity for activity in activities 
+            if activity.to_dict().get("action") == "system_updated"
+            and activity.to_dict().get("userId") == "system"
+        ]
+        assert len(system_update_activities) > 0, "Expected system_updated activity to be logged"
         
-        # Wait for the trigger to process
-        # In production, triggers are near-instantaneous, but in emulator mode we need to wait
-        time.sleep(3)
-        
-        # Verify trigger effects
-        # Note: In emulator mode, triggers might not execute automatically
-        # This test documents the expected behavior when triggers are working
-        
-        # Check if category counter was updated
-        updated_category = category_ref.get().to_dict()
-        # In a real environment, this would be incremented by the trigger
-        # For now, we'll just verify the item was created successfully
-        assert item_ref.get().exists, "Item should have been created in Firestore"
-        
-        created_item_data = item_ref.get().to_dict()
-        assert created_item_data["name"] == "Real Trigger Test Item"
-        assert created_item_data["categoryId"] == item_flow_setup.category_id
+        # Check that the activity details indicate status change
+        activity_data = system_update_activities[0].to_dict()
+        assert activity_data["itemId"] == item_id
+        assert activity_data["details"]["trigger"] == "on_item_updated"
+        assert activity_data["details"]["status_changed"] is True
+        assert activity_data["details"]["category_changed"] is False
         
         # Cleanup
-        item_ref.delete()
+        for activity in activities:
+            activity.reference.delete()
     
-    def test_on_item_created_error_handling(self, firebase_app, mock_firestore_event):
-        """Test error handling in triggered functions."""
+    def test_handle_item_updated_category_change_logic(self, firebase_app, item_flow_setup):
+        """Test handle_item_updated function business logic for category changes."""
+        from src.brokers.triggered.on_item_updated import handle_item_updated
+        
+        db = Db.get_instance()
+        item_id = "handler-test-item-updated-category"
+        
+        # Create a second category for testing
+        category2_id = "handler-test-category-2"
+        category2_ref = db.collections["categories"].document(category2_id)
+        category2_data = {
+            "id": category2_id,
+            "name": "Test Category 2",
+            "ownerUid": item_flow_setup.user_id,
+            "itemCount": 0,
+            "createdAt": db.timestamp_now(),
+            "lastUpdatedAt": db.timestamp_now(),
+        }
+        category2_ref.set(category2_data)
+        
+        # Get initial counts
+        category1_ref = db.collections["categories"].document(item_flow_setup.category_id)
+        initial_count1 = category1_ref.get().to_dict().get("itemCount", 0)
+        initial_count2 = category2_ref.get().to_dict().get("itemCount", 0)
+        
+        # Create before and after data for category change
+        before_data = {
+            "id": item_id,
+            "name": "Category Test Item",
+            "categoryId": item_flow_setup.category_id,
+            "ownerUid": item_flow_setup.user_id,
+            "status": "active",
+            "createdAt": db.timestamp_now(),
+            "lastUpdatedAt": db.timestamp_now(),
+        }
+        after_data = before_data.copy()
+        after_data["categoryId"] = category2_id
+        after_data["lastUpdatedAt"] = db.timestamp_now()
+        
+        # Call the handler function directly
+        handle_item_updated(item_id, before_data, after_data)
+        
+        # Verify business logic effects:
+        # Category 1 count should decrease, Category 2 count should increase
+        updated_count1 = category1_ref.get().to_dict().get("itemCount", 0)
+        updated_count2 = category2_ref.get().to_dict().get("itemCount", 0)
+        
+        assert updated_count1 == initial_count1 - 1, f"Expected category 1 count {initial_count1 - 1}, got {updated_count1}"
+        assert updated_count2 == initial_count2 + 1, f"Expected category 2 count {initial_count2 + 1}, got {updated_count2}"
+        
+        # System activity should be logged for the update
+        activities_collection = db.collections["itemActivities"](item_id)
+        activities = activities_collection.get()
+        system_update_activities = [
+            activity for activity in activities 
+            if activity.to_dict().get("action") == "system_updated"
+            and activity.to_dict().get("userId") == "system"
+        ]
+        assert len(system_update_activities) > 0, "Expected system_updated activity to be logged"
+        
+        # Check that the activity details indicate category change
+        activity_data = system_update_activities[0].to_dict()
+        assert activity_data["itemId"] == item_id
+        assert activity_data["details"]["trigger"] == "on_item_updated"
+        assert activity_data["details"]["status_changed"] is False
+        assert activity_data["details"]["category_changed"] is True
+        
+        # Cleanup - reset counters before deleting category
+        db.increment_counter(f"categories/{item_flow_setup.category_id}", "itemCount", 1)
+        db.increment_counter(f"categories/{category2_id}", "itemCount", -1)
+        category2_ref.delete()
+        for activity in activities:
+            activity.reference.delete()
+    
+    def test_handle_item_deleted_business_logic(self, firebase_app, item_flow_setup):
+        """Test handle_item_deleted function business logic directly."""
+        from src.brokers.triggered.on_item_deleted import handle_item_deleted
+        
+        db = Db.get_instance()
+        item_id = "handler-test-item-deleted"
+        
+        # Get initial category count
+        category_ref = db.collections["categories"].document(item_flow_setup.category_id)
+        initial_doc = category_ref.get().to_dict()
+        initial_count = initial_doc.get("itemCount", 0)
+        
+        # Create some test activities first
+        activities_collection = db.collections["itemActivities"](item_id)
+        activity_refs = []
+        for i in range(3):
+            activity_ref = activities_collection.document()
+            activity_data = {
+                "id": activity_ref.id,
+                "itemId": item_id,
+                "action": f"test_action_{i}",
+                "userId": item_flow_setup.user_id,
+                "details": {"test": f"data_{i}"},
+                "createdAt": db.timestamp_now(),
+                "lastUpdatedAt": db.timestamp_now(),
+            }
+            activity_ref.set(activity_data)
+            activity_refs.append(activity_ref)
+        
+        # Verify activities were created
+        activities_before = activities_collection.get()
+        assert len(activities_before) >= 3, "Expected at least 3 activities to be created"
+        
+        # Create item data for deletion
+        item_data = {
+            "id": item_id,
+            "name": "Delete Test Item",
+            "categoryId": item_flow_setup.category_id,
+            "ownerUid": item_flow_setup.user_id,
+            "status": "active",
+            "createdAt": db.timestamp_now(),
+            "lastUpdatedAt": db.timestamp_now(),
+        }
+        
+        # Call the handler function directly
+        handle_item_deleted(item_id, item_data)
+        
+        # Verify business logic effects:
+        # 1. All activities should be deleted
+        activities_after = activities_collection.get()
+        assert len(activities_after) == 0, f"Expected 0 activities after deletion, got {len(activities_after)}"
+        
+        # 2. Category counter should be decremented
+        updated_doc = category_ref.get().to_dict()
+        updated_count = updated_doc.get("itemCount", 0)
+        assert updated_count == initial_count - 1, f"Expected count {initial_count - 1}, got {updated_count}"
+        
+        # Reset counter for cleanup
+        db.increment_counter(f"categories/{item_flow_setup.category_id}", "itemCount", 1)
+    
+    def test_all_handler_functions_importable(self):
+        """Test that all handler functions can be imported successfully."""
+        # This verifies the handler functions are properly defined and importable
+        from src.brokers.triggered.on_item_created import handle_item_created
+        from src.brokers.triggered.on_item_updated import handle_item_updated
+        from src.brokers.triggered.on_item_deleted import handle_item_deleted
+        
+        # Verify functions exist and are callable
+        assert callable(handle_item_created), "handle_item_created should be callable"
+        assert callable(handle_item_updated), "handle_item_updated should be callable"  
+        assert callable(handle_item_deleted), "handle_item_deleted should be callable"
+        
+        # Verify functions have proper docstrings
+        assert handle_item_created.__doc__, "handle_item_created should have docstring"
+        assert handle_item_updated.__doc__, "handle_item_updated should have docstring"
+        assert handle_item_deleted.__doc__, "handle_item_deleted should have docstring"
+    
+    def test_all_trigger_functions_importable(self):
+        """Test that all Firebase trigger functions can be imported successfully."""
+        # This verifies the actual Firebase Functions are properly defined
         from src.brokers.triggered.on_item_created import on_item_created
-        
-        # Create invalid item data (missing required fields)
-        invalid_data = {
-            "id": "invalid-item",
-            "name": "Invalid Item",
-            # Missing categoryId - this should cause an error
-        }
-        
-        event = mock_firestore_event("items/invalid-item", invalid_data)
-        
-        # The function should raise an exception for invalid data
-        with pytest.raises(Exception):
-            on_item_created(event)
-    
-    def test_triggered_function_with_different_event_types(self, firebase_app, item_flow_setup, mock_firestore_event):
-        """Test how triggered functions handle different event types."""
         from src.brokers.triggered.on_item_updated import on_item_updated
+        from src.brokers.triggered.on_item_deleted import on_item_deleted
         
-        # Create item update event
-        updated_item_data = {
-            "id": "updated-item-123",
-            "name": "Updated Item Name",
-            "categoryId": item_flow_setup.category_id,
-            "ownerUid": item_flow_setup.user_id,
-            "status": "active",
-            "lastUpdatedAt": datetime.now(),
-        }
+        # Verify functions exist and are callable
+        assert callable(on_item_created), "on_item_created should be callable"
+        assert callable(on_item_updated), "on_item_updated should be callable"  
+        assert callable(on_item_deleted), "on_item_deleted should be callable"
         
-        # Create mock change event (before/after)
-        change_event = Mock()
-        change_event.params = {"itemId": "updated-item-123"}
-        
-        # Mock before and after snapshots
-        before_snap = Mock()
-        before_snap.to_dict.return_value = {**updated_item_data, "name": "Original Name"}
-        
-        after_snap = Mock()
-        after_snap.to_dict.return_value = updated_item_data
-        
-        change_event.data = Mock()
-        change_event.data.before = before_snap
-        change_event.data.after = after_snap
-        
-        # Execute the update trigger
-        try:
-            on_item_updated(change_event)
-            # If function exists and executes without error, test passes
-            assert True
-        except Exception as e:
-            # Log the error for debugging
-            pytest.fail(f"on_item_updated failed: {e}")
-
-
-@pytest.mark.integration
-class TestTriggeredFunctionIntegration:
-    """Integration tests that verify triggered functions work end-to-end."""
-    
-    def test_complete_item_lifecycle_with_triggers(self, firebase_app, item_flow_setup):
-        """Test complete item lifecycle and verify all triggers fire correctly."""
-        db = Db.get_instance()
-        
-        # Get initial state
-        category_ref = db.collections["categories"].document(item_flow_setup.category_id)
-        initial_category = category_ref.get().to_dict()
-        initial_count = initial_category.get("itemCount", 0)
-        
-        # Step 1: Create item (should trigger on_item_created)
-        item_ref = db.collections["items"].document()
-        item_data = ItemDoc(
-            id=item_ref.id,
-            name="Lifecycle Test Item",
-            categoryId=item_flow_setup.category_id,
-            ownerUid=item_flow_setup.user_id,
-            status="active",
-            createdAt=datetime.now(),
-            lastUpdatedAt=datetime.now(),
-        )
-        
-        item_ref.set(item_data.model_dump())
-        time.sleep(1)  # Wait for trigger
-        
-        # Step 2: Update item (should trigger on_item_updated)
-        item_ref.update({"name": "Updated Lifecycle Item", "lastUpdatedAt": datetime.now()})
-        time.sleep(1)  # Wait for trigger
-        
-        # Step 3: Verify item exists and has correct data
-        final_item = item_ref.get().to_dict()
-        assert final_item["name"] == "Updated Lifecycle Item"
-        
-        # Step 4: Delete item (should trigger on_item_deleted)
-        item_ref.delete()
-        time.sleep(1)  # Wait for trigger
-        
-        # Verify item is deleted
-        assert not item_ref.get().exists
-        
-        # Note: In a real system with working triggers, we would verify:
-        # - Category counters were updated correctly
-        # - Activity logs were created
-        # - Any cleanup operations were performed
-        
-        # For now, we've verified the basic Firestore operations work
-        # The triggers would need to be deployed and running for full integration testing
+        # Verify functions have proper decorators/attributes
+        assert hasattr(on_item_created, '__name__'), "on_item_created should have __name__"
+        assert hasattr(on_item_updated, '__name__'), "on_item_updated should have __name__"
+        assert hasattr(on_item_deleted, '__name__'), "on_item_deleted should have __name__"

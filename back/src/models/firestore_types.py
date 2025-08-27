@@ -39,6 +39,7 @@ class CategoryDoc(BaseDoc):
     ownerUid: str
     displayOrder: int = 0
     isActive: bool = True
+    itemCount: int = 0
 
 
 class ItemActivityDoc(BaseDoc):
