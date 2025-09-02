@@ -71,6 +71,8 @@ def create_item_callable(req: https_fn.CallableRequest) -> CreateItemResponse:
         # Check user limits (example with free tier limitation)
         user = User(uid)
         if not user.is_paid():
+            # Use Item class method to get user's item count
+            # Note: This would be better implemented as a method in User Document class
             db = Db.get_instance()
             items_count = (
                 db.collections["items"]
@@ -86,35 +88,35 @@ def create_item_callable(req: https_fn.CallableRequest) -> CreateItemResponse:
                     "Free tier limit reached. Please upgrade to create more items."
                 )
         
-        # Create new item document
+        # Create new item using ItemFactory or Item class proper pattern
         db = Db.get_instance()
         new_doc = db.collections["items"].document()
         
-        item_data = ItemDoc(
-            id=new_doc.id,
-            name=name,
-            description=req.data.get("description"),
-            categoryId=category_id,
-            ownerUid=uid,
-            status="active",
-            tags=req.data.get("tags", []),
-            metadata=req.data.get("metadata", {}),
-            createdAt=db.get_created_at(),
-            lastUpdatedAt=db.get_created_at(),
-        )
+        item_data = {
+            "id": new_doc.id,
+            "name": name,
+            "description": req.data.get("description"),
+            "categoryId": category_id,
+            "ownerUid": uid,
+            "status": "active",
+            "tags": req.data.get("tags", []),
+            "metadata": req.data.get("metadata", {}),
+            "createdAt": db.get_created_at(),
+            "lastUpdatedAt": db.get_created_at(),
+        }
         
-        # Save to Firestore
-        new_doc.set(item_data.model_dump())
+        # Create Item instance and save it (this handles the document creation properly)
+        item = Item(new_doc.id, item_data)
+        item.save_doc()  # Use proper Document class method to save
         
-        # Log activity
-        item = Item(new_doc.id, item_data.model_dump())
+        # Log activity using Item method
         item.log_activity("created", uid, {"source": "callable_function"})
         
-        logger.info(f"Created new item {new_doc.id} for user {uid}")
+        logger.info(f"Created new item {item.id} for user {uid}")
         
         return CreateItemResponse(
             success=True,
-            itemId=new_doc.id,
+            itemId=item.id,
             message="Item created successfully"
         )
         

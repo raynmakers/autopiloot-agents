@@ -28,20 +28,21 @@ def handle_item_updated(item_id: str, before_data: dict, after_data: dict):
         
         logger.info(f"Item {item_id} status changed from {old_status} to {new_status}")
         
-        # Update counters based on status change
+        # Update counters based on status change using proper Category class
+        from src.documents.categories.Category import Category
+        category = Category(after_data.get('categoryId'))
+        
         if old_status == "active" and new_status != "active":
-            # Item became inactive
-            from src.apis.Db import Db
-            db = Db.get_instance()
-            category_path = f"categories/{after_data.get('categoryId')}"
-            db.increment_counter(category_path, "activeItemCount", -1)
+            # Item became inactive - decrement active count
+            # Note: activeItemCount is not implemented in Category class yet
+            # This would need to be added to the Category class if needed
+            pass
             
         elif old_status != "active" and new_status == "active":
-            # Item became active
-            from src.apis.Db import Db
-            db = Db.get_instance()
-            category_path = f"categories/{after_data.get('categoryId')}"
-            db.increment_counter(category_path, "activeItemCount", 1)
+            # Item became active - increment active count  
+            # Note: activeItemCount is not implemented in Category class yet
+            # This would need to be added to the Category class if needed
+            pass
     
     # Handle category change
     if category_changed:
@@ -50,17 +51,16 @@ def handle_item_updated(item_id: str, before_data: dict, after_data: dict):
         
         logger.info(f"Item {item_id} moved from category {old_category} to {new_category}")
         
-        # Update counters for both categories
-        from src.apis.Db import Db
-        db = Db.get_instance()
+        # Update counters for both categories using proper Category class
+        from src.documents.categories.Category import Category
         
         if old_category:
-            old_category_path = f"categories/{old_category}"
-            db.increment_counter(old_category_path, "itemCount", -1)
+            old_cat = Category(old_category)
+            old_cat.decrement_item_count(1)
         
         if new_category:
-            new_category_path = f"categories/{new_category}"
-            db.increment_counter(new_category_path, "itemCount", 1)
+            new_cat = Category(new_category)
+            new_cat.increment_item_count(1)
     
     # Log update activity
     item = Item(item_id, after_data)

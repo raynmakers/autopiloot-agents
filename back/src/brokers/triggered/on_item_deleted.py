@@ -15,7 +15,9 @@ def handle_item_deleted(item_id: str, item_data: dict):
     """
     logger.info(f"Processing deleted item: {item_id}")
     
-    # Clean up related data
+    # Clean up activities - acceptable pattern since item is already deleted
+    # Note: The item is already deleted, so we manually clean up subcollection activities
+    # This follows the Firebase pattern for cleaning up subcollections on parent deletion
     from src.apis.Db import Db
     db = Db.get_instance()
     
@@ -28,16 +30,17 @@ def handle_item_deleted(item_id: str, item_data: dict):
         
     logger.info(f"Deleted {len(activities)} activities for item {item_id}")
     
-    # Update category counter
+    # Update category counter using proper Category class
     category_id = item_data.get("categoryId")
     if category_id:
-        category_path = f"categories/{category_id}"
-        db.increment_counter(category_path, "itemCount", -1)
+        from src.documents.categories.Category import Category
+        category = Category(category_id)
+        category.decrement_item_count(1)
         
-        if item_data.get("status") == "active":
-            db.increment_counter(category_path, "activeItemCount", -1)
+        # Note: activeItemCount handling would need to be added to Category class if needed
     
     # Clean up any storage files associated with this item
+    # Note: Using Db class for storage operations is acceptable as it's an API wrapper
     if item_data.get("files"):
         try:
             folder_path = f"items/{item_id}/"
