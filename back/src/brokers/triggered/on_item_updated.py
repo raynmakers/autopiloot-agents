@@ -3,6 +3,7 @@
 from firebase_functions import firestore_fn
 from src.documents.items.Item import Item
 from src.util.logger import get_logger
+from src.documents.categories.Category import Category
 
 logger = get_logger(__name__)
 
@@ -29,7 +30,6 @@ def handle_item_updated(item_id: str, before_data: dict, after_data: dict):
         logger.info(f"Item {item_id} status changed from {old_status} to {new_status}")
         
         # Update counters based on status change using proper Category class
-        from src.documents.categories.Category import Category
         category = Category(after_data.get('categoryId'))
         
         if old_status == "active" and new_status != "active":

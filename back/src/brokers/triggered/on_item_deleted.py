@@ -1,6 +1,7 @@
 """Trigger function for item deletion."""
 
 from firebase_functions import firestore_fn
+from src.apis.Db import Db
 from src.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,7 +19,6 @@ def handle_item_deleted(item_id: str, item_data: dict):
     # Clean up activities - acceptable pattern since item is already deleted
     # Note: The item is already deleted, so we manually clean up subcollection activities
     # This follows the Firebase pattern for cleaning up subcollections on parent deletion
-    from src.apis.Db import Db
     db = Db.get_instance()
     
     # Delete all activities for this item

@@ -3,6 +3,7 @@
 from firebase_functions import firestore_fn
 from src.documents.items.Item import Item
 from src.util.logger import get_logger
+from src.documents.categories.Category import Category
 
 logger = get_logger(__name__)
 
@@ -20,7 +21,6 @@ def handle_item_created(item_id: str, item_data: dict):
     item = Item(item_id, item_data)
     
     # Update category item count using proper Category class
-    from src.documents.categories.Category import Category
     category = Category(item.doc.categoryId)
     category.increment_item_count(1)
     
