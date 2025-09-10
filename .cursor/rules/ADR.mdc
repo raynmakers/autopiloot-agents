@@ -55,9 +55,8 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
-| 0004 | [Event-Driven Broker Architecture with Firestore](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
-| 0002 | [Monorepo Structure with Frontend and Backend](#adr-0002)    | 2025-01-27 | Accepted | —          | —             |
-| 0001 | [Full-Stack Firebase Template Architecture](#adr-0001)       | 2025-01-27 | Accepted | —          | —             |
+| 0002 | [Event-Driven Broker Architecture with Firestore](#adr-0002) | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Agent-Focused Repository Structure](#adr-0001)              | 2025-01-27 | Accepted | —          | —             |
 
 <!-- END:ADR_INDEX -->
 
@@ -103,89 +102,9 @@ END ADR_AGENT_PROTOCOL
 
 ---
 
-## ADR-0001 — Full-Stack Firebase Template Architecture
-
-<a id="adr-0001"></a>
-**Date**: 2025-01-27 `
-**Status**: Accepted  
-**Owner**: AI Agent
-
-### Context
-
-Modern web applications require both frontend and backend components with real-time data synchronization. Firebase provides a comprehensive platform for building full-stack applications, but setting up the architecture with best practices requires significant boilerplate code.
-
-### Alternatives
-
-- **Separate repositories**: Frontend and backend in different repos, harder to coordinate changes
-- **Backend-only template**: Covers only server-side concerns, developers must handle frontend integration
-- **Frontend-only template**: Limited to client-side Firebase SDK, missing serverless functions capabilities
-- **Full-stack monorepo template**: Single template with both Next.js frontend and Python Firebase Functions
-
-### Decision
-
-Create a comprehensive full-stack Firebase template with:
-
-- Next.js 14 frontend with TypeScript and Material-UI
-- Python Firebase Functions backend with broker architecture pattern
-- Shared Firebase project configuration
-- Integrated testing strategy for both frontend and backend
-- Single repository with clear separation of concerns
-
-### Consequences
-
-- **Pros**: Complete starting point for Firebase projects, coordinated development, shared configuration
-- **Cons / risks**: More complex initial setup, larger template size, requires knowledge of both frontend and backend
-- **Supersedes**: —
-- **Superseded by**: —
-
-### Compliance / Verification
-
-Template includes working examples for both frontend and backend. Firebase configuration shared between components. Documentation covers full development workflow.
-
----
-
-## ADR-0002 — Monorepo Structure with Frontend and Backend
+## ADR-0002 — Event-Driven Broker Architecture with Firestore
 
 <a id="adr-0002"></a>
-**Date**: 2025-01-27  
-**Status**: Accepted  
-**Owner**: AI Agent
-
-### Context
-
-Full-stack Firebase applications need coordinated development between frontend (Next.js) and backend (Firebase Functions). The question was how to organize the code structure to support both independent development and shared configuration.
-
-### Alternatives
-
-- **Separate repositories**: Independent versioning but coordination overhead and duplicate configuration
-- **Nested backend in frontend**: Simple structure but mixes concerns and complicates deployment
-- **Side-by-side monorepo**: Clear separation with shared root configuration
-
-### Decision
-
-Implement side-by-side monorepo structure:
-
-- `/front/` - Next.js frontend application with its own package.json and dependencies
-- `/back/` - Python Firebase Functions backend with its own requirements.txt and structure
-- Root-level Firebase configuration (`firebase.json`, `firestore.rules`, `storage.rules`)
-- Shared documentation in root README.md with component-specific READMEs
-
-### Consequences
-
-- **Pros**: Clear separation of concerns, independent tooling, shared Firebase configuration, coordinated documentation
-- **Cons / risks**: Slightly more complex initial setup, need to manage two different development environments
-- **Supersedes**: —
-- **Superseded by**: —
-
-### Compliance / Verification
-
-Directory structure clearly separates frontend and backend. Firebase CLI recognizes backend functions source in configuration. Both components can be developed independently.
-
----
-
-## ADR-0004 — Event-Driven Broker Architecture with Firestore
-
-<a id="adr-0004"></a>
 **Date**: 2025-01-27  
 **Status**: Accepted  
 **Owner**: AI Agent
@@ -221,5 +140,46 @@ Implement event-driven broker architecture where Firestore serves as both the da
 ### Compliance / Verification
 
 Backend functions must only perform Firestore writes without returning data responses. Frontend components must use Firestore hooks (useFirestore, real-time listeners) for all data access. No direct API data responses to frontend. All data mutations trigger UI updates through Firestore change events.
+
+---
+
+## ADR-0001 — Agent-Focused Repository Structure
+
+<a id="adr-0001"></a>
+**Date**: 2025-01-27
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The repository has evolved from a full-stack Firebase template to focus specifically on AI agent development and management. The original frontend and backend directories are no longer present, and the repository now contains agent-specific configuration, documentation, and task templates.
+
+### Alternatives
+
+- **Maintain full-stack structure**: Keep frontend and backend directories even if unused, adds complexity
+- **Create separate agent repository**: Move agent files to a new repository, loses Firebase configuration context
+- **Hybrid structure**: Keep both full-stack and agent components, creates confusion about primary purpose
+- **Agent-focused structure**: Simplify to focus on agent development with Firebase as supporting infrastructure
+
+### Decision
+
+Implement agent-focused repository structure:
+
+- `/agents/` - Primary directory containing all agent-related files and configuration
+- Firebase configuration files (`firebase.json`, `firestore.rules`, `storage.rules`) at the agents level
+- Agent documentation and rules in `.cursor/rules/` subdirectory
+- Task templates in `tasks/` subdirectory
+- Remove references to frontend and backend directories that no longer exist
+
+### Consequences
+
+- **Pros**: Clear focus on agent development, simplified structure, Firebase configuration remains available for agent backend needs, easier maintenance
+- **Cons / risks**: Loss of full-stack template capabilities, may need to recreate frontend/backend if needed later, Firebase configuration references non-existent backend directory
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Repository structure contains only agent-related files. Firebase configuration is updated to reflect actual directory structure. No references to non-existent frontend or backend directories in documentation.
 
 ---

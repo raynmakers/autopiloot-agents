@@ -1,7 +1,7 @@
 {
   "functions": [
     {
-      "source": "./back",
+      "source": ".",
       "codebase": "default",
       "runtime": "python311"
     }
