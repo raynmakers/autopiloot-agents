@@ -1,7 +1,0 @@
-{
-  "projects": {
-    "default": "autopiloot-dev",
-    "dev": "autopiloot-dev",
-    "prod": "autopiloot-dev"
-  }
-}
