@@ -1,0 +1,73 @@
+---
+description: "Create transcription job entries for new videos"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0014"
+title: "Build EnqueueTranscription tool (jobs/transcription)"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "jobs"]
+dependencies: ["TASK-SCR-0013"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Write job docs for videos needing transcription (<= 70 min).
+
+# 2) Background / Context
+
+PRD Agent A tools.
+
+# 3) Assumptions & Constraints
+
+- Skip if transcript exists.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/EnqueueTranscription.py
+
+# 6) Low-Level Steps
+
+1. Input: `video_id`.
+2. Check duration/status; create job if eligible.
+
+# 7) Acceptance Criteria
+
+- Eligible videos result in one job doc; duplicates prevented.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class EnqueueTranscriptionRequest(TypedDict):
+    video_id: str
+
+class EnqueueTranscriptionResponse(TypedDict):
+    job_id: str
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /jobs/transcription/{jobId} {
+      allow read, write: if false;
+    }
+  }
+}
+```

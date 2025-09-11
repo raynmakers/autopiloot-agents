@@ -1,0 +1,81 @@
+---
+description: "Implement internal Slack alerts for budget and errors"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ASSIST-0040"
+title: "Build Assistant alerting tools (budget, errors, Slack posting)"
+status: "planned"
+priority: "P1"
+labels: ["assistant", "alerts", "slack"]
+dependencies: ["TASK-TRN-0022"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Send internal Slack alerts for budget threshold and job failures.
+
+# 2) Background / Context
+
+PRD Agent D tools.
+
+# 3) Assumptions & Constraints
+
+- Slack channel `ops-autopiloot`.
+- Throttle: 1 per type per hour.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/assistant/tools/FormatSlackBlocks.py
+- agents/autopiloot/assistant/tools/SendSlackMessage.py
+- agents/autopiloot/assistant/tools/MonitorTranscriptionBudget.py
+- agents/autopiloot/assistant/tools/SendErrorAlert.py
+
+# 6) Low-Level Steps
+
+1. Compute daily transcription spend; alert at 80% of $5.
+2. Error alert helper with context.
+3. Slack posting with block kit formatting.
+
+# 7) Acceptance Criteria
+
+- Alerts posted to Slack and throttled per policy.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List, Dict
+
+class BudgetMonitorRequest(TypedDict):
+    date: str  # YYYY-MM-DD
+
+class BudgetMonitorResponse(TypedDict):
+    status: str
+    total_usd: float
+
+class ErrorAlertRequest(TypedDict):
+    message: str
+    context: Dict
+
+class SlackBlocks(TypedDict):
+    blocks: List[Dict]
+
+class SendSlackMessageRequest(TypedDict):
+    channel: str
+    blocks: SlackBlocks
+
+class SendSlackMessageResponse(TypedDict):
+    ts: str
+    channel: str
+```

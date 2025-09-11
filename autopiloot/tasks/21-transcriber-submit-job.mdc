@@ -1,0 +1,62 @@
+---
+description: "Implement SubmitAssemblyAIJob (70-min cap, cost estimate)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-TRN-0021"
+title: "Build SubmitAssemblyAIJob tool"
+status: "planned"
+priority: "P1"
+labels: ["transcriber", "assemblyai"]
+dependencies: ["TASK-TRN-0020"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Submit a transcription job to AssemblyAI and return job id and estimated cost.
+
+# 2) Background / Context
+
+PRD Agent B tools.
+
+# 3) Assumptions & Constraints
+
+- Reject videos longer than 70 minutes.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/transcriber/tools/SubmitAssemblyAIJob.py
+
+# 6) Low-Level Steps
+
+1. Inputs: `remote_url`, `metadata`.
+2. Submit via AssemblyAI SDK; compute estimated cost; return `job_id`.
+
+# 7) Acceptance Criteria
+
+- Returns `{ job_id, estimated_cost_usd }`.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class SubmitAssemblyAIJobRequest(TypedDict):
+    remote_url: str
+    metadata: dict  # { video_id: str, duration_sec: int }
+
+class SubmitAssemblyAIJobResponse(TypedDict):
+    job_id: str
+    estimated_cost_usd: float
+```

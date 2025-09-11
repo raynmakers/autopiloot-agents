@@ -1,0 +1,75 @@
+---
+description: "Implement audit logging for key actions"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-AUDIT-0041"
+title: "Add audit logging to Firestore (audit_logs collection)"
+status: "planned"
+priority: "P2"
+labels: ["audit", "firestore"]
+dependencies: []
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Record key actions (transcript created, Slack alert sent, costs updated) in `audit_logs`.
+
+# 2) Background / Context
+
+PRD Operational & Constraints → Security/Compliance.
+
+# 3) Assumptions & Constraints
+
+- No PII captured; include actor, action, entity, entity_id, timestamp, details.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- helpers/util to write audit entries from tools.
+
+# 6) Low-Level Steps
+
+1. Create helper `write_audit_log(actor, action, entity, entity_id, details)`.
+2. Call helper from Assistant alerts and Transcriber completion paths.
+
+# 7) Acceptance Criteria
+
+- Audit entries appear in `audit_logs` with all required fields.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Dict, Any
+
+class AuditLogEntry(TypedDict):
+    actor: str
+    action: str
+    entity: str
+    entity_id: str
+    timestamp: str
+    details: Dict[str, Any]
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /audit_logs/{id} {
+      allow read, write: if false;
+    }
+  }
+}
+```

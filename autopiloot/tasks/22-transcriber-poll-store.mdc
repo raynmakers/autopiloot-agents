@@ -1,0 +1,97 @@
+---
+description: "Implement polling, Drive storage, and Firestore record for transcripts"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-TRN-0022"
+title: "Build PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord"
+status: "planned"
+priority: "P1"
+labels: ["transcriber", "drive", "firestore"]
+dependencies: ["TASK-TRN-0021"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Poll for transcript completion, upload to Drive, and persist metadata to Firestore.
+
+# 2) Background / Context
+
+PRD Agent B tools.
+
+# 3) Assumptions & Constraints
+
+- Drive folders via env ids; text and json outputs.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/transcriber/tools/PollTranscriptionJob.py
+- agents/autopiloot/transcriber/tools/StoreTranscriptToDrive.py
+- agents/autopiloot/transcriber/tools/SaveTranscriptRecord.py
+
+# 6) Low-Level Steps
+
+1. Poll with backoff; on completion retrieve text/json.
+2. Upload `.txt` and `.json` to Drive; return file ids.
+3. Save Firestore doc `transcripts/{video_id}`; include cost and digest.
+
+# 7) Acceptance Criteria
+
+- Transcript files in Drive and Firestore metadata saved.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class PollTranscriptionJobRequest(TypedDict):
+    job_id: str
+
+class PollTranscriptionJobResponse(TypedDict):
+    transcript_text: str
+    transcript_json: dict
+
+class StoreTranscriptToDriveRequest(TypedDict):
+    video_id: str
+    transcript_text: str
+    transcript_json: dict
+
+class StoreTranscriptToDriveResponse(TypedDict):
+    drive_id_txt: str
+    drive_id_json: str
+
+class SaveTranscriptRecordRequest(TypedDict):
+    video_id: str
+    drive_ids: dict
+    transcript_digest: str
+
+class SaveTranscriptRecordResponse(TypedDict):
+    transcript_doc_ref: str
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /transcripts/{videoId} {
+      allow read, write: if false;
+    }
+    match /costs_daily/{date} {
+      allow read, write: if false;
+    }
+  }
+}
+```

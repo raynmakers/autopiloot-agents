@@ -1,0 +1,74 @@
+---
+description: "Implement Sheets ingestion and per-page YouTube link extraction"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0012"
+title: "Build ReadSheetLinks + ExtractYouTubeFromPage"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "sheets"]
+dependencies: ["TASK-AGENTS-0002"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Read links from Sheet and extract YouTube URLs from target pages.
+
+# 2) Background / Context
+
+PRD Sheet backfill.
+
+# 3) Assumptions & Constraints
+
+- Env: `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_SHEET_ID_BACKFILL`.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/ReadSheetLinks.py
+- agents/autopiloot/scraper/tools/ExtractYouTubeFromPage.py
+
+# 6) Low-Level Steps
+
+1. Read rows A-D, up to 10 pending.
+2. Fetch each page; parse OpenGraph/oEmbed and anchors; return YouTube links.
+3. Deduplicate results.
+
+# 7) Acceptance Criteria
+
+- Returns array of `{ source_page_url, video_url }`.
+- Handles invalid URLs gracefully.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List
+
+class ReadSheetLinksRequest(TypedDict):
+    sheet_id: str
+    range_a1: str
+
+class SheetLink(TypedDict):
+    source_page_url: str
+    video_url: str
+
+class ReadSheetLinksResponse(TypedDict):
+    items: List[SheetLink]
+
+class ExtractYouTubeFromPageRequest(TypedDict):
+    page_url: str
+
+class ExtractYouTubeFromPageResponse(TypedDict):
+    video_urls: List[str]
+```

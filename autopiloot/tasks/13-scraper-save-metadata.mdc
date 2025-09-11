@@ -1,0 +1,83 @@
+---
+description: "Upsert video metadata into Firestore and mark status"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0013"
+title: "Build SaveVideoMetadata tool (Firestore upsert)"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "firestore"]
+dependencies: ["TASK-SCR-0011", "TASK-SCR-0012"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Save video records to `videos/{video_id}` with `status: discovered`.
+
+# 2) Background / Context
+
+PRD Data Model.
+
+# 3) Assumptions & Constraints
+
+- Idempotent on `video_id`.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/SaveVideoMetadata.py
+
+# 6) Low-Level Steps
+
+1. Inputs: `video` JSON.
+2. Upsert into Firestore; set timestamps.
+
+# 7) Acceptance Criteria
+
+- Re-running does not create duplicates.
+- Record contains all required fields.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class VideoMetadata(TypedDict):
+    video_id: str
+    url: str
+    title: str
+    published_at: str
+    duration_sec: int
+    source: str
+
+class SaveVideoMetadataRequest(TypedDict):
+    video: VideoMetadata
+
+class SaveVideoMetadataResponse(TypedDict):
+    doc_ref: str
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Block client access to video metadata; server uses Admin SDK
+    match /videos/{videoId} {
+      allow read, write: if false;
+    }
+  }
+}
+```

@@ -1,0 +1,75 @@
+---
+description: "Implement Google Sheet ingestion, daily cap, and archive/remove behavior"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SHEET-0004"
+title: "Build Sheets ingestion and archival for backfill links"
+status: "planned"
+priority: "P1"
+labels: ["sheets", "ingestion"]
+dependencies: ["TASK-AGENTS-0002"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Process up to 10 links daily from a Google Sheet; archive successful rows; mark errors.
+
+# 2) Background / Context
+
+See PRD: Communication Flows (Google Sheet backfill).
+
+# 3) Assumptions & Constraints
+
+- Columns: A=url, B=status, C=notes, D=processed_at.
+- Archive tab: `Archive`.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- sheets read/write helpers; row move to Archive.
+
+# 6) Low-Level Steps
+
+1. Read up to 10 pending rows.
+2. For each, extract YouTube video(s), enqueue transcription if new.
+3. On success: move row to `Archive`, set `processed_at`.
+4. On failure: set `status=error` and `notes`.
+
+# 7) Acceptance Criteria
+
+- Rows processed sequentially; archive/remove behavior implemented.
+- Errors retained on main tab.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List, Optional
+
+class SheetRow(TypedDict):
+    url: str
+    status: str
+    notes: Optional[str]
+    processed_at: Optional[str]
+
+class ReadSheetLinksRequest(TypedDict):
+    sheet_id: str
+    range_a1: str
+
+class SheetLink(TypedDict):
+    source_page_url: str
+    video_url: str
+
+class ReadSheetLinksResponse(TypedDict):
+    items: List[SheetLink]
+```

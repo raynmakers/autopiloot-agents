@@ -13,12 +13,13 @@ Agency Swarm **v1.0.0** is the latest version of the framework built on the Open
 Use these resources to familiarize yourself with v1.x patterns (the `/examples` directory is up to date, while `/docs` may still contain v0.x references). The following steps outline how to build agents from a single prompt:
 
 1. **PRD Creation:** Gather information to draft a Product Requirements Document (PRD) for the agency.
-2. **Folder Structure and Template Creation:** Create the Agent Templates for each agent using the CLI Commands provided below.
-3. **Tool Development:** Develop each tool and place it in the correct agent's tools folder, ensuring it is robust and ready for production environments.
-4. **Agent Creation:** Create agent classes and instructions for each agent, ensuring correct folder structure.
-5. **Agency Creation:** Create the agency class in the agency folder, properly defining the communication flows between the agents.
-6. **Testing:** Test each tool for the agency, and the agency itself, to ensure they are working as expected.
-7. **Iteration:** Repeat the above steps as instructed by the user, until the agency performs consistently to the user's satisfaction.
+2. **Task Creation:** Split the PRD into small executable tasks using `/tasks/task-template.mdc`, add all required documentation.
+3. **Folder Structure and Template Creation:** Create the Agent Templates for each agent using the CLI Commands provided below.
+4. **Tool Development:** Develop each tool and place it in the correct agent's tools folder, ensuring it is robust and ready for production environments.
+5. **Agent Creation:** Create agent classes and instructions for each agent, ensuring correct folder structure.
+6. **Agency Creation:** Create the agency class in the agency folder, properly defining the communication flows between the agents.
+7. **Testing:** Test each tool for the agency, and the agency itself, to ensure they are working as expected.
+8. **Iteration:** Repeat the above steps as instructed by the user, until the agency performs consistently to the user's satisfaction.
 
 You will find a detailed guide for each of the steps below.
 
@@ -78,9 +79,16 @@ After the user provides the requested details, proceed to drafting the PRD file 
 
 - **4-16 Tools Per Agent**: Each agent should have between 4 and 16 tools. Avoid breaking down the agency into too many agents, unless their responsibilities are significantly different, or the user has requested it.
 
-# Step 2: Folder Structure and Template Creation
+# Step 2: Task creation
 
-After creating the PRD file, create the folder structure and agent templates, for each agent.
+After creating the PRD file, create single executable tasks based on `tasks/task_template.mdc` in the `agency_name/tasks` folder.
+
+- Before proceding check if there is anything missing in the PRD you need.
+- Ask the user for any documentation that is missing and you could not find.
+
+# Step 3: Folder Structure and Template Creation
+
+After creating the task files, create the folder structure and agent templates, for each agent.
 
 Repeat this step for each agent in the agency. Make sure to correctly specify the path to the agency folder.
 
@@ -138,7 +146,7 @@ agency_name/
 
 Follow this folder structure when further creating or modifying any files.
 
-# Step 3: Tool Creation
+# Step 4: Tool Creation
 
 Tools are the specific actions that agents can perform. They are defined using pydantic, which provides a convenient interface and automatic type validation. In v1.x you may also use the `@function_tool` decorator to define tools as simple functions. To create a tool:
 
@@ -277,7 +285,7 @@ filesystem_server = MCPServerStdio(
 # Reference: https://agency-swarm.ai/core-framework/tools/mcp-integration#step-2-define-sse-server-connection-optional
 ```
 
-# Step 4: Agent Creation
+# 5: Agent Creation
 
 To create an agent:
 
@@ -337,7 +345,7 @@ To create an agent:
 
 **Avoid Speculation**: Be conscience when creating the instructions, and avoid any speculation. If certain information is not available, simply leave it blank.
 
-# Step 5: Agency Creation
+# Step 6: Agency Creation
 
 Agencies are collections of agents that work together to achieve a common goal. They are defined in the `agency.py` file, which you need to create in the agency folder.
 
@@ -380,7 +388,7 @@ Agencies are collections of agents that work together to achieve a common goal. 
    - **Mission Statement**: A concise statement that encapsulates the purpose and guiding principles of the agency.
    - **Context**: Additional information provided by the user. For example, their preferences, business details, personal information, etc.
 
-# Step 6: Testing
+# Step 7: Testing
 
 The final step is to test each tool and the agency itself, to ensure they are working as expected.
 
@@ -408,7 +416,7 @@ The final step is to test each tool and the agency itself, to ensure they are wo
 
 **Important**: Please do not stop until all new tools and agents have been tested and are working as expected. Do not ask for confirmation or wait for the user to respond. Just keep iterating until the agency performs as expected.
 
-# Step 7: Iteration
+# Step 8: Iteration
 
 Repeat the above steps as instructed by the user, until the agency performs consistently to the user's satisfaction. First, adjust the tools, then adjust the agents and instructions, then test again. Make sure to repeat each step accordingly.
 

@@ -1,0 +1,65 @@
+---
+description: "Set LLM defaults (gpt-4.1) and add Langfuse tracing"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LLM-0007"
+title: "Configure gpt-4.1 defaults and Langfuse instrumentation"
+status: "planned"
+priority: "P2"
+labels: ["llm", "observability"]
+dependencies: ["TASK-SUM-0030"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Use gpt-4.1 (temp 0.2, ~1500 tokens) for Summarizer and add tracing.
+
+# 2) Background / Context
+
+See PRD: LLM settings & Observability.
+
+# 3) Assumptions & Constraints
+
+- Env: `OPENAI_API_KEY`, Langfuse keys and host.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- Summarizer tools emit Langfuse traces with `prompt_version: v1`.
+
+# 6) Low-Level Steps
+
+1. Set model, temperature, token limit defaults in Summarizer tool.
+2. Add Langfuse client init and spans around LLM calls.
+3. Include `prompt_version: v1` in Firestore record.
+
+# 7) Acceptance Criteria
+
+- LLM calls use gpt-4.1 defaults.
+- Traces visible in Langfuse.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Dict, Any
+
+class LLMConfig(TypedDict):
+    model: str
+    temperature: float
+    max_output_tokens: int
+
+class LangfuseTrace(TypedDict):
+    trace_id: str
+    metadata: Dict[str, Any]
+```

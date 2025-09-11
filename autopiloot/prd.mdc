@@ -1,0 +1,414 @@
+# Autopiloot
+
+---
+
+- **Purpose:** Agents to scrape and transform expert content into practical guidelines for writing new content and sales messaging — automating discovery, high-quality transcription (full transcript as "long"), and actionable short summaries.
+- **Target Users/Market:** Entrepreneurs creating content primarily for LinkedIn (initial focus) with at least 6-figure revenue.
+- **Value Proposition:** Cut the waste in content creation, transcription, summarization, and follow-up analysis — end-to-end automation with searchable knowledge and internal alerting.
+- **Maturity:** MVP (non-production). Keep infrastructure minimal; configure required env vars before running.
+- **Base Path:** All files and folders will be created under `agents/`.
+- **Communication Flows:**
+  - **Between Agents:**
+    - Scheduling: Europe/Amsterdam timezone (CET/CEST).
+    - Idempotency: Dedupe by YouTube video ID; skip if already stored in Firestore.
+    - Backfill: Past 12 months only. Additionally, a human-maintained Google Sheet contains page links; all links present must be backfilled the same day and removed from the sheet after success.
+    - Shared context keys (Firestore + context): `video_id`, `video_url`, `title`, `published_at`, `channel_id`, `duration_sec`, `source` ("scrape"|"sheet"), `transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`, `summary_short_doc_ref`, `summary_short_drive_id`, `zep_doc_id`, `costs.transcription_usd`, `status`.
+    - Example Flow:
+      - **Agent A (Scraper) -> Agent B (Transcriber):** Trigger daily at 01:00 Europe/Amsterdam and on-demand for Google Sheet links. Provide list of new `video_id` + metadata. Expected outcome: Agent B enqueues transcription jobs for videos not previously processed, respecting max duration.
+      - **Agent B (Transcriber) -> Agent C (Summarizer):** When `transcript_doc_ref` is ready, send event with transcript metadata. Expected outcome: Agent C produces a short actionable summary (for coaching) that is explicitly linked to the full transcript ("long").
+      - **Agent C (Summarizer) -> Agent D (Assistant):** Summarizer writes per-video short summary records. Agent D monitors budget usage and errors and may send internal Slack alerts; no end-user daily digest in MVP.
+  - **Agent to User Communication:**
+    - Entry-point agent: None for end-user (digest disabled). Internal operations via **Agent D (Assistant)** for alerts only.
+    - Channels: Slack for internal alerts (budget/error), Google Drive for artifacts. Slack workspace and channel will be configured later.
+    - Approval gates: None (fully automated) for MVP; budget threshold alerts sent to Slack.
+
+---
+
+## Scheduling
+
+- Orchestrator: Firebase Functions v2 Scheduled Functions (uses Cloud Scheduler).
+- Jobs:
+  - Scraper daily: cron `0 1 * * *`, `timeZone: "Europe/Amsterdam"`.
+  - Assistant budget check: event-driven post-transcription write; optional hourly cron `0 * * * *` if needed.
+- DST: Handled by Cloud Scheduler with supplied timezone.
+
+---
+
+## Agent A — Scraper Agent
+
+### **Role within the Agency**
+
+Discover new videos from `@AlexHormozi` and ingest human-provided links from a Google Sheet. Ensure deduplication, maintain backfill (last 12 months), and enqueue transcription jobs for new items.
+
+### Tools
+
+- **ResolveChannelHandle**
+
+  - **Description**: Resolve YouTube handle `@AlexHormozi` to channel ID.
+  - **Inputs**:
+    - `channel_handle` (string) - e.g., `@AlexHormozi`
+  - **Validation**:
+    - Non-empty handle; retries on API failure.
+  - **Core Functions:** Resolve via YouTube Data API v3; fallback to public channel page parsing if needed.
+  - **APIs**: YouTube Data API v3 (`google-api-python-client`)
+  - **Output**: JSON `{ channel_id }`
+
+- **ListRecentUploads**
+
+  - **Description**: List uploads within a time window (default: last 24h for daily run; up to last 12 months for backfill batches).
+  - **Inputs**:
+    - `channel_id` (string) - target channel
+    - `since_iso` (string) - ISO8601 start time
+    - `until_iso` (string) - ISO8601 end time
+    - `page_size` (int) - default 50
+  - **Validation**:
+    - Rate limits honored; handles pagination.
+  - **Core Functions:** Query YouTube search/list + videos API for metadata and durations.
+  - **APIs**: YouTube Data API v3
+  - **Output**: JSON array of `{ video_id, url, title, published_at, duration_sec }`
+
+- **ReadSheetLinks**
+
+  - **Description**: Read a Google Sheet containing page links; extract any YouTube video URLs contained in those pages.
+  - **Inputs**:
+    - `sheet_id` (string) - Google Sheet ID (placeholder)
+    - `range_a1` (string) - A1 range to read
+  - **Validation**:
+    - Skip empty rows; validate URLs.
+  - **Core Functions:** Read rows via Sheets API; for each URL, fetch page and extract YouTube links (oEmbed/OpenGraph/regex).
+  - **APIs**: Google Sheets API, `requests`
+  - **Output**: JSON array of `{ source_page_url, video_url }`
+
+- **ExtractYouTubeFromPage**
+
+  - **Description**: Given a page URL, extract embedded YouTube video URLs.
+  - **Inputs**:
+    - `page_url` (string)
+  - **Validation**:
+    - Only valid YouTube hosts; dedupe results.
+  - **Core Functions:** Fetch HTML; parse for oEmbed/yt links.
+  - **APIs**: `requests`, `beautifulsoup4`
+  - **Output**: JSON array of `{ video_url }`
+
+- **SaveVideoMetadata**
+
+  - **Description**: Upsert video metadata into Firestore and mark status.
+  - **Inputs**:
+    - `video` (JSON) - `{ video_id, url, title, published_at, duration_sec, source }`
+  - **Validation**:
+    - Enforce dedupe by `video_id`.
+  - **Core Functions:** Upsert into `videos/{video_id}`; set `status: discovered`.
+  - **APIs**: Firestore Admin SDK
+  - **Output**: JSON `{ doc_ref }`
+
+- **EnqueueTranscription**
+
+  - **Description**: Create a job/event for transcription for each new video.
+  - **Inputs**:
+    - `video_id` (string)
+  - **Validation**:
+    - Only if not already transcribed and duration <= 70 minutes.
+  - **Core Functions:** Write event to `jobs/transcription` collection with references.
+  - **APIs**: Firestore Admin SDK
+  - **Output**: JSON `{ job_id }`
+
+- **RemoveSheetRow**
+  - **Description**: Remove successfully backfilled links from the Google Sheet.
+  - **Inputs**:
+    - `sheet_id` (string)
+    - `row_indices` (array<int>)
+  - **Validation**:
+    - Only rows that were processed.
+  - **Core Functions:** Batch update to clear/delete rows.
+  - **APIs**: Google Sheets API
+  - **Output**: string (result message)
+
+---
+
+## Agent B — Transcriber Agent
+
+### **Role within the Agency**
+
+Transcribe videos discovered by Scraper using AssemblyAI. Enforce max video length of 70 minutes. Store full transcript ("long") to Google Drive and Firestore.
+
+### Tools
+
+- **GetVideoAudioUrl**
+
+  - **Description**: Resolve direct audio URL or use the YouTube page URL for remote transcription.
+  - **Inputs**:
+    - `video_url` (string)
+  - **Validation**:
+    - Ensure availability; handle age-restricted/unavailable cases.
+  - **Core Functions:** Prefer AssemblyAI remote URL support; fallback to `yt_dlp` to fetch audio.
+  - **APIs**: AssemblyAI SDK, `yt_dlp`
+  - **Output**: JSON `{ remote_url | local_path }`
+
+- **SubmitAssemblyAIJob**
+
+  - **Description**: Submit transcription job (with speaker diarization off by default) and receive job ID.
+  - **Inputs**:
+    - `remote_url` (string)
+    - `metadata` (JSON) - `{ video_id, duration_sec }`
+  - **Validation**:
+    - Reject if `duration_sec > 4200` (70 min).
+  - **Core Functions:** Submit job; store job record; estimate cost.
+  - **APIs**: AssemblyAI SDK
+  - **Output**: JSON `{ job_id, estimated_cost_usd }`
+
+- **PollTranscriptionJob**
+
+  - **Description**: Poll until completion or failure with exponential backoff.
+  - **Inputs**:
+    - `job_id` (string)
+  - **Validation**:
+    - Timeout and retries (3 attempts, exponential backoff).
+  - **Core Functions:** Poll result; retrieve transcript text + JSON.
+  - **APIs**: AssemblyAI SDK
+  - **Output**: JSON `{ transcript_text, transcript_json }`
+
+- **StoreTranscriptToDrive**
+
+  - **Description**: Save transcript `.txt` and `.json` to Drive folder.
+  - **Inputs**:
+    - `video_id` (string)
+    - `transcript_text` (string)
+    - `transcript_json` (JSON)
+  - **Validation**:
+    - Use configured folder ID placeholder.
+  - **Core Functions:** Upload; return file IDs.
+  - **APIs**: Google Drive API
+  - **Output**: JSON `{ drive_id_txt, drive_id_json }`
+
+- **SaveTranscriptRecord**
+  - **Description**: Store transcript metadata and references in Firestore.
+  - **Inputs**:
+    - `video_id` (string)
+    - `drive_ids` (JSON)
+    - `transcript_digest` (string)
+  - **Validation**:
+    - Ensure `videos/{video_id}` exists.
+  - **Core Functions:** Create `transcripts/{video_id}` doc; set status transitions.
+  - **APIs**: Firestore Admin SDK
+  - **Output**: JSON `{ transcript_doc_ref }`
+
+---
+
+## Agent C — Summarizer Agent (formerly Distiller)
+
+### **Role within the Agency**
+
+Produce a short actionable summary per transcript for coaching contexts, stored in Zep (GraphRAG), explicitly linked to the full transcript produced by Agent B. Store references in Firestore and Drive.
+
+### Tools
+
+- **GenerateShortSummary**
+
+  - **Description**: Create concise, actionable bullet summary tailored for coaching use.
+  - **Inputs**:
+    - `transcript_doc_ref` (string)
+    - `title` (string)
+  - **Validation**:
+    - Token limits respected; robust to long transcripts via chunking.
+  - **Core Functions:** LLM prompt; extract key concepts and actionables.
+  - **APIs**: OpenAI SDK (or compatible), Langfuse tracing
+  - **Output**: JSON `{ bullets: [string], key_concepts: [string] }`
+
+- **StoreShortInZep**
+
+  - **Description**: Persist short summary in Zep GraphRAG for later coaching retrieval.
+  - **Inputs**:
+    - `video_id` (string)
+    - `short_summary` (JSON)
+  - **Validation**:
+    - Zep credentials present.
+  - **Core Functions:** Upsert into Zep index/collection.
+  - **APIs**: Zep SDK/API
+  - **Output**: JSON `{ zep_doc_id }`
+
+- **StoreShortSummaryToDrive**
+
+  - **Description**: Save the short summary to Drive.
+  - **Inputs**:
+    - `video_id` (string)
+    - `short_summary` (JSON)
+  - **Validation**:
+    - Use configured folder IDs.
+  - **Core Functions:** Upload JSON/Markdown; return ID.
+  - **APIs**: Google Drive API
+  - **Output**: JSON `{ short_drive_id }`
+
+- **SaveSummaryRecord**
+  - **Description**: Persist summary references and linkage to the full transcript.
+  - **Inputs**:
+    - `video_id` (string)
+    - `refs` (JSON) - `{ zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json }`
+  - **Validation**:
+    - Ensure transcript exists.
+  - **Core Functions:** Create `summaries/{video_id}` doc with refs to Zep, Drive, and transcript.
+  - **APIs**: Firestore Admin SDK
+  - **Output**: JSON `{ summary_doc_ref }`
+
+---
+
+## Agent D — Assistant Agent
+
+### **Role within the Agency**
+
+Monitor budgets for transcription cost and operational errors. Send internal Slack alerts when thresholds are met (e.g., 80% of $5/day) or jobs fail.
+
+### Tools
+
+- **FormatSlackBlocks**
+
+  - **Description**: Convert updates into Slack Block Kit with bullets.
+  - **Inputs**:
+    - `items` (JSON)
+  - **Validation**:
+    - Block size limits
+  - **Core Functions:** Build sections/dividers; include links to Drive/Zep.
+  - **APIs**: None (formatting)
+  - **Output**: JSON `{ blocks: [...] }`
+
+- **SendSlackMessage**
+
+  - **Description**: Post an alert message to Slack channel.
+  - **Inputs**:
+    - `channel` (string)
+    - `blocks` (JSON)
+  - **Validation**:
+    - Token present
+  - **Core Functions:** Call Slack chat.postMessage
+  - **APIs**: Slack SDK/Web API
+  - **Output**: JSON `{ ts, channel }`
+
+- **MonitorTranscriptionBudget**
+
+  - **Description**: Track estimated daily transcription spend; alert at 80% of $5/day.
+  - **Inputs**:
+    - `date` (string)
+  - **Validation**:
+    - None
+  - **Core Functions:** Sum `costs.transcription_usd` in Firestore; compare against threshold; post Slack alert if exceeded.
+  - **APIs**: Firestore Admin SDK, Slack
+  - **Output**: string (status)
+
+- **SendErrorAlert**
+  - **Description**: Send error alerts to Slack on failures.
+  - **Inputs**:
+    - `message` (string)
+    - `context` (JSON)
+  - **Validation**:
+    - None
+  - **Core Functions:** Format blocks; post to Slack.
+  - **APIs**: Slack SDK/Web API
+  - **Output**: string (status)
+
+---
+
+## Operational & Constraints
+
+- **Persistence/State:** Firestore as primary data store and event broker. Collections: `videos`, `transcripts`, `summaries`, `jobs/*`, `costs_daily`, `audit_logs`.
+- **Security/Compliance:** No PII expected. Secrets in `.env` or Google service account JSON only. Audit trail in `audit_logs` for key actions (created transcript, posted Slack message, cost alert).
+  - Google OAuth scopes minimal: Drive file create/read (specific folders), Sheets read/write (one sheet).
+- **Performance/Cost Constraints:**
+  - Transcription budget: $5/day; Slack alert at 80% usage.
+  - Rate limits: YouTube API respectful polling (daily at 01:00) and batched backfill; AssemblyAI polling with exponential backoff.
+  - Timeouts/Retries: 3 retries with exponential backoff on network/API.
+- **Observability:** Langfuse for LLM tracing/metrics; optional Datadog for infra metrics. Minimal structured logging; Slack error alerts. MVP-level only.
+
+---
+
+## Idempotency & Naming
+
+- Idempotency key: `video_id` across `videos`, `transcripts`, `summaries`, and `jobs/transcription`.
+- Drive filenames: `<video_id>_<yyyy-mm-dd>_<type>.{txt,json,md}`.
+
+---
+
+## Reliability & Quotas
+
+- **YouTube Quota Strategy:**
+
+  - Use uploads playlist (`playlistItems.list`) and batch `videos.list` for durations.
+  - Persist `lastPublishedAt` to avoid re-fetching older pages.
+  - If quota exhausted: back off and resume next day; optional RSS feed for discovery only.
+
+- **Firestore Indexes:**
+
+  - Composite index: `videos(status asc, published_at desc)`.
+  - Composite index: `summaries(created_at desc)`.
+
+- **Dead-Letter Queue:**
+  - Collection: `jobs_deadletter/{auto_id}` with fields `{ job_type, video_id, reason, retry_count, last_error_at }`.
+
+---
+
+## Success Criteria & Tests
+
+- **KPIs / Acceptance Criteria:**
+  - Discover new YouTube videos daily (within the 01:00 run).
+  - Transcription accuracy: 100% target (AssemblyAI output).
+  - Short summaries produced and stored (Zep + Drive) for each processed video.
+  - Google Sheet links backfilled same day and removed from the sheet.
+- **Key Scenarios / E2E Test Cases:**
+  1. New video on YouTube → transcribed → short summary created (linked to transcript) → artifacts stored; internal alerts on failures.
+  2. Two new videos and one updated video → all processed appropriately → artifacts stored; no duplicate processing.
+  3. New page link with embedded video in the Google Sheet → extracted → transcribed → summarized → sheet row archived/removed.
+
+---
+
+## Phasing
+
+- **Must-have for v1 (MVP):**
+  - Daily scrape at 01:00 (Europe/Amsterdam), dedupe, backfill from last 12 months.
+  - AssemblyAI transcription with 70-minute max duration enforcement.
+  - Short summary stored in Zep; "long" equals full transcript from Transcriber; linkage maintained.
+  - Store artifacts in Firestore and Google Drive (folder placeholders ok).
+  - Assistant daily Slack digest at 07:00 and budget alerts at 80% of $5/day.
+  - Google Sheet ingestion and same-day backfill with sheet row removal.
+- **Nice-to-have later:**
+  - Multi-channel support beyond `@AlexHormozi`.
+  - Advanced analytics, per-video performance, richer coaching prompts.
+  - Human approval gates for specific steps if desired.
+  - Enhanced observability with Datadog or Arize Phoenix.
+
+---
+
+## Tooling, APIs, and Environment Variables
+
+- **YouTube Access:** Yes — use YouTube Data API v3 to list channel uploads and fetch video metadata/duration. Fallback: public RSS `feeds/videos.xml` if API quota issues arise.
+- **AssemblyAI:** For transcription. Env: `ASSEMBLYAI_API_KEY`.
+- **Slack:** For notifications. Env: `SLACK_BOT_TOKEN` (and `SLACK_SIGNING_SECRET` if needed).
+- **Google Drive & Sheets:** Service account credentials via `GOOGLE_APPLICATION_CREDENTIALS`. Envs: `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`, `GOOGLE_SHEET_ID_BACKFILL`.
+- **Firestore:** Use the same Google credentials as Drive/Sheets.
+- **Zep (GraphRAG):** Env: `ZEP_API_KEY`, `ZEP_COLLECTION` (use `autopiloot_guidelines`). Store metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[] }`.
+- **LLM Provider:** OpenAI (or compatible). Env: `OPENAI_API_KEY`. Default model: `gpt-4.1`, temperature 0.2, max output tokens ~1500.
+- **Langfuse:** Env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`.
+- **General:** `TIMEZONE=Europe/Amsterdam`.
+
+---
+
+## Data Model (Firestore)
+
+- `videos/{video_id}`:
+  - `url`, `title`, `published_at`, `channel_id`, `duration_sec`, `source`, `status` (discovered|transcribed|summarized), `created_at`, `updated_at`
+- `transcripts/{video_id}`:
+  - `transcript_drive_ids` (`txt`, `json`), `digest`, `created_at`, `costs.transcription_usd`
+- `summaries/{video_id}`:
+  - `short` (`zep_doc_id`, `drive_id`, `prompt_version`), `linkage` (`transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`), `created_at`
+- `jobs/transcription/*`:
+  - `video_id`, `submitted_at`, `status`, `retries`
+- `costs_daily/{YYYY-MM-DD}`:
+  - `transcription_usd_total`, `alerts_sent`
+- `audit_logs/{auto_id}`:
+  - `actor`, `action`, `entity`, `entity_id`, `timestamp`, `details`
+
+---
+
+## Notes
+
+- All references to “distillation” are renamed to “summary”; "long" now refers to the full transcript, not a long-form summary.
+- Channel: `@AlexHormozi` (resolved to channel ID at runtime).
+- Scheduling (infra-level) assumed; agents are triggered accordingly.
+- Base path enforced: `agents/autopiloot/...`.

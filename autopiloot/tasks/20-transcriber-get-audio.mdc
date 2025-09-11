@@ -1,0 +1,61 @@
+---
+description: "Implement GetVideoAudioUrl (remote URL preferred, fallback yt_dlp)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-TRN-0020"
+title: "Build GetVideoAudioUrl tool"
+status: "planned"
+priority: "P1"
+labels: ["transcriber", "audio"]
+dependencies: ["TASK-SCR-0014"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Resolve an audio source for AssemblyAI.
+
+# 2) Background / Context
+
+PRD Agent B tools.
+
+# 3) Assumptions & Constraints
+
+- Prefer remote URL if possible; else download audio via yt_dlp.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/transcriber/tools/GetVideoAudioUrl.py
+
+# 6) Low-Level Steps
+
+1. Input: `video_url`.
+2. Attempt remote URL for AssemblyAI; else use yt_dlp to download audio temporarily.
+
+# 7) Acceptance Criteria
+
+- Returns `{ remote_url | local_path }` reliably.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Optional
+
+class GetVideoAudioUrlRequest(TypedDict):
+    video_url: str
+
+class GetVideoAudioUrlResponse(TypedDict, total=False):
+    remote_url: Optional[str]
+    local_path: Optional[str]
+```

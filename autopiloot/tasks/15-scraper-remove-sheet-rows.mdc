@@ -1,0 +1,61 @@
+---
+description: "Remove successfully processed rows from Google Sheet or archive tab"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0015"
+title: "Build RemoveSheetRow tool (Sheets row clear/delete or archive)"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "sheets"]
+dependencies: ["TASK-SCR-0012"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Clear/delete rows that have been processed successfully, or move to Archive tab.
+
+# 2) Background / Context
+
+PRD: Scraper tools; Sheet flow policy.
+
+# 3) Assumptions & Constraints
+
+- Archive behavior preferred for auditability.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/RemoveSheetRow.py
+
+# 6) Low-Level Steps
+
+1. Input: `sheet_id`, `row_indices`.
+2. Move to Archive or clear ranges; batch update.
+
+# 7) Acceptance Criteria
+
+- Rows removed or archived without disrupting remaining indices.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List
+
+class RemoveSheetRowRequest(TypedDict):
+    sheet_id: str
+    row_indices: List[int]
+
+class RemoveSheetRowResponse(TypedDict):
+    message: str
+```

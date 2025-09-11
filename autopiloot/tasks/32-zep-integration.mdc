@@ -1,0 +1,72 @@
+---
+description: "Integrate Zep GraphRAG for short summaries"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ZEP-0006"
+title: "Store short summaries in Zep with metadata"
+status: "planned"
+priority: "P1"
+labels: ["zep", "summaries"]
+dependencies: ["TASK-SUM-0031"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Persist short summaries in Zep collection `autopiloot_guidelines` with metadata.
+
+# 2) Background / Context
+
+See PRD: Zep schema.
+
+# 3) Assumptions & Constraints
+
+- Use env `ZEP_API_KEY`, `ZEP_COLLECTION`.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- Code to upsert to Zep with metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[] }`.
+
+# 6) Low-Level Steps
+
+1. Create helper to upsert summary to Zep.
+2. Attach metadata and reference to Firestore transcript doc.
+3. Return `zep_doc_id` and persist in `summaries/{video_id}`.
+
+# 7) Acceptance Criteria
+
+- Summaries appear in Zep with correct metadata.
+- Firestore stores `zep_doc_id`.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List
+
+class ZepMetadata(TypedDict):
+    video_id: str
+    title: str
+    published_at: str
+    channel_id: str
+    transcript_doc_ref: str
+    tags: List[str]
+
+class ZepUpsertRequest(TypedDict):
+    collection: str
+    summary: dict
+    metadata: ZepMetadata
+
+class ZepUpsertResponse(TypedDict):
+    zep_doc_id: str
+```

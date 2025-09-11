@@ -1,0 +1,83 @@
+---
+description: "Implement YouTube quota handling, Firestore indexes, and DLQ"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-REL-0003"
+title: "Add quota strategy, Firestore composite indexes, and dead-letter queue"
+status: "planned"
+priority: "P1"
+labels: ["reliability", "quotas", "firestore"]
+dependencies: ["TASK-AGENTS-0002"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Ensure resilient operation under API limits and failures.
+
+# 2) Background / Context
+
+See PRD sections: Reliability & Quotas; Data Model.
+
+# 3) Assumptions & Constraints
+
+- Minimal changes, MVP scope.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/firestore/indexes.md
+- DLQ writes in code paths that fail after retries
+
+# 6) Low-Level Steps
+
+1. Add composite index definitions for `videos(status, published_at desc)` and `summaries(created_at desc)`.
+2. Add DLQ write helper: `jobs_deadletter` entries with required fields.
+3. Implement `lastPublishedAt` checkpoint to reduce YouTube calls.
+4. Backoff strategy when quota exhausted; resume next day.
+
+# 7) Acceptance Criteria
+
+- Index definitions documented.
+- Failures after retries create DLQ entries.
+- Quota exhaustion does not crash runs; resumes next window.
+
+# 8) Testing Strategy
+
+- Simulate quota errors; verify DLQ write and backoff.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class DLQEntry(TypedDict):
+    job_type: str
+    video_id: str
+    reason: str
+    retry_count: int
+    last_error_at: str
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /jobs_deadletter/{id} {
+      allow read, write: if false;
+    }
+  }
+}
+```

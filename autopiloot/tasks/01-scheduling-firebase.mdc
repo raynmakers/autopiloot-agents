@@ -1,0 +1,87 @@
+---
+description: "Configure Firebase Functions v2 scheduling for Scraper and internal alerts"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCHED-0001"
+title: "Set up Firebase v2 Scheduled Functions and event triggers"
+status: "planned"
+priority: "P0"
+labels: ["infra", "firebase", "scheduling"]
+dependencies: []
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Daily Scraper run at 01:00 Europe/Amsterdam, and event-driven Assistant budget alerts using Firebase Functions v2.
+
+# 2) Background / Context
+
+See `agents/autopiloot/prd.mdc` → Scheduling.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Firebase project is available; service account configured locally.
+- Constraint: Use Functions v2 cron with `timeZone: Europe/Amsterdam`.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/firebase/functions/scheduler.py
+- agents/autopiloot/firebase/functions/**init**.py
+
+# 6) Low-Level Steps
+
+1. Create file `agents/autopiloot/firebase/functions/scheduler.py` with:
+   - Function `schedule_scraper_daily()` using Functions v2 (Python) or Node. If Python not supported in env, define Node variant; but prefer Python if tooling available.
+   - Cron: `0 1 * * *`, `timeZone="Europe/Amsterdam"` → invoke a pub/sub/topic or call Scraper entry.
+   - Export `schedule_scraper_daily`.
+2. Add event-driven function `on_transcription_written()`:
+   - Trigger on Firestore: `transcripts/{video_id}` create/update.
+   - Compute daily cost and if > 80% of $5: send Slack alert via Assistant tool later.
+3. Wire index file `__init__.py` to export both functions.
+
+# 7) Acceptance Criteria
+
+- A scheduled function exists to trigger Scraper at 01:00 Europe/Amsterdam.
+- An event-driven function exists to react to `transcripts/*` writes and compute budget usage.
+- Both deploy without errors via Firebase CLI (manual), code compiles.
+
+# 8) Testing Strategy
+
+- Local emulators: trigger schedule via direct call; write a sample transcript doc and observe logs.
+
+# 9) Notes / Links
+
+- Firebase Functions v2 schedule docs.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Literal, Optional, Dict, Any
+
+class CronSpec(TypedDict):
+    cron: str
+    timeZone: str
+
+class InvocationResult(TypedDict):
+    ok: bool
+    run_id: str
+
+class FirestoreEvent(TypedDict):
+    operation: Literal["create", "update"]
+    collection: str
+    doc_id: str
+    before: Optional[Dict[str, Any]]
+    after: Dict[str, Any]
+```

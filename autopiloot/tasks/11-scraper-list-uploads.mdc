@@ -1,0 +1,72 @@
+---
+description: "Implement ListRecentUploads (time-bounded uploads with durations)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0011"
+title: "Build ListRecentUploads tool (playlistItems + videos)"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "youtube"]
+dependencies: ["TASK-SCR-0010"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+List uploads within a window and include `duration_sec`.
+
+# 2) Background / Context
+
+PRD Agent A tools; Reliability & Quotas.
+
+# 3) Assumptions & Constraints
+
+- Persist `lastPublishedAt` checkpoint.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/ListRecentUploads.py
+
+# 6) Low-Level Steps
+
+1. Inputs: `channel_id, since_iso, until_iso, page_size`.
+2. Use uploads playlist via `playlistItems.list`, then `videos.list` for durations.
+3. Respect quota; break on window end; update checkpoint.
+
+# 7) Acceptance Criteria
+
+- Returns array of `{ video_id, url, title, published_at, duration_sec }`.
+- Skips already-seen videos via checkpoint.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, List
+
+class ListRecentUploadsRequest(TypedDict):
+    channel_id: str
+    since_iso: str
+    until_iso: str
+    page_size: int
+
+class UploadItem(TypedDict):
+    video_id: str
+    url: str
+    title: str
+    published_at: str
+    duration_sec: int
+
+class ListRecentUploadsResponse(TypedDict):
+    items: List[UploadItem]
+```

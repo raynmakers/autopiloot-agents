@@ -1,0 +1,60 @@
+---
+description: "Define required environment variables and loading for all tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ENV-0000"
+title: "Configure environment variables for Autopiloot agents"
+status: "planned"
+priority: "P0"
+labels: ["env", "config"]
+dependencies: []
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Ensure all agents/tools load required env vars with no placeholders committed.
+
+# 2) Background / Context
+
+PRD: Tooling, APIs, and Environment Variables.
+
+# 3) Assumptions & Constraints
+
+- `.env` is git-ignored (see `agents/.gitignore`).
+- Values provided out-of-band; do not commit secrets.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- All tools load env via `dotenv` and `os.getenv`.
+
+# 6) Low-Level Steps
+
+1. Enumerate env names:
+   - `OPENAI_API_KEY`
+   - `ASSEMBLYAI_API_KEY`
+   - `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`
+   - `GOOGLE_APPLICATION_CREDENTIALS`
+   - `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`
+   - `GOOGLE_SHEET_ID_BACKFILL`
+   - `YOUTUBE_API_KEY`
+   - `ZEP_API_KEY`, `ZEP_COLLECTION`
+   - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+   - `TIMEZONE` (set to `Europe/Amsterdam`)
+2. Add `load_dotenv()` in each tool module entry.
+3. Verify runtime can access Google creds and Slack token.
+
+# 7) Acceptance Criteria
+
+- Running any tool does not raise missing env errors when `.env` is present.

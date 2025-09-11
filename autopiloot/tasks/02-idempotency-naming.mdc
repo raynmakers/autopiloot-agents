@@ -1,0 +1,67 @@
+---
+description: "Enforce idempotency and standardized Drive filenames"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-IDEM-0005"
+title: "Implement idempotency keys and Drive naming"
+status: "planned"
+priority: "P1"
+labels: ["idempotency", "drive"]
+dependencies: []
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Avoid duplicate work; standardize file naming for discoverability.
+
+# 2) Background / Context
+
+See PRD: Idempotency & Naming.
+
+# 3) Assumptions & Constraints
+
+- video_id is canonical idempotency key.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- Idempotent writes across collections; Drive filenames enforced.
+
+# 6) Low-Level Steps
+
+1. Use `videos/{video_id}` as source of truth.
+2. Skip transcription/summary if doc exists with completed status.
+3. Drive filenames: `<video_id>_<yyyy-mm-dd>_<type>.{txt,json,md}`.
+
+# 7) Acceptance Criteria
+
+- Re-running any step does not create duplicates.
+- Drive files follow naming convention.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Literal
+
+VideoStatus = Literal["discovered", "transcribed", "summarized"]
+
+class DriveIds(TypedDict):
+    txt: str
+    json: str
+
+class FileNamingSpec(TypedDict):
+    video_id: str
+    date_yyyy_mm_dd: str
+    type: Literal["transcript_txt", "transcript_json", "summary_md", "summary_json"]
+```

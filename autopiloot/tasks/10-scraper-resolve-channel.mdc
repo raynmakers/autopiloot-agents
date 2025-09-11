@@ -1,0 +1,62 @@
+---
+description: "Implement ResolveChannelHandle (YouTube handle → channel ID)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SCR-0010"
+title: "Build ResolveChannelHandle tool (YouTube Data API v3)"
+status: "planned"
+priority: "P1"
+labels: ["scraper", "youtube"]
+dependencies: ["TASK-AGENTS-0002"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Resolve `@AlexHormozi` to a canonical `channel_id` using YouTube Data API v3.
+
+# 2) Background / Context
+
+PRD Agent A tools.
+
+# 3) Assumptions & Constraints
+
+- Env: `YOUTUBE_API_KEY`.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/ResolveChannelHandle.py
+
+# 6) Low-Level Steps
+
+1. Implement class `ResolveChannelHandle` using `agency_swarm.tools.BaseTool`.
+2. Input: `channel_handle: str`; Output: `{ "channel_id": str }`.
+3. Call search/channels API to resolve handle; retries on 429/5xx.
+
+# 7) Acceptance Criteria
+
+- Returns valid `channel_id` for `@AlexHormozi`.
+- Graceful error with clear message when not found.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class ResolveChannelHandleRequest(TypedDict):
+    channel_handle: str
+
+class ResolveChannelHandleResponse(TypedDict):
+    channel_id: str
+```

@@ -1,0 +1,87 @@
+---
+description: "Implement tools for Scraper, Transcriber, Summarizer, Assistant"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-AGENTS-0002"
+title: "Create agent tool modules (YouTube, AssemblyAI, Zep, Slack, Drive/Sheets)"
+status: "planned"
+priority: "P0"
+labels: ["agents", "tools"]
+dependencies: ["TASK-SCHED-0001"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Provide concrete, working tool modules for all agents per PRD.
+
+# 2) Background / Context
+
+See `agents/autopiloot/prd.mdc` → Agent A/B/C/D Tools.
+
+# 3) Assumptions & Constraints
+
+- Use Python tools with `agency_swarm.tools` if possible.
+- Secrets from env; no placeholders.
+
+# 4) Dependencies
+
+- files: `agents/autopiloot/prd.mdc`
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/scraper/tools/\*.py
+- agents/autopiloot/transcriber/tools/\*.py
+- agents/autopiloot/summarizer/tools/\*.py
+- agents/autopiloot/assistant/tools/\*.py
+
+# 6) Low-Level Steps
+
+1. Scraper tools: ResolveChannelHandle, ListRecentUploads, ReadSheetLinks, ExtractYouTubeFromPage, SaveVideoMetadata, EnqueueTranscription, RemoveSheetRow.
+2. Transcriber tools: GetVideoAudioUrl, SubmitAssemblyAIJob, PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord.
+3. Summarizer tools: GenerateShortSummary (gpt-4.1, temp 0.2), StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord.
+4. Assistant tools: FormatSlackBlocks, SendSlackMessage, MonitorTranscriptionBudget, SendErrorAlert.
+5. Ensure each tool has an `if __name__ == "__main__":` test block.
+
+# 7) Acceptance Criteria
+
+- All listed tool files exist and run a basic test.
+- No hardcoded secrets; env-var based.
+
+# 8) Testing Strategy
+
+- Run each tool file directly; validate happy-path execution with minimal mocks.
+
+# 9) Notes / Links
+
+- YouTube Data API v3, AssemblyAI, Zep, Slack SDK, Google APIs.
+
+# 10) Types & Interfaces
+
+Documentation: Concrete request/response types are defined per tool task:
+
+- Scraper: 10–15
+- Transcriber: 20–22
+- Summarizer/Zep: 30–32
+- Assistant: 40
+
+Generic shapes used across tools:
+
+```python
+from typing import TypedDict, Any
+
+class ToolRequest(TypedDict):
+    # Tool-specific inputs; see individual tasks
+    ...
+
+class ToolResponse(TypedDict):
+    # Tool-specific outputs; see individual tasks
+    ...
+```

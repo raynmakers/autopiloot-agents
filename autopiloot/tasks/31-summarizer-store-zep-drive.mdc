@@ -1,0 +1,91 @@
+---
+description: "Store short summaries in Zep and Drive; persist Firestore record"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-SUM-0031"
+title: "Build StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord"
+status: "planned"
+priority: "P1"
+labels: ["summarizer", "zep", "drive", "firestore"]
+dependencies: ["TASK-SUM-0030"]
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Persist short summaries to Zep and Drive, and link to transcript in Firestore.
+
+# 2) Background / Context
+
+PRD Agent C tools; Zep schema.
+
+# 3) Assumptions & Constraints
+
+- Zep collection: `autopiloot_guidelines`.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/summarizer/tools/StoreShortInZep.py
+- agents/autopiloot/summarizer/tools/StoreShortSummaryToDrive.py
+- agents/autopiloot/summarizer/tools/SaveSummaryRecord.py
+
+# 6) Low-Level Steps
+
+1. Upsert summary to Zep with metadata and return `zep_doc_id`.
+2. Upload summary JSON/MD to Drive; return `short_drive_id`.
+3. Save `summaries/{video_id}` with linkage to transcript and `prompt_version`.
+
+# 7) Acceptance Criteria
+
+- Zep doc exists; Drive file exists; Firestore record references both.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class StoreShortInZepRequest(TypedDict):
+    video_id: str
+    short_summary: dict
+
+class StoreShortInZepResponse(TypedDict):
+    zep_doc_id: str
+
+class StoreShortSummaryToDriveRequest(TypedDict):
+    video_id: str
+    short_summary: dict
+
+class StoreShortSummaryToDriveResponse(TypedDict):
+    short_drive_id: str
+
+class SaveSummaryRecordRequest(TypedDict):
+    video_id: str
+    refs: dict  # { zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json }
+
+class SaveSummaryRecordResponse(TypedDict):
+    summary_doc_ref: str
+```
+
+# 11) Firestore Security Rules (MVP)
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /summaries/{videoId} {
+      allow read, write: if false;
+    }
+  }
+}
+```
