@@ -1,0 +1,70 @@
+---
+description: "Create YAML config file for runtime settings (Sheets cap, ranges, etc.)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-CFG-0000"
+title: "Add autopiloot.yaml configuration and loader"
+status: "planned"
+priority: "P0"
+labels: ["config", "yaml"]
+dependencies: []
+created: "2025-09-11"
+
+# 1) High-Level Objective
+
+Provide a YAML config at `agents/autopiloot/config/autopiloot.yaml` with values used by tasks (e.g., Sheets daily cap), plus a loader utility.
+
+# 2) Background / Context
+
+Task 03 (Sheets) requires `sheets.daily_backfill_cap` to enforce daily limits.
+
+# 3) Assumptions & Constraints
+
+- The YAML file is committed (non-secret). Secrets remain in env.
+
+# 4) Dependencies
+
+- files: agents/autopiloot/prd.mdc
+- tasks: agents/autopiloot/tasks/03-google-sheet-flow.mdc
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/prd.mdc _(read-only)_
+
+End state:
+
+- agents/autopiloot/config/autopiloot.yaml
+- agents/autopiloot/config/loader.py
+
+# 6) Low-Level Steps
+
+1. Create `agents/autopiloot/config/autopiloot.yaml` with structure:
+   ```yaml
+   sheets:
+     daily_backfill_cap: 10
+     range_a1: "Sheet1!A:D"
+   ```
+2. Create `agents/autopiloot/config/loader.py` with function `load_app_config() -> dict` using `yaml.safe_load`.
+3. Add minimal validation: ensure `sheets.daily_backfill_cap` is int >= 0.
+
+# 7) Acceptance Criteria
+
+- Loader returns a dict with `sheets.daily_backfill_cap` and `range_a1`.
+- Task 03 can import and use the loader without modification.
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict
+
+class SheetsConfig(TypedDict, total=False):
+    daily_backfill_cap: int
+    range_a1: str
+
+class AppConfig(TypedDict, total=False):
+    sheets: SheetsConfig
+```

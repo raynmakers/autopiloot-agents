@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Process up to 10 links daily from a Google Sheet; archive successful rows; mark errors.
+Process up to N links daily from a Google Sheet; archive successful rows; mark errors. N is read from YAML config.
 
 # 2) Background / Context
 
@@ -24,32 +24,37 @@ See PRD: Communication Flows (Google Sheet backfill).
 
 - Columns: A=url, B=status, C=notes, D=processed_at.
 - Archive tab: `Archive`.
+- Daily cap is read from `agents/autopiloot/config/autopiloot.yaml` → `sheets.daily_backfill_cap`.
 
 # 4) Dependencies
 
 - files: `agents/autopiloot/prd.mdc`
+- files: `agents/autopiloot/config/autopiloot.yaml` (created by config task)
 
 # 5) Context Plan
 
 Beginning:
 
 - agents/autopiloot/prd.mdc _(read-only)_
+- agents/autopiloot/config/autopiloot.yaml _(read-only)_
 
 End state:
 
-- sheets read/write helpers; row move to Archive.
+- sheets read/write helpers; row move to Archive; cap enforced from config.
 
 # 6) Low-Level Steps
 
-1. Read up to 10 pending rows.
-2. For each, extract YouTube video(s), enqueue transcription if new.
-3. On success: move row to `Archive`, set `processed_at`.
-4. On failure: set `status=error` and `notes`.
+1. Load config file `agents/autopiloot/config/autopiloot.yaml` and read `sheets.daily_backfill_cap` (default 10 if missing).
+2. Read up to `daily_backfill_cap` pending rows.
+3. For each, extract YouTube video(s), enqueue transcription if new.
+4. On success: move row to `Archive`, set `processed_at`.
+5. On failure: set `status=error` and `notes`.
 
 # 7) Acceptance Criteria
 
 - Rows processed sequentially; archive/remove behavior implemented.
 - Errors retained on main tab.
+- The number of processed rows equals the configured `daily_backfill_cap`.
 
 # 10) Types & Interfaces
 
@@ -72,4 +77,11 @@ class SheetLink(TypedDict):
 
 class ReadSheetLinksResponse(TypedDict):
     items: List[SheetLink]
+
+class SheetsConfig(TypedDict, total=False):
+    daily_backfill_cap: int  # e.g., 10
+    range_a1: str            # e.g., "Sheet1!A:D"
+
+class AppConfig(TypedDict, total=False):
+    sheets: SheetsConfig
 ```
