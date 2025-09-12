@@ -27,3 +27,11 @@ notifications:
 
 budgets:
   transcription_daily_usd: 5.0
+
+idempotency:
+  max_video_duration_sec: 4200  # 70 minutes maximum
+  status_progression:
+    - "discovered"
+    - "transcribed" 
+    - "summarized"
+  drive_naming_format: "{video_id}_{date}_{type}.{ext}"

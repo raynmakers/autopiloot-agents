@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Server-only access for MVP - all client access denied
+    // Functions use Admin SDK which bypasses these rules
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Optional: Allow read access for authenticated admin users during development
+    // Uncomment and configure as needed for debugging
+    // match /{document=**} {
+    //   allow read: if request.auth != null && request.auth.token.admin == true;
+    // }
+  }
+}

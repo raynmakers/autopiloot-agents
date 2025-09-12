@@ -5,8 +5,11 @@ Loads and validates settings from settings.yaml.
 
 import os
 import yaml
-from typing import TypedDict, List, Dict, Optional, Union
+from typing import TypedDict, List, Dict, Optional, Union, Literal
 from pathlib import Path
+
+# Define VideoStatus locally to avoid circular imports
+VideoStatus = Literal["discovered", "transcribed", "summarized"]
 
 
 class ScraperConfig(TypedDict, total=False):
@@ -115,6 +118,28 @@ def _validate_config(config: dict) -> None:
         budget = budgets["transcription_daily_usd"]
         if not isinstance(budget, (int, float)) or budget <= 0:
             raise ConfigValidationError("budgets.transcription_daily_usd must be a positive number")
+    
+    # Validate idempotency config
+    idempotency = config.get("idempotency", {})
+    if "max_video_duration_sec" in idempotency:
+        max_duration = idempotency["max_video_duration_sec"]
+        if not isinstance(max_duration, int) or max_duration <= 0:
+            raise ConfigValidationError("idempotency.max_video_duration_sec must be a positive integer")
+    
+    if "status_progression" in idempotency:
+        status_progression = idempotency["status_progression"]
+        if not isinstance(status_progression, list):
+            raise ConfigValidationError("idempotency.status_progression must be a list")
+        
+        valid_statuses = ["discovered", "transcribed", "summarized"]
+        for status in status_progression:
+            if status not in valid_statuses:
+                raise ConfigValidationError(f"idempotency.status_progression contains invalid status: {status}")
+    
+    if "drive_naming_format" in idempotency:
+        naming_format = idempotency["drive_naming_format"]
+        if not isinstance(naming_format, str) or not naming_format.strip():
+            raise ConfigValidationError("idempotency.drive_naming_format must be a non-empty string")
 
 
 def load_app_config(config_path: Optional[str] = None) -> AppConfig:
@@ -158,9 +183,50 @@ def load_app_config(config_path: Optional[str] = None) -> AppConfig:
     return config
 
 
+def get_max_video_duration(config: AppConfig) -> int:
+    """
+    Get maximum video duration for processing from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Maximum duration in seconds (default: 4200 = 70 minutes)
+    """
+    return config.get("idempotency", {}).get("max_video_duration_sec", 4200)
+
+
+def get_drive_naming_format(config: AppConfig) -> str:
+    """
+    Get Drive filename format string from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Format string (default: "{video_id}_{date}_{type}.{ext}")
+    """
+    return config.get("idempotency", {}).get("drive_naming_format", "{video_id}_{date}_{type}.{ext}")
+
+
+def get_status_progression(config: AppConfig) -> List[str]:
+    """
+    Get expected status progression from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        List of status values in progression order
+    """
+    return config.get("idempotency", {}).get("status_progression", ["discovered", "transcribed", "summarized"])
+
+
 if __name__ == "__main__":
     config = load_app_config()
     print(f"Configuration loaded successfully. Sheet ID: {config['sheet']}")
     print(f"Default LLM model: {config['llm']['default']['model']}")
     print(f"Slack channel: {config['notifications']['slack']['channel']}")
     print(f"Transcription budget: ${config['budgets']['transcription_daily_usd']}")
+    print(f"Max video duration: {get_max_video_duration(config)} seconds")
+    print(f"Drive naming format: {get_drive_naming_format(config)}")
