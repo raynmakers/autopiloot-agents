@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 
 id: "TASK-CFG-0000"
-title: "Add autopiloot.yaml configuration and loader"
+title: "Add settings.yaml configuration and loader"
 status: "planned"
 priority: "P0"
 labels: ["config", "yaml"]
@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Provide a YAML config at `agents/autopiloot/config/autopiloot.yaml` with values used by tasks (e.g., Sheets daily cap), plus a loader utility.
+Provide a YAML config at `agents/autopiloot/config/settings.yaml` with values used by tasks (e.g., Sheets daily cap), plus a loader utility.
 
 # 2) Background / Context
 
@@ -37,12 +37,12 @@ Beginning:
 
 End state:
 
-- agents/autopiloot/config/autopiloot.yaml
+- agents/autopiloot/config/settings.yaml
 - agents/autopiloot/config/loader.py
 
 # 6) Low-Level Steps
 
-1. Create `agents/autopiloot/config/autopiloot.yaml` with structure:
+1. Create `agents/autopiloot/config/settings.yaml` with structure:
    ```yaml
    sheets:
      daily_backfill_cap: 10

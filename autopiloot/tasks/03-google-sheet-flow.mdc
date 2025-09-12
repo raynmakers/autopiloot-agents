@@ -24,19 +24,19 @@ See PRD: Communication Flows (Google Sheet backfill).
 
 - Columns: A=url, B=status, C=notes, D=processed_at.
 - Archive tab: `Archive`.
-- Daily cap is read from `agents/autopiloot/config/autopiloot.yaml` → `sheets.daily_backfill_cap`.
+- Daily cap is read from `agents/autopiloot/config/settings.yaml` → `sheets.daily_backfill_cap`.
 
 # 4) Dependencies
 
 - files: `agents/autopiloot/prd.mdc`
-- files: `agents/autopiloot/config/autopiloot.yaml` (created by config task)
+- files: `agents/autopiloot/config/settings.yaml` (created by config task)
 
 # 5) Context Plan
 
 Beginning:
 
 - agents/autopiloot/prd.mdc _(read-only)_
-- agents/autopiloot/config/autopiloot.yaml _(read-only)_
+- agents/autopiloot/config/settings.yaml _(read-only)_
 
 End state:
 
@@ -44,7 +44,7 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Load config file `agents/autopiloot/config/autopiloot.yaml` and read `sheets.daily_backfill_cap` (default 10 if missing).
+1. Load config file `agents/autopiloot/config/settings.yaml` and read `sheets.daily_backfill_cap` (default 10 if missing).
 2. Read up to `daily_backfill_cap` pending rows.
 3. For each, extract YouTube video(s), enqueue transcription if new.
 4. On success: move row to `Archive`, set `processed_at`.
