@@ -54,7 +54,10 @@ End state:
    - `TIMEZONE` (set to `Europe/Amsterdam`)
 2. Add `load_dotenv()` in each tool module entry.
 3. Verify runtime can access Google creds and Slack token.
+4. Install Python dependencies for tools, including `yt-dlp` for audio extraction:
+   - Use `agents/autopiloot/requirements.txt` and run `pip install -r agents/autopiloot/requirements.txt`.
 
 # 7) Acceptance Criteria
 
 - Running any tool does not raise missing env errors when `.env` is present.
+- `python -c "import yt_dlp; print('ok')"` succeeds after installing requirements.
