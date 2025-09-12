@@ -22,12 +22,13 @@ PRD Sheet backfill.
 
 # 3) Assumptions & Constraints
 
-- Env: `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_SHEET_ID_BACKFILL`.
+- Config: Sheet ID from `agents/autopiloot/config/settings.yaml -> sheets`.
 - The sheet contains a single column where each row is a YouTube link.
 
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 
@@ -42,7 +43,7 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Read up to N pending rows from the single link column (range from config or default `Sheet1!A:A`).
+1. Load Sheet ID from settings; read up to N pending rows from the single link column (default range `Sheet1!A:A`).
 2. Validate that each cell contains a YouTube URL; skip invalid.
 3. Deduplicate results.
 

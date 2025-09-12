@@ -23,10 +23,12 @@ PRD: Scraper tools; Sheet flow policy.
 # 3) Assumptions & Constraints
 
 - Archive behavior preferred for auditability.
+- Single-column sheet of YouTube links; Sheet ID from `settings.yaml -> sheets`.
 
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 

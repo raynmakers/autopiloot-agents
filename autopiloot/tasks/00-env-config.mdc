@@ -28,6 +28,7 @@ PRD: Tooling, APIs, and Environment Variables.
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 
@@ -47,7 +48,6 @@ End state:
    - `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`
    - `GOOGLE_APPLICATION_CREDENTIALS`
    - `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`
-   - `GOOGLE_SHEET_ID_BACKFILL`
    - `YOUTUBE_API_KEY`
    - `ZEP_API_KEY`, `ZEP_COLLECTION`
    - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
@@ -56,8 +56,11 @@ End state:
 3. Verify runtime can access Google creds and Slack token.
 4. Install Python dependencies for tools, including `yt-dlp` for audio extraction:
    - Use `agents/autopiloot/requirements.txt` and run `pip install -r agents/autopiloot/requirements.txt`.
+5. Configuration file:
+   - Place `agents/autopiloot/config/settings.yaml` and ensure tasks read non-secret config (e.g., sheet ID, llm settings) from it.
 
 # 7) Acceptance Criteria
 
 - Running any tool does not raise missing env errors when `.env` is present.
 - `python -c "import yt_dlp; print('ok')"` succeeds after installing requirements.
+- Tasks that need non-secret config read from `settings.yaml`.

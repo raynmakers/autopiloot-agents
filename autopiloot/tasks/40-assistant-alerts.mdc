@@ -22,12 +22,14 @@ PRD Agent D tools.
 
 # 3) Assumptions & Constraints
 
-- Slack channel `ops-autopiloot`.
+- Slack channel read from `agents/autopiloot/config/settings.yaml -> notifications.slack.channel`.
+- Budget threshold read from `agents/autopiloot/config/settings.yaml -> budgets.transcription_daily_usd` (80% alert threshold).
 - Throttle: 1 per type per hour.
 
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 
@@ -44,13 +46,14 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Compute daily transcription spend; alert at 80% of $5.
+1. Compute daily transcription spend; compare to `budgets.transcription_daily_usd`; alert at 80%.
 2. Error alert helper with context.
-3. Slack posting with block kit formatting.
+3. Slack posting with block kit formatting to configured channel.
 
 # 7) Acceptance Criteria
 
 - Alerts posted to Slack and throttled per policy.
+- Budget math uses configured daily budget.
 
 # 10) Types & Interfaces
 
@@ -58,7 +61,7 @@ End state:
 from typing import TypedDict, List, Dict
 
 class BudgetMonitorRequest(TypedDict):
-    date: str  # YYYY-MM-DD
+    date: str  # YYYY-MM-DD (UTC)
 
 class BudgetMonitorResponse(TypedDict):
     status: str
@@ -79,3 +82,7 @@ class SendSlackMessageResponse(TypedDict):
     ts: str
     channel: str
 ```
+
+# 11) Time Policy
+
+- Use UTC for dates/timestamps in alerts and budgets.

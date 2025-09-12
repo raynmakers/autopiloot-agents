@@ -44,16 +44,16 @@ End state:
 
 1. Upsert summary to Zep with metadata and return `zep_doc_id`.
 2. Upload summary JSON/MD to Drive; return `short_drive_id`.
-3. Save `summaries/{video_id}` with linkage to transcript and `prompt_version`.
+3. Save `summaries/{video_id}` with linkage to transcript and the following fields: `zep_doc_id`, `short_drive_id`, `transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`, `prompt_id`, `token_usage`, and `rag_refs` (see Zep task).
 
 # 7) Acceptance Criteria
 
-- Zep doc exists; Drive file exists; Firestore record references both.
+- Zep doc exists; Drive file exists; Firestore record references both and includes `prompt_id`, `token_usage`, and `rag_refs`.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict
+from typing import TypedDict, Dict, Any, List
 
 class StoreShortInZepRequest(TypedDict):
     video_id: str
@@ -71,11 +71,15 @@ class StoreShortSummaryToDriveResponse(TypedDict):
 
 class SaveSummaryRecordRequest(TypedDict):
     video_id: str
-    refs: dict  # { zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json }
+    refs: Dict[str, Any]  # { zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json, prompt_id, token_usage, rag_refs }
 
 class SaveSummaryRecordResponse(TypedDict):
     summary_doc_ref: str
 ```
+
+# 11) Time Policy
+
+- Store `created_at` and `updated_at` in UTC (ISO 8601 with `Z`).
 
 # 11) Firestore Security Rules (MVP)
 

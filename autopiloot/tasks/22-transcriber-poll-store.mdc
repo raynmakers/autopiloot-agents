@@ -23,7 +23,7 @@ PRD Agent B tools.
 # 3) Assumptions & Constraints
 
 - Drive folders via env ids; text and json outputs.
-- Webhook requests include a shared secret for verification.
+- Webhook requests include a shared secret for verification (e.g., `X-Signature` HMAC or bearer token); reject if verification fails.
 
 # 4) Dependencies
 
@@ -46,7 +46,7 @@ End state:
 
 1. Webhook path (primary):
    - Create `WebhookHandler` to receive POST from AssemblyAI upon completion.
-   - Verify signature using `ASSEMBLYAI_WEBHOOK_SECRET` (or token in payload).
+   - Verify signature using `ASSEMBLYAI_WEBHOOK_SECRET` (or HMAC header); reject on mismatch.
    - Retrieve transcript text/json via SDK if not in payload.
    - Proceed to steps 3 and 4.
 2. Polling path (fallback):
@@ -55,7 +55,7 @@ End state:
 3. Store to Drive:
    - Upload `.txt` and `.json`; return IDs.
 4. Save Firestore record:
-   - Create/Update `transcripts/{video_id}` with Drive IDs, digest, cost, timestamps (UTC).
+   - Create/Update `transcripts/{video_id}` with Drive IDs, digest, costs `{ transcription_usd }`, timestamps (UTC).
 5. Trigger summarizer:
    - Write event or call agent to start summarization for `video_id`.
 
@@ -90,6 +90,7 @@ class SaveTranscriptRecordRequest(TypedDict):
     video_id: str
     drive_ids: dict
     transcript_digest: str
+    costs: Dict[str, float]  # { "transcription_usd": float }
 
 class SaveTranscriptRecordResponse(TypedDict):
     transcript_doc_ref: str
