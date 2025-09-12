@@ -115,13 +115,13 @@ autopiloot/
    ```
 
 3. **Configure environment:**
-   
+
    ```bash
    # Copy environment template and fill in your values
    cp env.template .env
    # Edit .env with your API keys and credentials
    ```
-   
+
    See `ENVIRONMENT.md` for detailed setup instructions.
 
 4. **Configure settings:**
@@ -164,6 +164,7 @@ budgets:
 Environment variables are managed through a comprehensive system with validation and error handling. See `ENVIRONMENT.md` for complete setup instructions.
 
 **Quick setup:**
+
 ```bash
 # Copy template and fill in your values
 cp env.template .env
@@ -186,7 +187,7 @@ python config/env_loader.py
 ### APIs & Services
 
 - **YouTube Data API v3** - Video discovery and metadata
-- **AssemblyAI** - Audio transcription service  
+- **AssemblyAI** - Audio transcription service
 - **OpenAI GPT-4.1** - Summary generation
 - **Google Drive API** - File storage
 - **Google Sheets API** - Backfill link management
@@ -202,7 +203,7 @@ python config/env_loader.py
 ### Infrastructure
 
 - **Firebase Functions v2** - Scheduled and event-driven automation
-- **Cloud Scheduler** - Automated daily scraping triggers  
+- **Cloud Scheduler** - Automated daily scraping triggers
 - **Firebase Admin SDK** - Server-side data operations
 
 ### Collections Schema (Firestore)

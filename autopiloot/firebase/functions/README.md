@@ -25,8 +25,9 @@ This directory contains Firebase Functions v2 for the Autopiloot project, implem
 Environment variables for Firebase Functions. These can be set using the Firebase CLI or console.
 
 **Required:**
+
 ```bash
-# Slack Configuration  
+# Slack Configuration
 SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
 
 # Google Drive (for Firebase Functions)
@@ -35,6 +36,7 @@ GOOGLE_DRIVE_FOLDER_ID_SUMMARIES=your_drive_folder_id
 ```
 
 **Optional:**
+
 ```bash
 # Override default budget (defaults to $5.00)
 DAILY_BUDGET_USD=5.0
@@ -44,6 +46,7 @@ TIMEZONE=Europe/Amsterdam
 ```
 
 **Setting variables:**
+
 ```bash
 # Set environment variables for Functions
 firebase functions:config:set slack.bot_token="xoxb-your-token"

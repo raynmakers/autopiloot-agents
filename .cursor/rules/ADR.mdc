@@ -88,6 +88,7 @@ The Autopiloot system integrates with 8+ external services requiring API credent
 Implement comprehensive environment configuration system with structured validation and developer experience focus:
 
 **Core Components:**
+
 - `env.template` - Complete variable reference without secrets, serves as documentation
 - `config/env_loader.py` - Validation module with type checking, clear error messages, and service-specific getters
 - Production-ready error handling with graceful fallback to system environment variables
@@ -95,6 +96,7 @@ Implement comprehensive environment configuration system with structured validat
 - `ENVIRONMENT.md` - Step-by-step setup guide with API key acquisition instructions and troubleshooting
 
 **Key Features:**
+
 - Service-specific API key access (`get_api_key('openai')`, `get_api_key('slack')`, etc.)
 - Required vs optional variable distinction with sensible defaults
 - File existence validation for Google service account credentials
@@ -141,16 +143,19 @@ Autopiloot v1 targets an MVP for LinkedIn-first content creators (6-figure reven
 Implement minimal-complexity cloud-native architecture optimized for reliability and observability:
 
 **Scheduling & Orchestration:**
+
 - Firebase Functions v2 scheduled functions with Cloud Scheduler at 01:00 Europe/Amsterdam (CET/CEST with automatic DST handling)
 - Event-driven budget alerts triggered by Firestore document writes to `transcripts/{video_id}`
 - Dead-letter queue pattern for failed operations with exponential backoff
 
 **Data Architecture:**
+
 - Firestore as primary event broker and system of record with collections: `videos`, `transcripts`, `summaries`, `jobs/transcription`, `costs_daily`, `audit_logs`, `jobs_deadletter`
 - Server-only security rules (no client access) using Firebase Admin SDK for all data operations
 - Audit logging for all critical operations with structured metadata
 
 **External Services Integration:**
+
 - YouTube Data API v3 for discovery with `lastPublishedAt` checkpoint persistence and quota exhaustion fallback/resume
 - AssemblyAI for transcription with strict 70-minute video duration cap (4200 seconds)
 - OpenAI GPT-4.1 (temperature 0.2, ~1500 token output) for coaching-style short summaries with `prompt_version: v1` tracking
