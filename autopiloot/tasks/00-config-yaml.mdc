@@ -47,24 +47,31 @@ End state:
    sheets:
      daily_limit_per_channel: 10
      range_a1: "Sheet1!A:D"
+   scraper:
+     handles:
+       - "@AlexHormozi"
    ```
 2. Create `agents/autopiloot/config/loader.py` with function `load_app_config() -> dict` using `yaml.safe_load`.
 3. Add minimal validation: ensure `sheets.daily_limit_per_channel` is int >= 0.
 
 # 7) Acceptance Criteria
 
-- Loader returns a dict with `sheets.daily_limit_per_channel` and `range_a1`.
+- Loader returns a dict with `sheets.daily_limit_per_channel` and `range_a1` and `scraper.handles`.
 - Task 03 can import and use the loader without modification.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict
+from typing import TypedDict, List
 
 class SheetsConfig(TypedDict, total=False):
     daily_limit_per_channel: int
     range_a1: str
 
+class ScraperConfig(TypedDict, total=False):
+    handles: List[str]
+
 class AppConfig(TypedDict, total=False):
     sheets: SheetsConfig
+    scraper: ScraperConfig
 ```

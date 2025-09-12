@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Resolve `@AlexHormozi` to a canonical `channel_id` using YouTube Data API v3.
+Resolve configured YouTube handles (e.g., `@AlexHormozi`) to canonical `channel_id`s using YouTube Data API v3.
 
 # 2) Background / Context
 
@@ -23,16 +23,19 @@ PRD Agent A tools.
 # 3) Assumptions & Constraints
 
 - Env: `YOUTUBE_API_KEY`.
+- Handles are defined in `agents/autopiloot/config/settings.yaml` under `scraper.handles: ["@AlexHormozi", ...]`.
 
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 
 Beginning:
 
 - agents/autopiloot/prd.mdc _(read-only)_
+- agents/autopiloot/config/settings.yaml _(read-only)_
 
 End state:
 
@@ -41,22 +44,23 @@ End state:
 # 6) Low-Level Steps
 
 1. Implement class `ResolveChannelHandle` using `agency_swarm.tools.BaseTool`.
-2. Input: `channel_handle: str`; Output: `{ "channel_id": str }`.
-3. Call search/channels API to resolve handle; retries on 429/5xx.
+2. Load handles array from `settings.yaml` (`scraper.handles`).
+3. For each handle, resolve via YouTube API and return mapping.
+4. Retries on 429/5xx; short backoff; stop on success per handle.
 
 # 7) Acceptance Criteria
 
-- Returns valid `channel_id` for `@AlexHormozi`.
-- Graceful error with clear message when not found.
+- Returns valid `channel_id` mapping for all handles in config (including `@AlexHormozi`).
+- Graceful errors with clear messages when not found; continues with remaining handles.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict
+from typing import TypedDict, List, Dict
 
-class ResolveChannelHandleRequest(TypedDict):
-    channel_handle: str
+class ResolveChannelHandlesRequest(TypedDict):
+    handles: List[str]  # loaded from settings.yaml (scraper.handles)
 
-class ResolveChannelHandleResponse(TypedDict):
-    channel_id: str
+class ResolveChannelHandlesResponse(TypedDict):
+    mapping: Dict[str, str]  # { "@handle": "UC..." }
 ```
