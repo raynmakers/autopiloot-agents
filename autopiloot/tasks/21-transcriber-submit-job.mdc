@@ -23,6 +23,8 @@ PRD Agent B tools.
 # 3) Assumptions & Constraints
 
 - Reject videos longer than 70 minutes.
+- Supports optional webhook callback; if provided, AssemblyAI will POST completion to our endpoint.
+- Env: may use `ASSEMBLYAI_WEBHOOK_SECRET` to verify webhook signatures.
 
 # 4) Dependencies
 
@@ -40,21 +42,28 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Inputs: `remote_url`, `metadata`.
-2. Submit via AssemblyAI SDK; compute estimated cost; return `job_id`.
+1. Inputs: `remote_url`, `metadata`, optional `webhook_url`.
+2. If `metadata.duration_sec > 4200` (70 min), return validation error.
+3. Submit via AssemblyAI SDK:
+   - Include `webhook_url` if provided.
+   - Store `job_id` and estimated cost.
+4. Return `{ job_id, estimated_cost_usd }`.
 
 # 7) Acceptance Criteria
 
 - Returns `{ job_id, estimated_cost_usd }`.
+- When `webhook_url` is supplied, AssemblyAI delivers callbacks to that URL (verified in staging).
+- If `webhook_url` is not supplied, downstream polling (Task 22) remains the path.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict
+from typing import TypedDict, Optional
 
 class SubmitAssemblyAIJobRequest(TypedDict):
     remote_url: str
     metadata: dict  # { video_id: str, duration_sec: int }
+    webhook_url: Optional[str]
 
 class SubmitAssemblyAIJobResponse(TypedDict):
     job_id: str

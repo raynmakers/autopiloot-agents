@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Poll for transcript completion, upload to Drive, and persist metadata to Firestore.
+Complete transcription ingestion via two paths: webhook (primary) or polling (fallback), then upload to Drive and persist to Firestore.
 
 # 2) Background / Context
 
@@ -23,6 +23,7 @@ PRD Agent B tools.
 # 3) Assumptions & Constraints
 
 - Drive folders via env ids; text and json outputs.
+- Webhook requests include a shared secret for verification.
 
 # 4) Dependencies
 
@@ -39,21 +40,35 @@ End state:
 - agents/autopiloot/transcriber/tools/PollTranscriptionJob.py
 - agents/autopiloot/transcriber/tools/StoreTranscriptToDrive.py
 - agents/autopiloot/transcriber/tools/SaveTranscriptRecord.py
+- agents/autopiloot/transcriber/tools/WebhookHandler.py
 
 # 6) Low-Level Steps
 
-1. Poll with backoff; on completion retrieve text/json.
-2. Upload `.txt` and `.json` to Drive; return file ids.
-3. Save Firestore doc `transcripts/{video_id}`; include cost and digest.
+1. Webhook path (primary):
+   - Create `WebhookHandler` to receive POST from AssemblyAI upon completion.
+   - Verify signature using `ASSEMBLYAI_WEBHOOK_SECRET` (or token in payload).
+   - Retrieve transcript text/json via SDK if not in payload.
+   - Proceed to steps 3 and 4.
+2. Polling path (fallback):
+   - Implement `PollTranscriptionJob` with exponential backoff, timeout caps.
+   - On success, retrieve transcript text/json.
+3. Store to Drive:
+   - Upload `.txt` and `.json`; return IDs.
+4. Save Firestore record:
+   - Create/Update `transcripts/{video_id}` with Drive IDs, digest, cost, timestamps (UTC).
+5. Trigger summarizer:
+   - Write event or call agent to start summarization for `video_id`.
 
 # 7) Acceptance Criteria
 
-- Transcript files in Drive and Firestore metadata saved.
+- Webhook handler accepts valid callbacks and processes successfully end-to-end.
+- Polling fallback successfully completes when no webhook is configured or delivery fails.
+- Transcript files in Drive and Firestore metadata saved (UTC timestamps).
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict
+from typing import TypedDict, Dict
 
 class PollTranscriptionJobRequest(TypedDict):
     job_id: str
@@ -78,6 +93,14 @@ class SaveTranscriptRecordRequest(TypedDict):
 
 class SaveTranscriptRecordResponse(TypedDict):
     transcript_doc_ref: str
+
+class WebhookHandlerRequest(TypedDict):
+    headers: Dict[str, str]
+    payload: Dict
+
+class WebhookHandlerResponse(TypedDict):
+    status: int
+    message: str
 ```
 
 # 11) Firestore Security Rules (MVP)
