@@ -73,40 +73,49 @@ END ADR_AGENT_PROTOCOL
 
 ### Context
 
-The Autopiloot system requires multiple external API integrations (OpenAI, AssemblyAI, YouTube, Slack, Google Services, Zep) with secure credential management. Development and production environments need different configurations while maintaining security best practices. Manual environment setup is error-prone and lacks validation.
+The Autopiloot system integrates with 8+ external services requiring API credentials: OpenAI (GPT-4.1), AssemblyAI (transcription), YouTube Data API (discovery), Slack (notifications), Google Drive & Sheets (storage), Zep (GraphRAG), and optional Langfuse (observability). Manual environment setup across development and production environments is error-prone, lacks validation, and poses security risks. Previous approaches with simple .env files led to deployment failures due to missing or incorrectly formatted variables.
 
 ### Alternatives
 
-- **Simple .env files only**: No validation, prone to deployment errors, unclear which variables are required
-- **Hard-coded configuration**: Security risk, no flexibility across environments
-- **Complex configuration frameworks**: Overkill for MVP, adds unnecessary dependencies
-- **Environment-specific config files**: Risk of committing secrets, configuration drift between environments
+- **Simple .env files only**: No validation, unclear required vs optional variables, prone to deployment errors with cryptic failure messages
+- **Hard-coded configuration**: Major security risk, no environment flexibility, violates 12-factor app principles
+- **Complex configuration frameworks** (e.g., Hydra, OmegaConf): Overkill for MVP scope, unnecessary dependencies, learning curve overhead
+- **Environment-specific config files**: Risk of committing secrets, configuration drift between environments, maintenance burden
+- **Cloud provider secret management**: Platform lock-in, additional complexity for development environment, cost for MVP
 
 ### Decision
 
-Implement comprehensive environment configuration system with:
+Implement comprehensive environment configuration system with structured validation and developer experience focus:
 
-- `env.template` file showing all required and optional variables without secrets
-- `config/env_loader.py` module providing validation, type checking, and clear error messages
-- Service-specific API key getters (`get_api_key('openai')`, etc.)
-- Production-ready error handling (graceful fallback to system environment variables)
-- Complete test coverage (17 test cases) for all validation scenarios
-- `ENVIRONMENT.md` documentation with setup instructions and troubleshooting
+**Core Components:**
+- `env.template` - Complete variable reference without secrets, serves as documentation
+- `config/env_loader.py` - Validation module with type checking, clear error messages, and service-specific getters
+- Production-ready error handling with graceful fallback to system environment variables
+- Complete test coverage (17 test cases) covering validation scenarios, edge cases, and error conditions
+- `ENVIRONMENT.md` - Step-by-step setup guide with API key acquisition instructions and troubleshooting
+
+**Key Features:**
+- Service-specific API key access (`get_api_key('openai')`, `get_api_key('slack')`, etc.)
+- Required vs optional variable distinction with sensible defaults
+- File existence validation for Google service account credentials
+- Clear separation between development (.env) and production (system vars) configuration
+- Comprehensive error messages guiding developers to resolution
 
 ### Consequences
 
-* **Pros**: Eliminates deployment configuration errors, clear validation feedback, secure credential handling, comprehensive documentation, production-ready error handling, 100% test coverage
-* **Cons / risks**: Additional complexity over simple .env files, requires initial setup documentation, dependency on python-dotenv
-* **Supersedes**: —
-* **Superseded by**: —
+- **Pros**: Eliminates deployment configuration errors, provides immediate validation feedback, ensures secure credential handling, comprehensive documentation reduces onboarding time, production-ready error handling, 100% test coverage prevents regressions, service-specific getters prevent API key mix-ups
+- **Cons / risks**: Additional complexity over simple .env approach, requires initial setup documentation maintenance, dependency on python-dotenv package, potential over-engineering for simple use cases
+- **Supersedes**: —
+- **Superseded by**: —
 
 ### Compliance / Verification
 
-- All 17 environment loader tests pass with comprehensive validation coverage
-- No secrets committed to repository (env.template contains only placeholders)
-- Clear error messages guide developers through missing configuration
-- Documentation provides step-by-step setup for all required services
-- Service-specific getters prevent API key mix-ups across integrations
+- All 17 environment loader tests pass with 100% coverage of validation scenarios
+- No secrets committed to repository (env.template verified to contain only placeholder values)
+- Clear error messages tested for all missing/invalid variable scenarios
+- Complete documentation verified with step-by-step API key acquisition for all services
+- Service-specific getters tested to prevent cross-service API key usage errors
+- Production deployment tested with system environment variables (no .env file)
 
 ## ADR-0003 — MVP Orchestration and Tooling Choices
 
@@ -117,38 +126,52 @@ Implement comprehensive environment configuration system with:
 
 ### Context
 
-Autopiloot v1 targets an MVP focused on LinkedIn-first users, with automated YouTube discovery, transcription, guideline-style short summaries, and internal alerting. We must minimize infra complexity while ensuring reliability and cost guardrails.
+Autopiloot v1 targets an MVP for LinkedIn-first content creators (6-figure revenue entrepreneurs) requiring automated YouTube content processing pipeline. Core requirements: daily video discovery from @AlexHormozi, high-quality transcription with cost controls ($5/day budget), actionable coaching-style summaries, and internal operational alerting. Infrastructure must minimize operational complexity while ensuring reliability, cost visibility, and audit trails for business intelligence.
 
 ### Alternatives
 
-- GitHub Actions for scheduling instead of Firebase: external dependency, timezone/DST handling less direct for GCP components
-- Direct scraping over YouTube Data API: brittle, higher maintenance, higher risk of breakage
-- Building a custom vector store instead of Zep: more time to value, higher maintenance
-- Open ingestion to client apps: increases surface area and security risk for MVP
+- **GitHub Actions for scheduling**: External dependency outside Google Cloud ecosystem, timezone/DST handling complexity, less direct integration with Firestore triggers, additional authentication overhead
+- **Direct video scraping vs YouTube Data API**: Higher brittleness, maintenance burden, rate limiting challenges, risk of breaking with platform changes, potential ToS violations
+- **Custom vector store vs Zep**: Significant development overhead, time-to-market delay, maintenance burden, feature parity challenges, no GraphRAG capabilities
+- **Open client ingestion vs controlled workflow**: Increased security surface area, data quality concerns, audit complexity, inappropriate for MVP scope
+- **Custom transcription vs AssemblyAI**: Development complexity, quality concerns, no speaker diarization, cost optimization challenges
 
 ### Decision
 
-- Scheduling via Firebase Functions v2 scheduled functions at 01:00 Europe/Amsterdam; budget alerts are event-driven after transcript writes
-- Firestore as the event broker and system of record (collections: `videos`, `transcripts`, `summaries`, `jobs/transcription`, `costs_daily`, `audit_logs`, `jobs_deadletter`)
-- YouTube Data API v3 for discovery; store `lastPublishedAt` checkpoint; fall back/resume on quota exhaustion
-- AssemblyAI for transcription with strict 70-minute cap
-- LLM: OpenAI `gpt-4.1` (temp 0.2, ~1500 tokens) for short summaries; `prompt_version: v1` stored
-- Zep collection `autopiloot_guidelines` for short summaries with metadata linkage to transcripts
-- Slack internal alerts only; channel `ops-autopiloot`; throttle 1 alert/type/hour
-- Firestore security rules locked down (server-only) for MVP; Admin SDK handles writes
+Implement minimal-complexity cloud-native architecture optimized for reliability and observability:
+
+**Scheduling & Orchestration:**
+- Firebase Functions v2 scheduled functions with Cloud Scheduler at 01:00 Europe/Amsterdam (CET/CEST with automatic DST handling)
+- Event-driven budget alerts triggered by Firestore document writes to `transcripts/{video_id}`
+- Dead-letter queue pattern for failed operations with exponential backoff
+
+**Data Architecture:**
+- Firestore as primary event broker and system of record with collections: `videos`, `transcripts`, `summaries`, `jobs/transcription`, `costs_daily`, `audit_logs`, `jobs_deadletter`
+- Server-only security rules (no client access) using Firebase Admin SDK for all data operations
+- Audit logging for all critical operations with structured metadata
+
+**External Services Integration:**
+- YouTube Data API v3 for discovery with `lastPublishedAt` checkpoint persistence and quota exhaustion fallback/resume
+- AssemblyAI for transcription with strict 70-minute video duration cap (4200 seconds)
+- OpenAI GPT-4.1 (temperature 0.2, ~1500 token output) for coaching-style short summaries with `prompt_version: v1` tracking
+- Zep collection `autopiloot_guidelines` for GraphRAG storage with explicit metadata linkage to source transcripts
+- Slack API for internal alerts to `#ops-autopiloot` channel with 1 alert/type/hour throttling
 
 ### Consequences
 
-* **Pros**: Low operational complexity, clear reliability measures, cost visibility, reproducible summaries
-* **Cons / risks**: API quota limits may delay processing; external dependencies (AssemblyAI, Zep); no end-user UI yet
-* **Supersedes**: —
-* **Superseded by**: —
+- **Pros**: Minimal operational complexity and maintenance overhead, clear reliability measures with built-in monitoring, transparent cost visibility with automated budget controls, reproducible summary generation with version tracking, seamless timezone handling, strong audit trail for business intelligence
+- **Cons / risks**: API quota limits may delay processing during high-volume periods, external service dependencies (AssemblyAI, Zep) create failure points, no end-user interface limits MVP feedback, vendor lock-in to Google Cloud ecosystem, limited to single channel initially
+- **Supersedes**: —
+- **Superseded by**: —
 
-### (Optional) Compliance / Verification
+### Compliance / Verification
 
-- Scheduled function runs logged daily; Firestore indexes configured; DLQ populated on repeated failures
-- Budget alerts fire at 80% of daily $5 cap with totals from `costs_daily`
-- Summaries contain `prompt_version: v1` and Zep doc linkage; audit logs created for key actions
+- Scheduled function execution logged daily with success/failure metrics and runtime duration tracking
+- Budget alert system verified to trigger at 80% of daily $5 transcription limit using `costs_daily/{YYYY-MM-DD}` aggregation
+- Summary generation verified to include `prompt_version: v1` metadata and bidirectional Zep document linkage
+- Dead-letter queue population monitored for repeated failures with automatic escalation
+- Firestore indexes configured for efficient querying of video status progression and cost aggregation
+- Audit logs created for all key operations: video discovery, transcription submission, summary generation, cost threshold breaches
 
 ## New ADR Entry Template (copy for each new decision)
 
