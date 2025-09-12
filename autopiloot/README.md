@@ -62,18 +62,33 @@ The system consists of 4 specialized agents:
 autopiloot/
 ├── config/
 │   ├── settings.yaml          # Runtime configuration
-│   └── loader.py              # Configuration loader with validation
+│   ├── loader.py              # Configuration loader with validation
+│   └── env_loader.py          # Environment variable loader and validation
 ├── planning/
 │   ├── prd.mdc                # Product Requirements Document
 │   └── tasks/                 # Implementation tasks (22 tasks)
 │       ├── 00-config-yaml.mdc
+│       ├── 00-env-config.mdc
 │       ├── 01-scheduling-firebase.mdc
 │       └── ...
+├── firebase/
+│   ├── functions/             # Firebase Functions v2
+│   │   ├── main.py           # Scheduled and event-driven functions
+│   │   ├── requirements.txt  # Python dependencies for Functions
+│   │   └── README.md         # Firebase Functions documentation
+│   ├── firebase.json         # Firebase project configuration
+│   ├── firestore.rules       # Firestore security rules
+│   └── firestore.indexes.json # Firestore indexes
+├── core/
+│   └── idempotency.py        # Core idempotency and naming logic
 ├── tests/
 │   ├── __init__.py
-│   └── test_config.py         # Configuration loader tests
-├── requirements.txt           # Python dependencies
-└── venv/                      # Virtual environment
+│   ├── test_config.py        # Configuration loader tests (11 tests)
+│   └── test_env_loader.py    # Environment loader tests (17 tests)
+├── env.template              # Environment variables template
+├── ENVIRONMENT.md            # Environment setup documentation
+├── requirements.txt          # Python dependencies
+└── venv/                     # Virtual environment
 ```
 
 ## Setup
@@ -99,9 +114,19 @@ autopiloot/
    pip install -r requirements.txt
    ```
 
-3. **Configure settings:**
+3. **Configure environment:**
+   
+   ```bash
+   # Copy environment template and fill in your values
+   cp env.template .env
+   # Edit .env with your API keys and credentials
+   ```
+   
+   See `ENVIRONMENT.md` for detailed setup instructions.
+
+4. **Configure settings:**
    - Review `config/settings.yaml` for runtime configuration
-   - Set up environment variables (see Environment Variables section)
+   - Update any specific settings for your deployment
 
 ## Configuration
 
@@ -136,31 +161,20 @@ budgets:
 
 ### Environment Variables
 
-Create a `.env` file with the following variables:
+Environment variables are managed through a comprehensive system with validation and error handling. See `ENVIRONMENT.md` for complete setup instructions.
 
+**Quick setup:**
 ```bash
-# Required API Keys
-OPENAI_API_KEY=your_openai_api_key
-ASSEMBLYAI_API_KEY=your_assemblyai_api_key
-SLACK_BOT_TOKEN=your_slack_bot_token
+# Copy template and fill in your values
+cp env.template .env
 
-# Google Services
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS=your_drive_folder_id
-GOOGLE_DRIVE_FOLDER_ID_SUMMARIES=your_drive_folder_id
-
-# Zep GraphRAG
-ZEP_API_KEY=your_zep_api_key
-ZEP_COLLECTION=autopiloot_guidelines
-
-# Observability (Optional)
-LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
-LANGFUSE_SECRET_KEY=your_langfuse_secret_key
-LANGFUSE_HOST=your_langfuse_host
-
-# General
-TIMEZONE=Europe/Amsterdam
+# Validate configuration
+python config/env_loader.py
 ```
+
+**Required variables:** OpenAI, AssemblyAI, YouTube, Slack API keys, Google credentials, Zep API key, and Google Drive folder IDs.
+
+**Optional variables:** Langfuse observability, custom timezone, Slack signing secret.
 
 ## Technology Stack
 
@@ -172,17 +186,24 @@ TIMEZONE=Europe/Amsterdam
 ### APIs & Services
 
 - **YouTube Data API v3** - Video discovery and metadata
-- **AssemblyAI** - Audio transcription service
+- **AssemblyAI** - Audio transcription service  
 - **OpenAI GPT-4.1** - Summary generation
 - **Google Drive API** - File storage
 - **Google Sheets API** - Backfill link management
 - **Slack API** - Internal notifications
 - **Zep** - GraphRAG for summary storage
+- **Langfuse** - LLM observability (optional)
 
 ### Data Storage
 
 - **Firestore** - Primary data store and event broker
 - **Google Drive** - File artifacts storage
+
+### Infrastructure
+
+- **Firebase Functions v2** - Scheduled and event-driven automation
+- **Cloud Scheduler** - Automated daily scraping triggers  
+- **Firebase Admin SDK** - Server-side data operations
 
 ### Collections Schema (Firestore)
 
@@ -236,19 +257,20 @@ audit_logs/{auto_id}:
 
 ### Completed Tasks ✅
 
-- **00-config-yaml** - Configuration system with YAML settings and validation
-- **Planning structure** - PRD and task organization
-- **Test framework** - Unit test infrastructure with 11 comprehensive tests
+- **00-config-yaml** - Configuration system with YAML settings and validation (11 tests)
+- **00-env-config** - Environment variable system with comprehensive validation (17 tests)
+- **Planning structure** - PRD and task organization moved to planning/ folder
+- **Test framework** - Comprehensive test infrastructure with 28 total tests
+- **Firebase infrastructure** - Functions, Firestore rules, and deployment configuration
+- **Core utilities** - Idempotency and naming conventions
 
-### Remaining Tasks (20 tasks)
+### Remaining Tasks (18 tasks)
 
-- Environment configuration
-- Firebase scheduling setup
-- Scraper agent tools (6 tools)
-- Transcriber agent tools (4 tools)
-- Summarizer agent tools (4 tools)
-- Assistant agent tools (4 tools)
-- Integration and observability features
+- Firebase scheduling setup (task 01)
+- Google Sheets workflow (task 03)
+- Reliability and quotas (task 04)
+- Agent tools development (tasks 05, 10-15, 20-22, 30-32, 40-41)
+- Integration and observability features (tasks 37, 41)
 
 ## Testing
 
@@ -257,11 +279,15 @@ The project includes comprehensive unit tests for all implemented components. Se
 **Quick test run:**
 
 ```bash
-# Run all tests
+# Run all tests (28 total: 11 config + 17 environment)
 python -m unittest discover tests -v
 
-# Run specific test module
-python -m unittest tests.test_config -v
+# Run specific test modules
+python -m unittest tests.test_config -v      # Configuration tests
+python -m unittest tests.test_env_loader -v  # Environment tests
+
+# Validate environment setup
+python config/env_loader.py
 ```
 
 ## Maturity Level

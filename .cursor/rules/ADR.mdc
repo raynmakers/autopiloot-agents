@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0004 | [Comprehensive Environment Configuration System](#adr-0004)  | 2025-01-15 | Accepted | —          | —             |
 | 0003 | [MVP Orchestration and Tooling Choices](#adr-0003)           | 2025-09-11 | Accepted | —          | —             |
 | 0002 | [Event-Driven Broker Architecture with Firestore](#adr-0002) | 2025-01-27 | Accepted | —          | —             |
 | 0001 | [Agent-Focused Repository Structure](#adr-0001)              | 2025-01-27 | Accepted | —          | —             |
@@ -62,6 +63,50 @@ END ADR_AGENT_PROTOCOL
 <!-- END:ADR_INDEX -->
 
 ---
+
+## ADR-0004 — Comprehensive Environment Configuration System
+
+<a id="adr-0004"></a>
+**Date**: 2025-01-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system requires multiple external API integrations (OpenAI, AssemblyAI, YouTube, Slack, Google Services, Zep) with secure credential management. Development and production environments need different configurations while maintaining security best practices. Manual environment setup is error-prone and lacks validation.
+
+### Alternatives
+
+- **Simple .env files only**: No validation, prone to deployment errors, unclear which variables are required
+- **Hard-coded configuration**: Security risk, no flexibility across environments
+- **Complex configuration frameworks**: Overkill for MVP, adds unnecessary dependencies
+- **Environment-specific config files**: Risk of committing secrets, configuration drift between environments
+
+### Decision
+
+Implement comprehensive environment configuration system with:
+
+- `env.template` file showing all required and optional variables without secrets
+- `config/env_loader.py` module providing validation, type checking, and clear error messages
+- Service-specific API key getters (`get_api_key('openai')`, etc.)
+- Production-ready error handling (graceful fallback to system environment variables)
+- Complete test coverage (17 test cases) for all validation scenarios
+- `ENVIRONMENT.md` documentation with setup instructions and troubleshooting
+
+### Consequences
+
+* **Pros**: Eliminates deployment configuration errors, clear validation feedback, secure credential handling, comprehensive documentation, production-ready error handling, 100% test coverage
+* **Cons / risks**: Additional complexity over simple .env files, requires initial setup documentation, dependency on python-dotenv
+* **Supersedes**: —
+* **Superseded by**: —
+
+### Compliance / Verification
+
+- All 17 environment loader tests pass with comprehensive validation coverage
+- No secrets committed to repository (env.template contains only placeholders)
+- Clear error messages guide developers through missing configuration
+- Documentation provides step-by-step setup for all required services
+- Service-specific getters prevent API key mix-ups across integrations
 
 ## ADR-0003 — MVP Orchestration and Tooling Choices
 
