@@ -24,7 +24,7 @@ See PRD: Communication Flows (Google Sheet backfill).
 
 - Columns: A=url, B=status, C=notes, D=processed_at.
 - Archive tab: `Archive`.
-- Daily cap is read from `agents/autopiloot/config/settings.yaml` → `sheets.daily_backfill_cap`.
+- Daily cap is read from `agents/autopiloot/config/settings.yaml` → `sheets.daily_limit_per_channel`.
 
 # 4) Dependencies
 
@@ -44,8 +44,8 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Load config file `agents/autopiloot/config/settings.yaml` and read `sheets.daily_backfill_cap` (default 10 if missing).
-2. Read up to `daily_backfill_cap` pending rows.
+1. Load config file `agents/autopiloot/config/settings.yaml` and read `sheets.daily_limit_per_channel` (default 10 if missing).
+2. Read up to `daily_limit_per_channel` pending rows.
 3. For each, extract YouTube video(s), enqueue transcription if new.
 4. On success: move row to `Archive`, set `processed_at`.
 5. On failure: set `status=error` and `notes`.
@@ -54,7 +54,7 @@ End state:
 
 - Rows processed sequentially; archive/remove behavior implemented.
 - Errors retained on main tab.
-- The number of processed rows equals the configured `daily_backfill_cap`.
+- The number of processed rows equals the configured `daily_limit_per_channel`.
 
 # 10) Types & Interfaces
 
@@ -79,8 +79,8 @@ class ReadSheetLinksResponse(TypedDict):
     items: List[SheetLink]
 
 class SheetsConfig(TypedDict, total=False):
-    daily_backfill_cap: int  # e.g., 10
-    range_a1: str            # e.g., "Sheet1!A:D"
+    daily_limit_per_channel: int  # e.g., 10
+    range_a1: str                 # e.g., "Sheet1!A:D"
 
 class AppConfig(TypedDict, total=False):
     sheets: SheetsConfig
