@@ -22,7 +22,7 @@ PRD Sheet backfill.
 
 # 3) Assumptions & Constraints
 
-- Config: Sheet ID from `agents/autopiloot/config/settings.yaml -> sheets`.
+- Config: Sheet ID from `agents/autopiloot/config/settings.yaml -> sheet`.
 - The sheet contains a single column where each row is a YouTube link.
 
 # 4) Dependencies

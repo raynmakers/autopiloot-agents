@@ -45,7 +45,7 @@ End state:
 1. Create `agents/autopiloot/config/settings.yaml` with structure:
    ```yaml
    # ID of the Google Sheet used for backfill links
-   sheets: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
+   sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
 
    scraper:
      handles:
@@ -73,7 +73,7 @@ End state:
    ```
 2. Create `agents/autopiloot/config/loader.py` with function `load_app_config() -> dict` using `yaml.safe_load`.
 3. Add minimal validation:
-   - `sheets` is a non-empty string (Google Sheet ID)
+   - `sheet` is a non-empty string (Google Sheet ID)
    - `scraper.daily_limit_per_channel` is int >= 0
    - `llm.default.model` is a non-empty string; `llm.default.temperature` is 0.0–1.0
    - If `llm.tasks.*` present, each task entry has `model` (str) and `temperature` (0.0–1.0)
@@ -82,7 +82,7 @@ End state:
 
 # 7) Acceptance Criteria
 
-- Loader returns a dict with `sheets`, `scraper`, `llm`, `notifications.slack.channel`, and `budgets.transcription_daily_usd`.
+- Loader returns a dict with `sheet`, `scraper`, `llm`, `notifications.slack.channel`, and `budgets.transcription_daily_usd`.
 - Summarizer and any LLM-using tasks can override model/temperature via `llm.tasks.<task_key>`, falling back to `llm.default` when absent.
 
 # 10) Types & Interfaces
@@ -114,7 +114,7 @@ class BudgetsConfig(TypedDict, total=False):
     transcription_daily_usd: float
 
 class AppConfig(TypedDict, total=False):
-    sheets: str
+    sheet: str
     scraper: ScraperConfig
     llm: LLMConfig
     notifications: Dict[str, NotificationsSlackConfig]
