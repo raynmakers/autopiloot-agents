@@ -85,3 +85,34 @@ class FirestoreEvent(TypedDict):
     before: Optional[Dict[str, Any]]
     after: Dict[str, Any]
 ```
+
+# 11) Local Service Account Setup
+
+- Ensure Google service account JSON exists locally and is referenced by `GOOGLE_APPLICATION_CREDENTIALS`.
+- Login to Firebase CLI:
+  - `npm i -g firebase-tools`
+  - `firebase login`
+  - `firebase use <your-project-id>`
+- Set application default credentials (optional):
+  - `gcloud auth application-default login` (if using gcloud) or rely on the JSON path in env.
+
+# 12) Deploy via CLI
+
+- From repository root or `agents/` (where `firebase.json` resides):
+  - Dry run: `firebase deploy --only functions --project <your-project-id> --non-interactive --force`
+  - Deploy: `firebase deploy --only functions --project <your-project-id>`
+- To target a single function (example names):
+  - `firebase deploy --only functions:schedule_scraper_daily`
+  - `firebase deploy --only functions:on_transcription_written`
+
+# 13) Detailed Testing Strategy
+
+- Emulator Suite:
+  - Start: `firebase emulators:start --only functions,firestore`
+  - Invoke scheduled function handler directly (export a callable) or run a one-off trigger helper.
+  - Write a test doc to `transcripts/{video_id}` in the emulator and assert logs/alerts flow.
+- Manual test in staging project:
+  - Temporarily switch cron to run in the next 5 minutes and deploy.
+  - Confirm Firestore writes to `videos`/`jobs/transcription` and Slack alert on budget threshold (use a test channel).
+- Rollback plan:
+  - Keep previous function version; `firebase deploy` retains prior revision for quick revert.
