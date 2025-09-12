@@ -38,7 +38,7 @@
 
 ### **Role within the Agency**
 
-Discover new videos from `@AlexHormozi` and ingest human-provided links from a Google Sheet. Ensure deduplication, maintain backfill (last 12 months), and enqueue transcription jobs for new items.
+Discover new videos from `@AlexHormozi` and ingest human-provided links from a Google Sheet (ID from `settings.yaml -> sheet`, single-column A:A of YouTube links). Ensure deduplication, maintain backfill (last 12 months), and enqueue transcription jobs for new items.
 
 ### Tools
 
@@ -58,8 +58,8 @@ Discover new videos from `@AlexHormozi` and ingest human-provided links from a G
   - **Description**: List uploads within a time window (default: last 24h for daily run; up to last 12 months for backfill batches).
   - **Inputs**:
     - `channel_id` (string) - target channel
-    - `since_iso` (string) - ISO8601 start time
-    - `until_iso` (string) - ISO8601 end time
+    - `since_utc` (string) - ISO8601 UTC start time (e.g., 2025-01-27T00:00:00Z)
+    - `until_utc` (string) - ISO8601 UTC end time (e.g., 2025-01-28T00:00:00Z)
     - `page_size` (int) - default 50
   - **Validation**:
     - Rate limits honored; handles pagination.
@@ -146,24 +146,25 @@ Transcribe videos discovered by Scraper using AssemblyAI. Enforce max video leng
 
 - **SubmitAssemblyAIJob**
 
-  - **Description**: Submit transcription job (with speaker diarization off by default) and receive job ID.
+  - **Description**: Submit transcription job (with speaker diarization off by default) and receive job ID; optional webhook callback.
   - **Inputs**:
     - `remote_url` (string)
     - `metadata` (JSON) - `{ video_id, duration_sec }`
+    - `webhook_url` (string, optional)
   - **Validation**:
     - Reject if `duration_sec > 4200` (70 min).
-  - **Core Functions:** Submit job; store job record; estimate cost.
+  - **Core Functions:** Submit job (include `webhook_url` if present); store job record; estimate cost.
   - **APIs**: AssemblyAI SDK
   - **Output**: JSON `{ job_id, estimated_cost_usd }`
 
 - **PollTranscriptionJob**
 
-  - **Description**: Poll until completion or failure with exponential backoff.
+  - **Description**: Webhook (primary) or polling (fallback) until completion.
   - **Inputs**:
     - `job_id` (string)
   - **Validation**:
     - Timeout and retries (3 attempts, exponential backoff).
-  - **Core Functions:** Poll result; retrieve transcript text + JSON.
+  - **Core Functions:** Handle webhook POST (verify secret) or poll; retrieve transcript text + JSON.
   - **APIs**: AssemblyAI SDK
   - **Output**: JSON `{ transcript_text, transcript_json }`
 
@@ -181,11 +182,12 @@ Transcribe videos discovered by Scraper using AssemblyAI. Enforce max video leng
   - **Output**: JSON `{ drive_id_txt, drive_id_json }`
 
 - **SaveTranscriptRecord**
-  - **Description**: Store transcript metadata and references in Firestore.
+  - **Description**: Store transcript metadata and references in Firestore, including costs.
   - **Inputs**:
     - `video_id` (string)
     - `drive_ids` (JSON)
     - `transcript_digest` (string)
+    - `costs` (JSON) - `{ transcription_usd }`
   - **Validation**:
     - Ensure `videos/{video_id}` exists.
   - **Core Functions:** Create `transcripts/{video_id}` doc; set status transitions.
@@ -209,10 +211,10 @@ Produce a short actionable summary per transcript for coaching contexts, stored 
     - `transcript_doc_ref` (string)
     - `title` (string)
   - **Validation**:
-    - Token limits respected; robust to long transcripts via chunking.
-  - **Core Functions:** LLM prompt; extract key concepts and actionables.
+    - Adaptive chunking; robust to long transcripts.
+  - **Core Functions:** Load model/temperature/prompt from `settings.yaml -> llm` (with per-task overrides); LLM prompt; extract key concepts and actionables; record `prompt_id` and `token_usage`.
   - **APIs**: OpenAI SDK (or compatible), Langfuse tracing
-  - **Output**: JSON `{ bullets: [string], key_concepts: [string] }`
+  - **Output**: JSON `{ bullets: [string], key_concepts: [string], prompt_id: string, token_usage: {input_tokens, output_tokens} }`
 
 - **StoreShortInZep**
 
@@ -239,10 +241,10 @@ Produce a short actionable summary per transcript for coaching contexts, stored 
   - **Output**: JSON `{ short_drive_id }`
 
 - **SaveSummaryRecord**
-  - **Description**: Persist summary references and linkage to the full transcript.
+  - **Description**: Persist summary references and linkage to the full transcript and RAG docs.
   - **Inputs**:
     - `video_id` (string)
-    - `refs` (JSON) - `{ zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json }`
+    - `refs` (JSON) - `{ zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json, prompt_id, token_usage, rag_refs }`
   - **Validation**:
     - Ensure transcript exists.
   - **Core Functions:** Create `summaries/{video_id}` doc with refs to Zep, Drive, and transcript.
@@ -284,12 +286,12 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 
 - **MonitorTranscriptionBudget**
 
-  - **Description**: Track estimated daily transcription spend; alert at 80% of $5/day.
+  - **Description**: Track estimated daily transcription spend; alert at 80% of configured daily budget.
   - **Inputs**:
     - `date` (string)
   - **Validation**:
     - None
-  - **Core Functions:** Sum `costs.transcription_usd` in Firestore; compare against threshold; post Slack alert if exceeded.
+  - **Core Functions:** Sum `costs.transcription_usd` in Firestore; compare against threshold from `settings.yaml -> budgets.transcription_daily_usd`; post Slack alert to `notifications.slack.channel` if exceeded.
   - **APIs**: Firestore Admin SDK, Slack
   - **Output**: string (status)
 
@@ -312,7 +314,7 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 - **Security/Compliance:** No PII expected. Secrets in `.env` or Google service account JSON only. Audit trail in `audit_logs` for key actions (created transcript, posted Slack message, cost alert).
   - Google OAuth scopes minimal: Drive file create/read (specific folders), Sheets read/write (one sheet).
 - **Performance/Cost Constraints:**
-  - Transcription budget: $5/day; Slack alert at 80% usage.
+  - Transcription budget: configurable via `settings.yaml -> budgets.transcription_daily_usd`; Slack alert at 80% usage.
   - Rate limits: YouTube API respectful polling (daily at 01:00) and batched backfill; AssemblyAI polling with exponential backoff.
   - Timeouts/Retries: 3 retries with exponential backoff on network/API.
 - **Observability:** Langfuse for LLM tracing/metrics; optional Datadog for infra metrics. Minimal structured logging; Slack error alerts. MVP-level only.
@@ -380,10 +382,10 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 - **YouTube Access:** Yes — use YouTube Data API v3 to list channel uploads and fetch video metadata/duration. Fallback: public RSS `feeds/videos.xml` if API quota issues arise.
 - **AssemblyAI:** For transcription. Env: `ASSEMBLYAI_API_KEY`.
 - **Slack:** For notifications. Env: `SLACK_BOT_TOKEN` (and `SLACK_SIGNING_SECRET` if needed).
-- **Google Drive & Sheets:** Service account credentials via `GOOGLE_APPLICATION_CREDENTIALS`. Envs: `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`, `GOOGLE_SHEET_ID_BACKFILL`.
+- **Google Drive & Sheets:** Service account credentials via `GOOGLE_APPLICATION_CREDENTIALS`. Envs: `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`. Sheet ID is read from `settings.yaml -> sheet`.
 - **Firestore:** Use the same Google credentials as Drive/Sheets.
 - **Zep (GraphRAG):** Env: `ZEP_API_KEY`, `ZEP_COLLECTION` (use `autopiloot_guidelines`). Store metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[] }`.
-- **LLM Provider:** OpenAI (or compatible). Env: `OPENAI_API_KEY`. Default model: `gpt-4.1`, temperature 0.2, max output tokens ~1500.
+- **LLM Provider:** OpenAI (or compatible). Env: `OPENAI_API_KEY`. Model/temperature and per-task overrides loaded from `settings.yaml -> llm`.
 - **Langfuse:** Env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`.
 - **General:** `TIMEZONE=Europe/Amsterdam`.
 
@@ -396,7 +398,7 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 - `transcripts/{video_id}`:
   - `transcript_drive_ids` (`txt`, `json`), `digest`, `created_at`, `costs.transcription_usd`
 - `summaries/{video_id}`:
-  - `short` (`zep_doc_id`, `drive_id`, `prompt_version`), `linkage` (`transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`), `created_at`
+  - `short` (`zep_doc_id`, `drive_id`, `prompt_id`, `token_usage`), `linkage` (`transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`), `rag_refs` (array), `created_at`
 - `jobs/transcription/*`:
   - `video_id`, `submitted_at`, `status`, `retries`
 - `costs_daily/{YYYY-MM-DD}`:
