@@ -1,0 +1,29 @@
+# Autopiloot Configuration File
+# Runtime settings for scraper, transcriber, summarizer, and assistant agents
+
+# ID of the Google Sheet used for backfill links
+sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
+
+scraper:
+  handles:
+    - "@AlexHormozi"
+  daily_limit_per_channel: 10
+
+llm:
+  default:
+    model: "gpt-4.1"
+    temperature: 0.2
+  prompts:
+    summarizer_short_id: "coach_v1"
+  tasks:
+    summarizer_generate_short:
+      model: "gpt-4.1"
+      temperature: 0.2
+      prompt_id: "coach_v1"
+
+notifications:
+  slack:
+    channel: "ops-autopiloot"
+
+budgets:
+  transcription_daily_usd: 5.0

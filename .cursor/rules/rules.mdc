@@ -32,7 +32,7 @@ First, ask the user to provide all necessary details:
 - Communication Flows (between agents and from agents to user)
 - Agents (for each agent: name, role, tools with descriptions)
 
-Once you have gathered all details, create the file `agency_name/prd.mdc` using the following template:
+Once you have gathered all details, create the file `agency_name/planning/prd.mdc` using the following template:
 
 ```md
 # [Agency Name]
@@ -81,10 +81,140 @@ After the user provides the requested details, proceed to drafting the PRD file 
 
 # Step 2: Task creation
 
-After creating the PRD file, create single executable tasks based on `tasks/task_template.mdc` in the `agency_name/tasks` folder.
+After creating the PRD file, create single executable tasks based on the task template below in the `agency_name/planning/tasks` folder.
 
 - Before proceding check if there is anything missing in the PRD you need.
 - Ask the user for any documentation that is missing and you could not find.
+
+## Task Template
+
+When creating implementation tasks, use the following template structure. Each task should be self-contained and follow this format:
+
+````markdown
+---
+description: "<Brief description of the task>"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "<unique-id-or-ticket>" # e.g., TASK-0123
+title: "<short, action-oriented task title>" # e.g., "Add quartile-colored bar chart"
+status: "planned" # planned, in-progress, blocked, done
+priority: "P1" # P0, P1, P2
+labels: ["feature", "cli", "charts"] # free-form tags
+dependencies: ["<other-task-file>"] # list other task files that must be completed first
+created: "YYYY-MM-DD"
+
+# 1) High-Level Objective
+
+<One sentence that describes the user-facing end state. Avoid technical jargon.>
+
+# 2) Background / Context (Optional but recommended)
+
+<Short rationale or business context for why this task exists. Link any tickets/PRDs.>
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: <If any info is missing, state the pragmatic assumption here.>
+- Constraint: <e.g., "Use only deps listed in package.json/pyproject.toml".>
+- Constraint: <e.g., "Prefer TypeScript for app, Python for scripts".>
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- tasks/<other-task-file>.md
+- files/<required-existing-file-or-schema>
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- src/main.ts
+- src/types.ts
+- package.json _(read-only)_
+- pyproject.toml _(read-only)_
+
+**End state (must exist after completion):**
+
+- src/charts/bar.ts
+- src/charts/index.ts
+- tests/charts/bar.test.ts
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+> Write concrete, atomic steps. Include **file paths, exact names, signatures, params with defaults, return types**.
+
+1. **Create module**
+
+   - File: `path/to/file.py`
+   - Exported API:
+     ```python
+     def function_name(param: str, options: dict = None) -> str:
+         pass
+     ```
+   - Details:
+     - Specific implementation requirements
+     - Configuration handling
+     - Error handling approach
+
+2. **Integration**
+
+   - File: `path/to/integration.py`
+   - Add imports and wire up functionality
+
+3. **Testing**
+   - File: `tests/test_module.py`
+   - Test cases covering main functionality
+
+# 7) Types & Interfaces (if applicable)
+
+> Define or reference types here so the model has a stable contract.
+
+```python
+from typing import TypedDict, List, Optional
+
+class ConfigType(TypedDict):
+    field1: str
+    field2: Optional[int]
+```
+````
+
+# 8) Acceptance Criteria
+
+- Module exports required functions with exact signatures
+- Integration tests pass
+- Configuration loads correctly
+- Error handling works as expected
+
+# 9) Testing Strategy
+
+- Create integration tests that call real APIs/services
+- Verify file outputs and side effects
+- Test error conditions and edge cases
+
+# 10) Notes / Links
+
+- Reference documentation links
+- Related tasks or dependencies
+- Implementation notes
+
+```
 
 # Step 3: Folder Structure and Template Creation
 
@@ -97,31 +227,46 @@ Repeat this step for each agent in the agency. Make sure to correctly specify th
 After creating the templates, the folder structure is organized as follows:
 
 ```
+
 agency_name/
 ├── agent_name/
-│   ├── __init__.py
-│   ├── agent_name.py
-│   ├── instructions.md
-│   └── tools/
-│       ├── tool_name1.py
-│       ├── tool_name2.py
-│       ├── tool_name3.py
-│       ├── ...
+│ ├── **init**.py
+│ ├── agent_name.py
+│ ├── instructions.md
+│ └── tools/
+│ ├── tool_name1.py
+│ ├── tool_name2.py
+│ ├── tool_name3.py
+│ ├── ...
 ├── another_agent/
-│   ├── __init__.py
-│   ├── another_agent.py
-│   ├── instructions.md
-│   └── tools/
-│       ├── tool_name1.py
-│       ├── tool_name2.py
-│       ├── tool_name3.py
-│       ├── ...
+│ ├── **init**.py
+│ ├── another_agent.py
+│ ├── instructions.md
+│ └── tools/
+│ ├── tool_name1.py
+│ ├── tool_name2.py
+│ ├── tool_name3.py
+│ ├── ...
+├── planning/
+│ ├── prd.mdc
+│ └── tasks/
+│ ├── task-01.mdc
+│ ├── task-02.mdc
+│ ├── task-03.mdc
+│ └── ...
+├── tests/
+│ ├── **init**.py
+│ ├── test_agent_name.py
+│ ├── test_another_agent.py
+│ ├── test_config.py
+│ └── ...
 ├── agency.py
 ├── agency_manifesto.md
 ├── requirements.txt
 ├── .env
 └──...
-```
+
+````
 
 **Folder Structure Rules**:
 
@@ -138,6 +283,20 @@ agency_name/
   - Create a file in the 'tools' folder with the same name as the tool class.
   - Tools are automatically imported to the agent class.
   - All new requirements must be added to the requirements.txt file.
+
+- Planning Structure:
+
+  - A 'planning' folder contains the PRD and all task documentation.
+  - The PRD file (`prd.mdc`) should be in the planning folder root.
+  - Task files should be organized in `planning/tasks/` subdirectory.
+  - Tasks should follow the naming convention from the task template.
+
+- Testing Structure:
+
+  - A 'tests' folder contains all integration tests for the agency, agents, and tools.
+  - Tests should use Python's unittest framework with proper test classes.
+  - Each agent should have corresponding test files (e.g., `test_agent_name.py`).
+  - Configuration and utility tests go in files like `test_config.py`.
 
 - Agency Configuration:
   - The 'agency.py' file is the main file where all new agents are imported.
@@ -213,7 +372,7 @@ class MyCustomTool(BaseTool):
 if __name__ == "__main__":
     tool = MyCustomTool(example_field="example value")
     print(tool.run())
-```
+````
 
 ### Using `function_tool` Decorator
 
@@ -406,7 +565,20 @@ The final step is to test each tool and the agency itself, to ensure they are wo
 
    If any of the tools return an error, you need to fix the code in the tool file.
 
-3. Once all tools are working as expected, you can test the agency by running the following command:
+3. Run integration tests from the tests folder to ensure comprehensive testing:
+
+   ```bash
+   python -m unittest discover agency_name/tests -v
+   ```
+
+   Or run specific test files:
+
+   ```bash
+   python -m unittest agency_name.tests.test_config -v
+   python -m unittest agency_name.tests.test_agent_name -v
+   ```
+
+4. Once all tools and tests are working as expected, you can test the agency by running the following command:
 
    ```bash
    python agency_name/agency.py

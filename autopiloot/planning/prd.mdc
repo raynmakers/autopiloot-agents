@@ -410,7 +410,7 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 
 ## Notes
 
-- All references to “distillation” are renamed to “summary”; "long" now refers to the full transcript, not a long-form summary.
+- All references to "distillation" are renamed to "summary"; "long" now refers to the full transcript, not a long-form summary.
 - Channel: `@AlexHormozi` (resolved to channel ID at runtime).
 - Scheduling (infra-level) assumed; agents are triggered accordingly.
 - Base path enforced: `agents/autopiloot/...`.
