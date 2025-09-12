@@ -18,7 +18,7 @@ Provide a YAML config at `agents/autopiloot/config/settings.yaml` with values us
 
 # 2) Background / Context
 
-Task 03 (Sheets) requires `sheets.daily_limit_per_channel` to enforce daily limits.
+Task 03 (Sheets) requires a Google Sheet ID and a global daily limit per channel.
 
 # 3) Assumptions & Constraints
 
@@ -43,35 +43,65 @@ End state:
 # 6) Low-Level Steps
 
 1. Create `agents/autopiloot/config/settings.yaml` with structure:
+
    ```yaml
-   sheets:
-     daily_limit_per_channel: 10
-     range_a1: "Sheet1!A:D"
+   # ID of the Google Sheet used for backfill links
+   sheets: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
+
    scraper:
      handles:
        - "@AlexHormozi"
+     daily_limit_per_channel: 10
+
+   llm:
+     default:
+       model: "gpt-5-mini"
+       temperature: 0.2
+     prompts:
+       summarizer_short_id: "coach_v1"
+     tasks:
+       summarizer_generate_short:
+         model: "gpt-5-mini"
+         temperature: 0.2
+         prompt_id: "coach_v1"
    ```
+
 2. Create `agents/autopiloot/config/loader.py` with function `load_app_config() -> dict` using `yaml.safe_load`.
-3. Add minimal validation: ensure `sheets.daily_limit_per_channel` is int >= 0.
+3. Add minimal validation:
+   - `sheets` is a non-empty string (Google Sheet ID)
+   - `scraper.daily_limit_per_channel` is int >= 0
+   - `llm.default.model` is a non-empty string; `llm.default.temperature` is 0.0–1.0
+   - If `llm.tasks.*` present, each task entry has `model` (str) and `temperature` (0.0–1.0)
 
 # 7) Acceptance Criteria
 
-- Loader returns a dict with `sheets.daily_limit_per_channel` and `range_a1` and `scraper.handles`.
-- Task 03 can import and use the loader without modification.
+- Loader returns a dict with `sheets` (string), `scraper.handles` (list), `scraper.daily_limit_per_channel` (int), and `llm` (default and per-task overrides).
+- Summarizer and any LLM-using tasks can override model/temperature via `llm.tasks.<task_key>`, falling back to `llm.default` when absent.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict, List
-
-class SheetsConfig(TypedDict, total=False):
-    daily_limit_per_channel: int
-    range_a1: str
+from typing import TypedDict, List, Dict, Optional
 
 class ScraperConfig(TypedDict, total=False):
     handles: List[str]
+    daily_limit_per_channel: int
+
+class LLMPrompts(TypedDict, total=False):
+    summarizer_short_id: str
+
+class LLMTaskConfig(TypedDict, total=False):
+    model: str
+    temperature: float
+    prompt_id: Optional[str]
+
+class LLMConfig(TypedDict, total=False):
+    default: LLMTaskConfig
+    prompts: LLMPrompts
+    tasks: Dict[str, LLMTaskConfig]
 
 class AppConfig(TypedDict, total=False):
-    sheets: SheetsConfig
+    sheets: str            # Google Sheet ID
     scraper: ScraperConfig
+    llm: LLMConfig
 ```

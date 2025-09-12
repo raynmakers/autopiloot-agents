@@ -412,3 +412,4 @@ Monitor budgets for transcription cost and operational errors. Send internal Sla
 - Channel: `@AlexHormozi` (resolved to channel ID at runtime).
 - Scheduling (infra-level) assumed; agents are triggered accordingly.
 - Base path enforced: `agents/autopiloot/...`.
+- All timestamps stored in UTC as ISO 8601 strings with `Z` suffix (e.g., `2025-01-27T13:45:00Z`). Any local time inputs must be converted to UTC before persistence.

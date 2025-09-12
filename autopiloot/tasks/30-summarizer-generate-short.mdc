@@ -1,11 +1,11 @@
 ---
-description: "Implement GenerateShortSummary using gpt-4.1 with Langfuse"
+description: "Implement GenerateShortSummary using gpt-5-mini with Langfuse"
 globs: []
 alwaysApply: false
 ---
 
 id: "TASK-SUM-0030"
-title: "Build GenerateShortSummary tool (gpt-4.1, temp 0.2)"
+title: "Build GenerateShortSummary tool (gpt-5-mini, temp 0.2)"
 status: "planned"
 priority: "P1"
 labels: ["summarizer", "llm"]
@@ -22,11 +22,14 @@ PRD Agent C tools; LLM settings.
 
 # 3) Assumptions & Constraints
 
-- Model: gpt-4.1, temp 0.2, ~1500 tokens; prompt_version v1.
+- Read model, temperature, and prompt identifiers from `agents/autopiloot/config/settings.yaml` under `llm`.
+- Adaptive token strategy: chunk transcript dynamically to fit context; no fixed max-output cap, but target concise output (e.g., 6–12 bullets + 3–6 key concepts).
+- Capture prompt identity via a stable `prompt_id` (e.g., hash of resolved prompt template or `llm.prompts.summarizer_short_id`).
 
 # 4) Dependencies
 
 - files: agents/autopiloot/prd.mdc
+- files: agents/autopiloot/config/settings.yaml
 
 # 5) Context Plan
 
@@ -41,25 +44,32 @@ End state:
 # 6) Low-Level Steps
 
 1. Input: `transcript_doc_ref`, `title`.
-2. Chunk transcript if needed; prompt gpt-4.1; collect bullets and key concepts.
-3. Record prompt_version and tokens_used in output.
+2. Load transcript (UTC-aware timestamps if present). Chunk adaptively to fit model context.
+3. Load `llm.model`, `llm.temperature`, and `llm.prompts.summarizer_short_id` from config.
+4. Prompt the configured model with a summarization template optimized for coaching actionability; generate bullets and key concepts.
+5. Record `prompt_id` and `token_usage` (input/output) in the result and trace via Langfuse.
 
 # 7) Acceptance Criteria
 
-- Returns JSON `{ bullets: [...], key_concepts: [...] }`.
+- Uses model and temperature from settings.yaml and produces concise output.
+- Returns JSON `{ bullets: [...], key_concepts: [...] }` and includes `prompt_id` and token usage metrics.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict, List
+from typing import TypedDict, List, Dict
 
 class GenerateShortSummaryRequest(TypedDict):
     transcript_doc_ref: str
     title: str
 
+class TokenUsage(TypedDict):
+    input_tokens: int
+    output_tokens: int
+
 class GenerateShortSummaryResponse(TypedDict):
     bullets: List[str]
     key_concepts: List[str]
-    tokens_used: int
-    prompt_version: str
+    token_usage: TokenUsage
+    prompt_id: str
 ```

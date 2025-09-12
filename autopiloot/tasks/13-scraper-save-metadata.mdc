@@ -81,3 +81,7 @@ service cloud.firestore {
   }
 }
 ```
+
+# 12) Time Policy
+
+- Store all timestamps (e.g., `published_at`, `created_at`, `updated_at`) in UTC using ISO 8601 with `Z` suffix.

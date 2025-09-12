@@ -40,7 +40,7 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Inputs: `channel_id, since_iso, until_iso, page_size`.
+1. Inputs: `channel_id, since_utc, until_utc, page_size`.
 2. Use uploads playlist via `playlistItems.list`, then `videos.list` for durations.
 3. Respect quota; break on window end; update checkpoint.
 
@@ -56,15 +56,15 @@ from typing import TypedDict, List
 
 class ListRecentUploadsRequest(TypedDict):
     channel_id: str
-    since_iso: str
-    until_iso: str
+    since_utc: str  # ISO8601 UTC, e.g., 2025-01-27T00:00:00Z
+    until_utc: str  # ISO8601 UTC, e.g., 2025-01-28T00:00:00Z
     page_size: int
 
 class UploadItem(TypedDict):
     video_id: str
     url: str
     title: str
-    published_at: str
+    published_at: str  # ISO8601 UTC with Z
     duration_sec: int
 
 class ListRecentUploadsResponse(TypedDict):

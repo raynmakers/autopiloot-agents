@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Persist short summaries in Zep collection `autopiloot_guidelines` with metadata.
+Persist short summaries in Zep collection `autopiloot_guidelines` with metadata and link them to full RAG documents (long transcript and any derived business-logic docs) for retrieval.
 
 # 2) Background / Context
 
@@ -36,23 +36,28 @@ Beginning:
 
 End state:
 
-- Code to upsert to Zep with metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[] }`.
+- Code to upsert to Zep with metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[], rag_refs[] }`.
 
 # 6) Low-Level Steps
 
 1. Create helper to upsert summary to Zep.
-2. Attach metadata and reference to Firestore transcript doc.
-3. Return `zep_doc_id` and persist in `summaries/{video_id}`.
+2. Attach metadata and reference to Firestore transcript doc and full RAG artifacts (e.g., Drive file IDs for long transcript and any business-logic documents).
+3. Store `rag_refs` as a list of `{ type, ref }` items, e.g., `{ type: "transcript_drive", ref: "<fileId>" }`.
+4. Return `zep_doc_id` and persist in `summaries/{video_id}`.
 
 # 7) Acceptance Criteria
 
 - Summaries appear in Zep with correct metadata.
-- Firestore stores `zep_doc_id`.
+- Firestore stores `zep_doc_id` and `rag_refs` so a future agent can resolve full RAG documents from the short summary.
 
 # 10) Types & Interfaces
 
 ```python
-from typing import TypedDict, List
+from typing import TypedDict, List, Literal
+
+class RAGRef(TypedDict):
+    type: Literal["transcript_drive", "logic_doc", "other"]
+    ref: str
 
 class ZepMetadata(TypedDict):
     video_id: str
@@ -61,6 +66,7 @@ class ZepMetadata(TypedDict):
     channel_id: str
     transcript_doc_ref: str
     tags: List[str]
+    rag_refs: List[RAGRef]
 
 class ZepUpsertRequest(TypedDict):
     collection: str

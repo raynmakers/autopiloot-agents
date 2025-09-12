@@ -14,7 +14,7 @@ created: "2025-09-11"
 
 # 1) High-Level Objective
 
-Read links from Sheet and extract YouTube URLs from target pages.
+Read YouTube links from a single-column Google Sheet and (optionally) extract YouTube URLs from provided pages when needed.
 
 # 2) Background / Context
 
@@ -23,6 +23,7 @@ PRD Sheet backfill.
 # 3) Assumptions & Constraints
 
 - Env: `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_SHEET_ID_BACKFILL`.
+- The sheet contains a single column where each row is a YouTube link.
 
 # 4) Dependencies
 
@@ -41,13 +42,13 @@ End state:
 
 # 6) Low-Level Steps
 
-1. Read rows A-D, up to 10 pending.
-2. Fetch each page; parse OpenGraph/oEmbed and anchors; return YouTube links.
+1. Read up to N pending rows from the single link column (range from config or default `Sheet1!A:A`).
+2. Validate that each cell contains a YouTube URL; skip invalid.
 3. Deduplicate results.
 
 # 7) Acceptance Criteria
 
-- Returns array of `{ source_page_url, video_url }`.
+- Returns array of `{ video_url }` for valid rows.
 - Handles invalid URLs gracefully.
 
 # 10) Types & Interfaces
@@ -57,10 +58,9 @@ from typing import TypedDict, List
 
 class ReadSheetLinksRequest(TypedDict):
     sheet_id: str
-    range_a1: str
+    range_a1: str  # e.g., "Sheet1!A:A"
 
 class SheetLink(TypedDict):
-    source_page_url: str
     video_url: str
 
 class ReadSheetLinksResponse(TypedDict):
