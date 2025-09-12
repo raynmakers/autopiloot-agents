@@ -43,6 +43,7 @@ End state:
 # 6) Low-Level Steps
 
 1. Create `agents/autopiloot/config/settings.yaml` with structure:
+
    ```yaml
    # ID of the Google Sheet used for backfill links
    sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
@@ -71,6 +72,7 @@ End state:
    budgets:
      transcription_daily_usd: 5
    ```
+
 2. Create `agents/autopiloot/config/loader.py` with function `load_app_config() -> dict` using `yaml.safe_load`.
 3. Add minimal validation:
    - `sheet` is a non-empty string (Google Sheet ID)
