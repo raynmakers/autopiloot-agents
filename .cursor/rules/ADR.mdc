@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0012 | [Firestore Video Metadata Storage Tool](#adr-0012)          | 2025-09-14 | Accepted | —          | —             |
 | 0011 | [Google Sheets and Web Page YouTube Extraction Tools](#adr-0011) | 2025-09-14 | Accepted | —          | —             |
 | 0010 | [YouTube Uploads Playlist Discovery Tool](#adr-0010)         | 2025-09-14 | Accepted | —          | —             |
 | 0009 | [YouTube Channel Handle Resolution Tool](#adr-0009)          | 2025-09-14 | Accepted | —          | —             |
@@ -785,5 +786,82 @@ Implement two specialized tools using Agency Swarm v1.0.0 BaseTool framework:
 - Comprehensive test suites created with 12+ unit tests per tool covering functionality and error scenarios
 - JSON response format standardized with items arrays, summary statistics, and error handling consistency
 - Configuration integration tested with settings.yaml loading and graceful fallback behavior
+
+---
+
+## ADR-0012 — Firestore Video Metadata Storage Tool
+
+<a id="adr-0012"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Autopiloot scraper agent requires persistent storage of discovered video metadata in Firestore with strict idempotency requirements. The SaveVideoMetadata tool must upsert video records to `videos/{video_id}` collection, enforce business rules (70-minute duration limit), maintain proper status progression, and ensure re-running doesn't create duplicates. This tool serves as the bridge between YouTube content discovery and the transcription workflow.
+
+### Alternatives
+
+- **Direct database insertion without idempotency**: Risk of duplicate records and inconsistent state during retries or partial failures
+- **External database (PostgreSQL/MySQL)**: Additional infrastructure complexity and maintenance overhead for MVP requirements  
+- **File-based storage**: No transaction support, difficult querying, scalability limitations, no real-time updates
+- **In-memory storage**: Data loss on restart, no persistence across function invocations, unsuitable for production workflows
+- **Multiple document per video**: Creates normalization issues and complex querying patterns for status tracking
+
+### Decision
+
+Implement SaveVideoMetadata tool using Firestore native upsert patterns with comprehensive business rule validation:
+
+**Core Functionality:**
+
+- Idempotent upsert to `videos/{video_id}` document using Firestore's atomic operations
+- Business rule enforcement: 70-minute (4200 second) maximum duration from configuration
+- Status progression tracking with initial `status: discovered` field per PRD data model
+- ISO 8601 UTC timestamp handling with Z suffix for all temporal fields (`published_at`, `created_at`, `updated_at`)
+- Document-level deduplication using video_id as natural primary key
+
+**Firestore Integration:**
+
+- Firebase Admin SDK with service account authentication via `GOOGLE_APPLICATION_CREDENTIALS`
+- Atomic upsert operations: `set()` for new documents, `update()` for existing documents
+- SERVER_TIMESTAMP usage for `created_at` and `updated_at` ensuring consistent server-side timing
+- Conditional logic preserving `created_at` on updates while refreshing `updated_at`
+- Project isolation via `GCP_PROJECT_ID` environment variable configuration
+
+**Agency Swarm v1.0.0 Compliance:**
+
+- BaseTool inheritance with Pydantic field validation for all input parameters
+- Comprehensive field descriptions enabling proper agent understanding and usage
+- JSON string return format with structured responses including error handling
+- Optional parameter support for `channel_id` with proper null handling
+- Production-ready test block demonstrating realistic usage scenarios
+
+**Error Handling and Validation:**
+
+- Duration validation against configurable limits with graceful rejection
+- Environment variable validation with descriptive error messages
+- Service account file existence verification before Firestore initialization
+- Comprehensive exception handling returning structured JSON error responses
+- Configuration loading with sensible defaults for missing settings
+
+### Consequences
+
+- **Pros**: Firestore native operations ensure atomic upserts preventing race conditions and duplicate records, SERVER_TIMESTAMP provides consistent timing across distributed environments, Agency Swarm compliance enables seamless integration with agent workflows, comprehensive validation prevents invalid data persistence, JSON error responses maintain consistent tool interfaces, flexible configuration supports different deployment environments without code changes, idempotent operations enable safe retries and partial failure recovery
+- **Cons / risks**: Firestore dependency creates external service coupling with latency and availability constraints, service account authentication requires proper credential management and rotation, document-level locking may impact concurrent access patterns for same video_id, configuration-based business rules require deployment updates for rule changes, error handling complexity increases tool maintenance overhead
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Agency Swarm v1.0.0 BaseTool inheritance with proper Pydantic field validation and JSON string return format
+- Firestore atomic operations verified with set() for creation and update() for modifications
+- Idempotency tested with duplicate video_id operations confirming no duplicate document creation
+- Business rule validation confirmed with 70-minute duration limit enforcement from configuration
+- ISO 8601 timestamp format validation with Z suffix requirement for all temporal fields
+- Environment variable handling tested for missing credentials and invalid project configurations
+- Error handling verified for Firestore connection failures, authentication errors, and invalid input data
+- Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
+- Document structure compliance with PRD data model including all required fields and optional channel_id
+- Configuration integration tested with settings.yaml loading and default value fallbacks
 
 ---
