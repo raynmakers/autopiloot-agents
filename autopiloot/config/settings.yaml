@@ -9,6 +9,10 @@ scraper:
     - "@AlexHormozi"
   daily_limit_per_channel: 10
 
+sheets:
+  daily_limit_per_channel: 10
+  range_a1: "Sheet1!A:D"
+
 llm:
   default:
     model: "gpt-4.1"
@@ -35,3 +39,11 @@ idempotency:
     - "transcribed" 
     - "summarized"
   drive_naming_format: "{video_id}_{date}_{type}.{ext}"
+
+reliability:
+  retry:
+    max_attempts: 3  # Maximum retry attempts before DLQ
+    base_delay_sec: 60  # Base delay for exponential backoff in seconds
+  quotas:
+    youtube_daily_limit: 10000  # YouTube Data API daily quota
+    assemblyai_daily_limit: 100  # AssemblyAI daily transcription limit

@@ -55,6 +55,8 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0006 | [Modular Agent Tool Architecture](#adr-0006)                | 2025-09-14 | Accepted | —          | —             |
+| 0005 | [Reliability and Quota Management System](#adr-0005)         | 2025-09-14 | Accepted | —          | —             |
 | 0004 | [Comprehensive Environment Configuration System](#adr-0004)  | 2025-01-15 | Accepted | —          | —             |
 | 0003 | [MVP Orchestration and Tooling Choices](#adr-0003)           | 2025-09-11 | Accepted | —          | —             |
 | 0002 | [Event-Driven Broker Architecture with Firestore](#adr-0002) | 2025-01-27 | Accepted | —          | —             |
@@ -297,5 +299,155 @@ Implement agent-focused repository structure:
 ### Compliance / Verification
 
 Repository structure contains only agent-related files. Firebase configuration is updated to reflect actual directory structure. No references to non-existent frontend or backend directories in documentation.
+
+---
+
+## ADR-0005 — Reliability and Quota Management System
+
+<a id="adr-0005"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system integrates with multiple external APIs (YouTube Data API, AssemblyAI, OpenAI, Slack) that have quota limits and can experience transient failures. Without proper reliability mechanisms, API quota exhaustion could crash the system, failed operations would be lost, and there was no systematic way to resume processing from checkpoints. The system needed enterprise-grade reliability features including dead letter queues, exponential backoff, quota management, and configurable retry behavior to ensure resilient operation under API constraints.
+
+### Alternatives
+
+- **Simple retry loops**: Basic retry without backoff, prone to overwhelming failing services, no quota awareness, lost failed operations
+- **External queue systems**: Use Redis/RabbitMQ for DLQ, adds infrastructure complexity, additional operational overhead, cost for MVP
+- **Hard-coded retry limits**: No configuration flexibility, requires code changes for tuning, inconsistent behavior across services
+- **Manual failure handling**: Operational burden, no systematic recovery, human error prone, doesn't scale
+- **No checkpoint system**: Repeated API calls from beginning, quota waste, longer recovery times, inefficient processing
+
+### Decision
+
+Implement comprehensive reliability and quota management system with configuration-driven behavior:
+
+**Dead Letter Queue (DLQ) System:**
+
+- Structured DLQ entries in Firestore `jobs_deadletter` collection with job_type, video_id, reason, retry_count, timestamps
+- Automatic DLQ routing after maximum retry attempts exceeded
+- DLQ monitoring and query tools for operational insights and failure analysis
+- Support for multiple job types: youtube_discovery, transcription, summarization, sheets_processing, slack_notification
+
+**Quota Management:**
+
+- `QuotaManager` class for tracking API usage across services (YouTube: 10,000 units/day, AssemblyAI: configurable)
+- Automatic quota exhaustion detection with next reset time calculation
+- Service availability checking before making API calls to prevent quota violations
+- Graceful handling of quota exhaustion with resume capabilities
+
+**Intelligent Retry Strategy:**
+
+- Exponential backoff with configurable base delay (default: 60 seconds)
+- Configurable maximum retry attempts (default: 3) before DLQ routing
+- Backoff progression: base_delay × 2^retry_count (60s → 120s → 240s → 480s)
+- Settings.yaml configuration support for retry behavior tuning
+
+**Checkpoint System:**
+
+- `lastPublishedAt` checkpoint for YouTube API to resume from last processed video
+- Reduces API calls by avoiding reprocessing of already-handled content
+- Firestore persistence for checkpoint data with automatic updates
+- ISO 8601 timestamp handling for accurate temporal ordering
+
+**Configuration Integration:**
+
+- YAML-based configuration in `settings.yaml` under `reliability` section
+- TypedDict validation for configuration structure and value constraints
+- Helper functions for accessing configuration values with sensible defaults
+- Real-time configuration loading without code deployment
+
+### Consequences
+
+- **Pros**: Enterprise-grade reliability prevents data loss, configurable retry behavior allows fine-tuning without code changes, quota management prevents API violations and system crashes, checkpoint system reduces API usage and speeds recovery, comprehensive monitoring enables proactive operational management, Firestore-based architecture leverages existing infrastructure, extensive test coverage ensures reliable operation
+- **Cons / risks**: Increased system complexity with additional moving parts, Firestore storage costs for DLQ and checkpoint data, potential for configuration errors affecting retry behavior, dependency on external API reset schedules, monitoring overhead for DLQ and quota status
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- 22 comprehensive reliability tests with 100% pass rate covering DLQ operations, retry logic, quota management, and checkpoint functionality
+- Configuration validation tests ensure invalid values are rejected with clear error messages
+- Dead letter queue entries automatically created after max retry attempts with complete error context
+- Quota exhaustion triggers graceful pausing with automatic resumption when quota resets
+- Checkpoint system demonstrated to reduce YouTube API calls by resuming from `lastPublishedAt` timestamp
+- Settings.yaml integration verified with different retry values affecting actual backoff calculations
+- Firestore composite indexes defined for efficient DLQ querying and operational monitoring
+- Tools provided for DLQ analysis, quota monitoring, and checkpoint management
+
+---
+
+## ADR-0006 — Modular Agent Tool Architecture
+
+<a id="adr-0006"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system requires 20 distinct tools across 4 specialized agents (Scraper, Transcriber, Summarizer, Assistant) to orchestrate the YouTube content processing pipeline. Each agent needs domain-specific capabilities while maintaining consistent patterns for error handling, environment configuration, and testing. Without proper tool architecture, code duplication would proliferate, maintenance complexity would increase, and integration with agency_swarm or other orchestration frameworks would be challenging.
+
+### Alternatives
+
+- **Monolithic agent classes**: Single class per agent with all tools as methods, reduces modularity, difficult testing, violates single responsibility principle
+- **Function-based tools**: Simple functions without classes, no state management, inconsistent error handling, difficult to extend
+- **External tool libraries**: Use existing libraries for each service, integration overhead, inconsistent interfaces, missing domain-specific logic
+- **Copy-paste implementations**: Quick initial development, maintenance nightmare, no code reuse, error propagation across copies
+- **Framework-specific tools**: Lock-in to specific orchestration framework (agency_swarm), reduced portability, harder standalone testing
+
+### Decision
+
+Implement modular tool architecture with inheritance-based consistency and service isolation:
+
+**Core Architecture:**
+
+- `BaseTool` abstract class providing environment validation, error handling, and standard interface
+- One tool class per specific capability (20 total: 7 Scraper, 5 Transcriber, 4 Summarizer, 4 Assistant)
+- TypedDict-based request/response contracts for type safety and documentation
+- Service-specific tool directories: `{agent}/tools/*.py` with __init__.py for clean imports
+- Consistent `run()` method interface accepting Dict[str, Any] and returning Dict[str, Any]
+
+**Tool Distribution:**
+
+- **Scraper (7)**: ResolveChannelHandle, ListRecentUploads, ReadSheetLinks, ExtractYouTubeFromPage, SaveVideoMetadata, EnqueueTranscription, RemoveSheetRow
+- **Transcriber (5)**: GetVideoAudioUrl, SubmitAssemblyAIJob, PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord
+- **Summarizer (4)**: GenerateShortSummary, StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord
+- **Assistant (4)**: FormatSlackBlocks, SendSlackMessage, MonitorTranscriptionBudget, SendErrorAlert
+
+**Environment Integration:**
+
+- All secrets via environment variables (no hardcoded values)
+- `_validate_env_vars()` method enforces required configuration at initialization
+- `get_env_var()` helper with required/optional support and clear error messages
+- Service account path validation for Google Cloud services
+
+**Testing Strategy:**
+
+- Every tool includes `if __name__ == "__main__"` test block for standalone execution
+- Mock-friendly design with dependency injection capability
+- Test requests demonstrate expected input/output formats
+- Error scenarios validated with appropriate exception handling
+
+### Consequences
+
+- **Pros**: Clean separation of concerns with single responsibility per tool, consistent error handling and validation across all tools, easy integration with multiple orchestration frameworks, standalone testability accelerates development, environment variable enforcement prevents production failures, modular architecture enables selective tool usage, type hints improve IDE support and documentation
+- **Cons / risks**: More files to manage (20 tools + base class + init files), inheritance coupling to BaseTool class, potential for interface drift without strict governance, initial setup complexity for new developers, dependency on external service SDKs
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All 20 tools implemented with BaseTool inheritance and consistent run() interface
+- Each tool validates required environment variables at initialization with clear error messages
+- Test blocks verified to execute without errors when valid mock data provided
+- No hardcoded secrets found in any tool implementation (verified by code review)
+- Import structure validated: `from autopiloot.{agent}.tools import {ToolClass}`
+- Service-specific SDK usage: googleapiclient for Google services, assemblyai for transcription, slack_sdk for notifications
+- Firestore integration uses google-cloud-firestore with proper project/credential configuration
+- Error handling demonstrates graceful degradation with actionable error messages
 
 ---

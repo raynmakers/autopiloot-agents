@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Add config directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-from loader import load_app_config, ConfigValidationError
+from loader import load_app_config, ConfigValidationError, _validate_config
 
 
 class TestConfigurationLoader(unittest.TestCase):
@@ -246,6 +246,99 @@ class TestConfigurationLoader(unittest.TestCase):
             self.assertIn("Configuration must be a YAML dictionary", str(cm.exception))
         finally:
             os.unlink(temp_path)
+    
+    def test_reliability_config_validation(self):
+        """Test reliability configuration validation."""
+        # Valid reliability config
+        config = {
+            "sheet": "test_sheet_id",
+            "reliability": {
+                "retry": {
+                    "max_attempts": 5,
+                    "base_delay_sec": 30
+                },
+                "quotas": {
+                    "youtube_daily_limit": 5000,
+                    "assemblyai_daily_limit": 50
+                }
+            }
+        }
+        
+        # Should not raise an exception
+        _validate_config(config)
+        
+        # Invalid max_attempts (negative)
+        config["reliability"]["retry"]["max_attempts"] = -1
+        with self.assertRaises(ConfigValidationError) as cm:
+            _validate_config(config)
+        self.assertIn("reliability.retry.max_attempts must be a non-negative integer", str(cm.exception))
+        
+        # Invalid base_delay_sec (zero)
+        config["reliability"]["retry"]["max_attempts"] = 3
+        config["reliability"]["retry"]["base_delay_sec"] = 0
+        with self.assertRaises(ConfigValidationError) as cm:
+            _validate_config(config)
+        self.assertIn("reliability.retry.base_delay_sec must be a positive integer", str(cm.exception))
+        
+        # Invalid quota (negative)
+        config["reliability"]["retry"]["base_delay_sec"] = 60
+        config["reliability"]["quotas"]["youtube_daily_limit"] = -100
+        with self.assertRaises(ConfigValidationError) as cm:
+            _validate_config(config)
+        self.assertIn("reliability.quotas.youtube_daily_limit must be a positive integer", str(cm.exception))
+    
+    def test_reliability_config_helpers(self):
+        """Test reliability configuration helper functions."""
+        from loader import (
+            get_retry_max_attempts, get_retry_base_delay,
+            get_youtube_daily_limit, get_assemblyai_daily_limit
+        )
+        
+        # Test with reliability config
+        config = {
+            "reliability": {
+                "retry": {
+                    "max_attempts": 5,
+                    "base_delay_sec": 30
+                },
+                "quotas": {
+                    "youtube_daily_limit": 5000,
+                    "assemblyai_daily_limit": 50
+                }
+            }
+        }
+        
+        self.assertEqual(get_retry_max_attempts(config), 5)
+        self.assertEqual(get_retry_base_delay(config), 30)
+        self.assertEqual(get_youtube_daily_limit(config), 5000)
+        self.assertEqual(get_assemblyai_daily_limit(config), 50)
+        
+        # Test with missing reliability config (should return defaults)
+        config_no_reliability = {}
+        
+        self.assertEqual(get_retry_max_attempts(config_no_reliability), 3)  # Default
+        self.assertEqual(get_retry_base_delay(config_no_reliability), 60)  # Default
+        self.assertEqual(get_youtube_daily_limit(config_no_reliability), 10000)  # Default
+        self.assertEqual(get_assemblyai_daily_limit(config_no_reliability), 100)  # Default
+        
+        # Test with partial reliability config
+        config_partial = {
+            "reliability": {
+                "retry": {
+                    "max_attempts": 2
+                    # base_delay_sec missing
+                },
+                "quotas": {
+                    "youtube_daily_limit": 8000
+                    # assemblyai_daily_limit missing
+                }
+            }
+        }
+        
+        self.assertEqual(get_retry_max_attempts(config_partial), 2)
+        self.assertEqual(get_retry_base_delay(config_partial), 60)  # Default
+        self.assertEqual(get_youtube_daily_limit(config_partial), 8000)
+        self.assertEqual(get_assemblyai_daily_limit(config_partial), 100)  # Default
 
 
 if __name__ == "__main__":

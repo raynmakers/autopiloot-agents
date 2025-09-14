@@ -41,12 +41,35 @@ class BudgetsConfig(TypedDict, total=False):
     transcription_daily_usd: float
 
 
+class SheetsConfig(TypedDict, total=False):
+    daily_limit_per_channel: int
+    range_a1: str
+
+
+class ReliabilityRetryConfig(TypedDict, total=False):
+    max_attempts: int
+    base_delay_sec: int
+
+
+class ReliabilityQuotasConfig(TypedDict, total=False):
+    youtube_daily_limit: int
+    assemblyai_daily_limit: int
+
+
+class ReliabilityConfig(TypedDict, total=False):
+    retry: ReliabilityRetryConfig
+    quotas: ReliabilityQuotasConfig
+
+
 class AppConfig(TypedDict, total=False):
     sheet: str
     scraper: ScraperConfig
+    sheets: SheetsConfig
     llm: LLMConfig
     notifications: Dict[str, NotificationsSlackConfig]
     budgets: BudgetsConfig
+    idempotency: Dict[str, Union[int, List[str], str]]
+    reliability: ReliabilityConfig
 
 
 class ConfigValidationError(Exception):
@@ -119,6 +142,18 @@ def _validate_config(config: dict) -> None:
         if not isinstance(budget, (int, float)) or budget <= 0:
             raise ConfigValidationError("budgets.transcription_daily_usd must be a positive number")
     
+    # Validate sheets config
+    sheets = config.get("sheets", {})
+    if "daily_limit_per_channel" in sheets:
+        daily_limit = sheets["daily_limit_per_channel"]
+        if not isinstance(daily_limit, int) or daily_limit <= 0:
+            raise ConfigValidationError("sheets.daily_limit_per_channel must be a positive integer")
+    
+    if "range_a1" in sheets:
+        range_a1 = sheets["range_a1"]
+        if not isinstance(range_a1, str) or not range_a1.strip():
+            raise ConfigValidationError("sheets.range_a1 must be a non-empty string")
+    
     # Validate idempotency config
     idempotency = config.get("idempotency", {})
     if "max_video_duration_sec" in idempotency:
@@ -140,6 +175,28 @@ def _validate_config(config: dict) -> None:
         naming_format = idempotency["drive_naming_format"]
         if not isinstance(naming_format, str) or not naming_format.strip():
             raise ConfigValidationError("idempotency.drive_naming_format must be a non-empty string")
+    
+    # Validate reliability config
+    reliability = config.get("reliability", {})
+    if "retry" in reliability:
+        retry_config = reliability["retry"]
+        if "max_attempts" in retry_config:
+            max_attempts = retry_config["max_attempts"]
+            if not isinstance(max_attempts, int) or max_attempts < 0:
+                raise ConfigValidationError("reliability.retry.max_attempts must be a non-negative integer")
+        
+        if "base_delay_sec" in retry_config:
+            base_delay = retry_config["base_delay_sec"]
+            if not isinstance(base_delay, int) or base_delay <= 0:
+                raise ConfigValidationError("reliability.retry.base_delay_sec must be a positive integer")
+    
+    if "quotas" in reliability:
+        quotas_config = reliability["quotas"]
+        for quota_key in ["youtube_daily_limit", "assemblyai_daily_limit"]:
+            if quota_key in quotas_config:
+                quota_value = quotas_config[quota_key]
+                if not isinstance(quota_value, int) or quota_value <= 0:
+                    raise ConfigValidationError(f"reliability.quotas.{quota_key} must be a positive integer")
 
 
 def load_app_config(config_path: Optional[str] = None) -> AppConfig:
@@ -222,6 +279,84 @@ def get_status_progression(config: AppConfig) -> List[str]:
     return config.get("idempotency", {}).get("status_progression", ["discovered", "transcribed", "summarized"])
 
 
+def get_sheets_daily_limit(config: AppConfig) -> int:
+    """
+    Get daily limit for sheet processing from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Daily limit for sheet processing (default: 10)
+    """
+    return config.get("sheets", {}).get("daily_limit_per_channel", 10)
+
+
+def get_sheets_range(config: AppConfig) -> str:
+    """
+    Get sheet range for reading data from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        A1 notation range for sheet data (default: "Sheet1!A:D")
+    """
+    return config.get("sheets", {}).get("range_a1", "Sheet1!A:D")
+
+
+def get_retry_max_attempts(config: AppConfig) -> int:
+    """
+    Get maximum retry attempts from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Maximum retry attempts (default: 3)
+    """
+    return config.get("reliability", {}).get("retry", {}).get("max_attempts", 3)
+
+
+def get_retry_base_delay(config: AppConfig) -> int:
+    """
+    Get base delay for exponential backoff from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Base delay in seconds (default: 60)
+    """
+    return config.get("reliability", {}).get("retry", {}).get("base_delay_sec", 60)
+
+
+def get_youtube_daily_limit(config: AppConfig) -> int:
+    """
+    Get YouTube API daily quota limit from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        YouTube API daily quota limit (default: 10000)
+    """
+    return config.get("reliability", {}).get("quotas", {}).get("youtube_daily_limit", 10000)
+
+
+def get_assemblyai_daily_limit(config: AppConfig) -> int:
+    """
+    Get AssemblyAI daily limit from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        AssemblyAI daily limit (default: 100)
+    """
+    return config.get("reliability", {}).get("quotas", {}).get("assemblyai_daily_limit", 100)
+
+
 if __name__ == "__main__":
     config = load_app_config()
     print(f"Configuration loaded successfully. Sheet ID: {config['sheet']}")
@@ -230,3 +365,7 @@ if __name__ == "__main__":
     print(f"Transcription budget: ${config['budgets']['transcription_daily_usd']}")
     print(f"Max video duration: {get_max_video_duration(config)} seconds")
     print(f"Drive naming format: {get_drive_naming_format(config)}")
+    print(f"Retry max attempts: {get_retry_max_attempts(config)}")
+    print(f"Retry base delay: {get_retry_base_delay(config)} seconds")
+    print(f"YouTube daily limit: {get_youtube_daily_limit(config)}")
+    print(f"AssemblyAI daily limit: {get_assemblyai_daily_limit(config)}")

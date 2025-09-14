@@ -79,7 +79,8 @@ def extract_video_id_from_url(video_url: str) -> Optional[str]:
     # Handle different YouTube URL formats
     patterns = [
         r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
-        r'youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/watch\?.*[&?]v=([a-zA-Z0-9_-]{11})',
+        r'(?:^|.*/)([a-zA-Z0-9_-]{11})(?:\?.*)?$',  # For youtu.be/ID format without protocol
     ]
     
     for pattern in patterns:
