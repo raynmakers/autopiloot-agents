@@ -55,6 +55,8 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0008 | [Agency Swarm v1.0.0 Tool Implementation](#adr-0008)        | 2025-09-14 | Accepted | —          | —             |
+| 0007 | [Firebase Functions v2 Scheduling Architecture](#adr-0007)   | 2025-09-14 | Accepted | —          | —             |
 | 0006 | [Modular Agent Tool Architecture](#adr-0006)                | 2025-09-14 | Accepted | —          | —             |
 | 0005 | [Reliability and Quota Management System](#adr-0005)         | 2025-09-14 | Accepted | —          | —             |
 | 0004 | [Comprehensive Environment Configuration System](#adr-0004)  | 2025-01-15 | Accepted | —          | —             |
@@ -449,5 +451,136 @@ Implement modular tool architecture with inheritance-based consistency and servi
 - Service-specific SDK usage: googleapiclient for Google services, assemblyai for transcription, slack_sdk for notifications
 - Firestore integration uses google-cloud-firestore with proper project/credential configuration
 - Error handling demonstrates graceful degradation with actionable error messages
+
+---
+
+## ADR-0007: Firebase Functions v2 Scheduling Architecture
+
+- **Date**: 2024-09-14
+- **Status**: Accepted
+- **Context**: Autopiloot requires scheduled execution of agent workflows (daily YouTube scraping) and event-driven processing (budget monitoring on transcript creation). Need cloud-native solution with reliable scheduling, automatic scaling, and integration with existing Firestore data layer.
+
+### Decision
+
+Implement Firebase Functions v2 with scheduled and event-driven execution patterns:
+
+**Scheduled Functions:**
+- Daily scraper execution at 01:00 Europe/Amsterdam using Cloud Scheduler cron triggers
+- `@scheduler_fn.on_schedule(schedule="0 1 * * *", timezone="Europe/Amsterdam")`
+- 9-minute timeout with 512MB memory allocation for agency processing
+- Single instance constraint to prevent concurrent executions
+
+**Event-Driven Functions:**
+- Budget monitoring triggered by Firestore document writes to `transcripts/{video_id}`
+- Real-time cost calculation with daily threshold alerting at 80% of $5 budget
+- Slack notifications via Assistant agent tools integration
+- Automatic audit logging to `audit_logs` and `costs_daily` collections
+
+**Architecture Components:**
+- `autopiloot/firebase/functions/scheduler.py`: Main functions implementation
+- `autopiloot/firebase/functions/requirements.txt`: Python dependencies for Firebase runtime
+- Manual deployment via Firebase CLI with service account authentication
+- Centralized error handling with structured logging and alert propagation
+
+**Integration Strategy:**
+- Direct import of agency classes: `from agency import AutopilootAgency`
+- Reuse existing environment configuration via `core.env_loader`
+- Leverage Assistant tools for Slack formatting and messaging
+- Firestore as event broker between scheduled and on-demand executions
+
+### Alternatives Considered
+
+**Google Cloud Run Jobs**: More flexible but requires custom scheduling logic and lacks native Firestore event integration. Higher operational complexity for simple cron scheduling.
+
+**GitHub Actions**: Limited to repository events, not suitable for production data processing workflows. No direct Firestore integration or timezone handling.
+
+**Local Cron + Self-Hosted**: Requires infrastructure management, no automatic scaling, single point of failure. No native cloud logging or monitoring.
+
+**AWS Lambda + EventBridge**: Vendor lock-in to AWS ecosystem, would require migration of existing Firestore data layer. More complex cold start behavior.
+
+### Consequences
+
+- **Pros**: Native Google Cloud integration with existing Firestore infrastructure, automatic scaling and cold start optimization, built-in monitoring and logging via Cloud Functions, timezone-aware scheduling with daylight saving handling, event-driven architecture eliminates polling overhead, cost-effective pay-per-invocation model, Firebase CLI provides streamlined deployment workflow
+- **Cons / risks**: Vendor lock-in to Google Cloud Platform, 9-minute execution timeout may constrain large channel processing, cold start latency for infrequent functions, requires manual Firebase project setup and service account configuration, debugging complexity in cloud environment, potential for cascading failures across function dependencies
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Firebase Functions v2 decorators implemented with correct scheduling syntax and timezone configuration
+- Environment variables properly loaded via centralized `env_loader` with validation
+- Budget calculations tested with mock Firestore data and verified against daily cost thresholds
+- Slack alerting integration confirmed with Assistant agent tools in both emulator and production
+- Audit logging captures all function executions with structured data for operational monitoring
+- Manual deployment procedures documented with step-by-step Firebase CLI instructions
+- Error handling includes graceful degradation and automatic retry logic for transient failures
+- Function timeouts and memory limits configured appropriately for agency workflow requirements
+
+---
+
+## ADR-0008: Agency Swarm v1.0.0 Tool Implementation
+
+<a id="adr-0008"></a>
+
+- **Date**: 2024-09-14
+- **Status**: Accepted
+- **Context**: Autopiloot requires 20 production-ready tools across 4 agents (Scraper, Transcriber, Summarizer, Assistant) using Agency Swarm framework v1.0.0. Need consistent tool architecture, proper validation, environment configuration, and comprehensive testing for YouTube content processing automation.
+
+### Decision
+
+Implement all 20 required tools using Agency Swarm v1.0.0 BaseTool framework:
+
+**Tool Distribution:**
+- **Scraper (7 tools)**: ResolveChannelHandle, ListRecentUploads, ReadSheetLinks, ExtractYouTubeFromPage, SaveVideoMetadata, EnqueueTranscription, RemoveSheetRow
+- **Transcriber (5 tools)**: GetVideoAudioUrl, SubmitAssemblyAIJob, PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord
+- **Summarizer (4 tools)**: GenerateShortSummary, StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord
+- **Assistant (4 tools)**: FormatSlackBlocks, SendSlackMessage, MonitorTranscriptionBudget, SendErrorAlert
+
+**Implementation Standards:**
+- All tools inherit from `agency_swarm.tools.BaseTool` with Pydantic field validation
+- Environment variables only for secrets - no API keys as tool parameters
+- Standardized `run()` method returning strings directly (not Dict objects)
+- Comprehensive test blocks in every tool file with `if __name__ == "__main__":`
+- Production-ready error handling with graceful failure modes
+
+**API Integration:**
+- YouTube Data API v3: google-api-python-client SDK
+- AssemblyAI: Official assemblyai SDK for transcription services
+- Google Drive/Sheets: google-api-python-client with service account auth
+- Slack: slack_sdk for notification systems
+- Firestore: firebase-admin SDK for data persistence
+- OpenAI: openai SDK for LLM summarization
+
+**Tool Architecture:**
+- Centralized environment loading via `core/env_loader.py`
+- Configuration management through `config/settings.yaml`
+- Consistent error handling and logging patterns
+- Type safety with Pydantic Field validation and TypedDict structures
+
+### Alternatives Considered
+
+**Custom BaseTool Implementation**: Initially considered custom tool base class but Agency Swarm v1.0.0 provides superior validation, documentation generation, and agent integration. Maintains framework consistency.
+
+**Direct Function Tools**: Agency Swarm supports @function_tool decorator but BaseTool classes provide better structure, validation, and testing capabilities for complex production tools.
+
+**Multiple Tool Directories**: Considered consolidating all tools in single directory but agent-specific tool folders improve organization and align with Agency Swarm best practices.
+
+### Consequences
+
+- **Pros**: Full Agency Swarm v1.0.0 compatibility ensures seamless agent integration, Pydantic validation prevents runtime errors and improves tool reliability, standardized architecture enables consistent development patterns across all agents, comprehensive testing validates production readiness, environment-based configuration supports multiple deployment environments, proper SDK usage reduces API integration complexity
+- **Cons / risks**: Framework dependency creates coupling to Agency Swarm ecosystem, tool inheritance requires understanding of BaseTool internals, comprehensive validation may impact tool execution performance, extensive testing increases development time and maintenance overhead
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All 20 required tools implemented with agency_swarm.tools.BaseTool inheritance and consistent interfaces
+- Pydantic Field validation enforced for all tool parameters with descriptive error messages
+- Environment variable usage verified - no hardcoded secrets found in any tool implementation
+- Test blocks confirmed functional in all 32 tool files with realistic test scenarios
+- API SDK integration validated: YouTube Data API, AssemblyAI, Google APIs, Slack, Firebase, OpenAI
+- Tool directory structure follows Agency Swarm conventions with proper __init__.py imports
+- Error handling demonstrates graceful degradation with actionable error messages
+- Production deployment tested with proper service account authentication and quota management
 
 ---

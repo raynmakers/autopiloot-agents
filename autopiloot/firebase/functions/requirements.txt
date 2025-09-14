@@ -1,6 +1,27 @@
+# Firebase Functions Python Requirements
+# These are specific to the Firebase Functions runtime
+
+# Firebase Functions SDK
 functions-framework>=3.5.0
 firebase-admin>=6.5.0
 firebase-functions>=0.1.0
+
+# Core dependencies
 google-cloud-firestore>=2.16.0
-requests>=2.32.3
 python-dotenv>=1.0.1
+pyyaml>=6.0.2
+
+# For agency integration
+agency-swarm>=0.7.2
+openai>=1.43.0
+pydantic>=2.8.2
+
+# For Slack alerts
+slack_sdk>=3.31.0
+
+# For YouTube API integration
+google-api-python-client>=2.141.0
+google-auth>=2.33.0
+
+# Utilities
+requests>=2.32.3

@@ -15,4 +15,13 @@ beautifulsoup4>=4.12.3
 functions-framework>=3.5.0
 firebase-admin>=6.5.0
 firebase-functions>=0.1.0
+
+# RAG and Memory
 zep-python>=2.0.0
+
+# Agency Swarm Framework
+agency-swarm>=0.7.2
+
+# Additional dependencies for tools
+pathlib>=1.0.1
+typing-extensions>=4.0.0
