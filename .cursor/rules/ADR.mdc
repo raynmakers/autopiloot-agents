@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0009 | [YouTube Channel Handle Resolution Tool](#adr-0009)          | 2025-09-14 | Accepted | —          | —             |
 | 0008 | [Agency Swarm v1.0.0 Tool Implementation](#adr-0008)        | 2025-09-14 | Accepted | —          | —             |
 | 0007 | [Firebase Functions v2 Scheduling Architecture](#adr-0007)   | 2025-09-14 | Accepted | —          | —             |
 | 0006 | [Modular Agent Tool Architecture](#adr-0006)                | 2025-09-14 | Accepted | —          | —             |
@@ -582,5 +583,70 @@ Implement all 20 required tools using Agency Swarm v1.0.0 BaseTool framework:
 - Tool directory structure follows Agency Swarm conventions with proper __init__.py imports
 - Error handling demonstrates graceful degradation with actionable error messages
 - Production deployment tested with proper service account authentication and quota management
+
+---
+
+## ADR-0009: YouTube Channel Handle Resolution Tool
+
+<a id="adr-0009"></a>
+
+- **Date**: 2024-09-14
+- **Status**: Accepted
+- **Context**: Autopiloot scraper agent requires batch resolution of YouTube channel handles (e.g., @AlexHormozi) to canonical channel IDs for subsequent API operations. Need configuration-driven solution that loads handles from settings.yaml, implements retry logic for rate limits, and provides comprehensive error handling for production reliability.
+
+### Decision
+
+Implement ResolveChannelHandles tool using Agency Swarm v1.0.0 BaseTool framework:
+
+**Core Functionality:**
+- Batch resolution of multiple YouTube channel handles from configuration
+- Loads handles from `settings.yaml` under `scraper.handles` array
+- Returns mapping as JSON string: `{"@AlexHormozi": "UCfV36TX5AejfAGIbtwTc7Zw", ...}`
+- Continues processing remaining handles even when individual handles fail
+
+**YouTube API Integration:**
+- Primary resolution via YouTube Data API v3 Search endpoint with exact handle matching
+- Fallback to legacy Channels API with forUsername parameter for older channels
+- Dual authentication: Service account credentials (preferred) + API key fallback
+- Smart handle verification through custom URL checking for accurate matches
+
+**Reliability Features:**
+- Exponential backoff retry logic: 1s, 2s, 4s delays for rate limit (429) and server errors (5xx)
+- Configurable max_retries parameter with Pydantic field validation (default: 3)
+- Graceful error handling that preserves partial results and continues processing
+- Handle normalization ensuring all handles start with @ symbol for consistency
+
+**Configuration Integration:**
+- Centralized environment loading via `core/env_loader.py` for API key management
+- Configuration loading via `config/loader.py` with `get_config_value("scraper.handles")`
+- Default fallback to `["@AlexHormozi"]` if configuration missing or empty
+- Integration with existing settings.yaml structure and validation patterns
+
+### Alternatives Considered
+
+**Individual Handle Resolution Tool**: Could create separate tool for single handle resolution but batch processing reduces API calls and provides better error resilience for production workflows.
+
+**Direct API Integration**: Could embed YouTube API calls in other tools but centralized handle resolution enables caching, rate limit management, and reusability across multiple scraper operations.
+
+**Synchronous vs Async Processing**: Considered async implementation but synchronous approach provides better error tracking and simpler retry logic for the current use case with small handle counts.
+
+### Consequences
+
+- **Pros**: Batch processing reduces YouTube API quota usage through efficient single-tool execution, configuration-driven approach enables easy channel management without code changes, comprehensive retry logic ensures reliable operation under API rate limits, error isolation prevents single handle failures from blocking entire operation, JSON output format enables easy integration with other tools and logging systems, proper Agency Swarm integration provides consistent validation and error handling patterns
+- **Cons / risks**: YouTube API dependency creates external service coupling with quota limitations, handle resolution accuracy depends on YouTube's search algorithm and custom URL availability, batch processing may timeout with very large handle lists requiring chunking strategies, configuration changes require deployment updates rather than runtime modifications
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Agency Swarm v1.0.0 BaseTool inheritance with proper Pydantic field validation implemented
+- Configuration loading from settings.yaml verified with scraper.handles array structure
+- YouTube Data API v3 integration tested with both Search and Channels endpoints
+- Retry logic verified with exponential backoff timing and proper HTTP error code handling
+- Error handling tested for missing handles, API failures, configuration errors, and partial failures
+- JSON output format validated against TypedDict specification with handle->channel_id mapping
+- Comprehensive test suite created with 15+ unit tests covering all error scenarios and edge cases
+- Production authentication tested with service account credentials and API key fallback
+- Handle normalization verified to ensure consistent @ prefix formatting across all inputs
 
 ---
