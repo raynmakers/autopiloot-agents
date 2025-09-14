@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0011 | [Google Sheets and Web Page YouTube Extraction Tools](#adr-0011) | 2025-09-14 | Accepted | —          | —             |
 | 0010 | [YouTube Uploads Playlist Discovery Tool](#adr-0010)         | 2025-09-14 | Accepted | —          | —             |
 | 0009 | [YouTube Channel Handle Resolution Tool](#adr-0009)          | 2025-09-14 | Accepted | —          | —             |
 | 0008 | [Agency Swarm v1.0.0 Tool Implementation](#adr-0008)        | 2025-09-14 | Accepted | —          | —             |
@@ -714,5 +715,75 @@ Implement ListRecentUploads tool using uploads playlist API with checkpoint pers
 - Error handling verified for rate limits, quota exhaustion, missing playlists, and invalid data
 - Agency Swarm BaseTool integration with proper Pydantic field validation and string return type
 - Comprehensive test suite with 15+ unit tests covering all functionality and error scenarios
+
+---
+
+## ADR-0011 — Google Sheets and Web Page YouTube Extraction Tools
+
+<a id="adr-0011"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Autopiloot scraper agent requires two complementary tools for YouTube URL discovery: ReadSheetLinksSimple for extracting YouTube links from single-column Google Sheets (backfill scenarios), and ExtractYouTubeFromPage for discovering YouTube videos embedded in web pages. These tools support different content ingestion workflows - direct URL lists from curated sheets and dynamic discovery from blog posts, social media, or content aggregators.
+
+### Alternatives
+
+- **Combined single tool**: Single tool handling both sheets and web pages but would violate single responsibility principle and complicate parameter validation
+- **Raw HTML parsing only**: Skip BeautifulSoup for faster parsing but would miss structured content in iframes, meta tags, and complex JavaScript scenarios
+- **Google Sheets API v4 batch operations**: More complex batch reading but current single-range approach sufficient for MVP requirements
+- **External URL extraction services**: Third-party APIs for web scraping but adds dependency, cost, and rate limiting complexity
+- **Selenium for JavaScript rendering**: Handle dynamic content but significant overhead and complexity for static URL extraction
+
+### Decision
+
+Implement two specialized tools using Agency Swarm v1.0.0 BaseTool framework:
+
+**ReadSheetLinksSimple Tool:**
+
+- Single-column Google Sheet processing with configurable A1 notation range (default: "Sheet1!A:A")
+- YouTube URL validation using comprehensive regex patterns for all YouTube URL formats
+- URL normalization to standard `https://www.youtube.com/watch?v=` format
+- Automatic deduplication with set-based unique URL tracking
+- Max rows limiting with optional parameter for large sheet handling
+- JSON response format with items array and processing summary statistics
+
+**ExtractYouTubeFromPage Tool:**
+
+- Multi-source YouTube URL extraction: raw HTML text, iframe embeds, anchor links, meta og:video tags, JavaScript content
+- BeautifulSoup HTML parsing with proper error handling for malformed content
+- Comprehensive YouTube URL pattern recognition including youtu.be, youtube.com/embed, youtube.com/v formats
+- HTTP client with proper User-Agent headers to avoid blocking
+- Cross-source deduplication ensuring URLs found in multiple places appear only once
+- Structured JSON response with videos array and extraction summary
+
+**Shared Implementation Standards:**
+
+- Google Sheets API integration using service account authentication via `core/env_loader.py`
+- Configuration loading from `settings.yaml` with graceful fallback for missing sheet IDs
+- Comprehensive error handling with JSON error responses maintaining consistent interface
+- Pydantic field validation for all tool parameters with descriptive help text
+- Production-ready test blocks with realistic scenarios and error condition coverage
+
+### Consequences
+
+- **Pros**: Specialized tools follow single responsibility principle enabling focused testing and maintenance, comprehensive URL pattern recognition ensures high extraction accuracy, deduplication prevents duplicate processing reducing downstream API costs, Google Sheets integration enables non-technical content curation workflows, BeautifulSoup parsing handles complex HTML structures reliably, Agency Swarm compliance ensures consistent tool interfaces across entire agent ecosystem, flexible configuration via settings.yaml supports multiple deployment environments
+- **Cons / risks**: Two separate tools require coordination for workflows using both ingestion methods, Google Sheets API dependency creates external service coupling with quota constraints, web scraping may fail on sites with bot protection or complex JavaScript rendering, HTTP timeout issues with slow-loading pages could interrupt processing, regex pattern maintenance required as YouTube introduces new URL formats
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Agency Swarm v1.0.0 BaseTool inheritance implemented with proper Pydantic field validation and string return types
+- Google Sheets API v4 integration verified with service account authentication and configurable range selection
+- YouTube URL validation tested against 8+ different URL formats including edge cases and malformed inputs
+- Web page extraction validated across multiple HTML structure types: iframes, links, meta tags, JavaScript, raw text
+- Deduplication algorithms tested to ensure identical videos in different URL formats are merged correctly
+- Error handling verified for network failures, API errors, malformed HTML, missing configuration, and quota exhaustion
+- Comprehensive test suites created with 12+ unit tests per tool covering functionality and error scenarios
+- JSON response format standardized with items arrays, summary statistics, and error handling consistency
+- Configuration integration tested with settings.yaml loading and graceful fallback behavior
 
 ---
