@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0010 | [YouTube Uploads Playlist Discovery Tool](#adr-0010)         | 2025-09-14 | Accepted | —          | —             |
 | 0009 | [YouTube Channel Handle Resolution Tool](#adr-0009)          | 2025-09-14 | Accepted | —          | —             |
 | 0008 | [Agency Swarm v1.0.0 Tool Implementation](#adr-0008)        | 2025-09-14 | Accepted | —          | —             |
 | 0007 | [Firebase Functions v2 Scheduling Architecture](#adr-0007)   | 2025-09-14 | Accepted | —          | —             |
@@ -648,5 +649,70 @@ Implement ResolveChannelHandles tool using Agency Swarm v1.0.0 BaseTool framewor
 - Comprehensive test suite created with 15+ unit tests covering all error scenarios and edge cases
 - Production authentication tested with service account credentials and API key fallback
 - Handle normalization verified to ensure consistent @ prefix formatting across all inputs
+
+---
+
+## ADR-0010: YouTube Uploads Playlist Discovery Tool
+
+<a id="adr-0010"></a>
+
+- **Date**: 2024-09-14
+- **Status**: Accepted
+- **Context**: Autopiloot scraper agent requires efficient video discovery from YouTube channels within specific time windows. Need solution that uses uploads playlist for optimal API quota usage, implements checkpoint-based processing to skip already-processed videos, and includes comprehensive quota management for production reliability.
+
+### Decision
+
+Implement ListRecentUploads tool using uploads playlist API with checkpoint persistence:
+
+**Core Functionality:**
+- Channel uploads playlist discovery via YouTube Data API v3 channels endpoint
+- Video fetching through playlistItems.list API for efficient playlist-based discovery
+- Batch video details retrieval via videos.list API for durations and metadata
+- Time window filtering between since_utc and until_utc parameters with early exit optimization
+
+**Checkpoint Management:**
+- LastPublishedAt timestamp persistence in Firestore checkpoints collection
+- Incremental processing that skips videos processed in previous runs
+- Configurable checkpoint usage via use_checkpoint boolean parameter
+- Graceful fallback when Firestore unavailable without breaking functionality
+
+**Quota Management:**
+- Integration with QuotaManager for YouTube API availability checking
+- Request tracking and quota exhaustion detection with proper error handling
+- Batch processing of video details in 50-video chunks to optimize API usage
+- Early termination when quota exhausted with structured error responses
+
+**Production Features:**
+- ISO 8601 duration parsing (PT1H30M45S format) with regex pattern matching
+- Dual authentication: service account credentials preferred, API key fallback
+- JSON output format with items array, total counts, and checkpoint status
+- Error resilience that continues processing despite individual video failures
+
+### Alternatives Considered
+
+**Search API Approach**: YouTube search API provides video discovery but consumes more quota units and lacks the efficiency of playlist-based retrieval. Uploads playlist provides chronological ordering ideal for checkpoint-based processing.
+
+**Direct Channel Videos**: Could fetch all channel videos but uploads playlist specifically contains only uploads, filtering out playlists, live streams, and other content types that may not be relevant for transcription workflows.
+
+**Synchronous vs Async Processing**: Considered async implementation but synchronous approach provides better error tracking and simpler checkpoint management for the current batch sizes and quota constraints.
+
+### Consequences
+
+- **Pros**: Uploads playlist provides most efficient API quota usage for video discovery, checkpoint-based processing eliminates duplicate work and enables incremental updates, batch video details fetching optimizes API calls while respecting rate limits, time window filtering ensures only relevant videos are processed, QuotaManager integration prevents quota exhaustion and provides graceful degradation, Firestore persistence enables stateful processing across multiple runs
+- **Cons / risks**: Uploads playlist dependency means tool cannot discover videos from other playlist types, checkpoint persistence requires Firestore availability for optimal operation, batch processing may still hit rate limits with very active channels, time window precision depends on YouTube's publishedAt accuracy, quota exhaustion can interrupt processing requiring manual intervention or retry logic
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- YouTube Data API v3 integration verified with uploads playlist discovery and video details fetching
+- Checkpoint persistence implemented with Firestore document structure and graceful fallback handling
+- Quota management tested with availability checking and request tracking integration
+- Time window filtering validated with ISO 8601 timestamp parsing and comparison logic
+- Batch processing confirmed with 50-video chunks and proper API parameter handling
+- Duration parsing tested with regex pattern for PT1H30M45S format conversion to seconds
+- Error handling verified for rate limits, quota exhaustion, missing playlists, and invalid data
+- Agency Swarm BaseTool integration with proper Pydantic field validation and string return type
+- Comprehensive test suite with 15+ unit tests covering all functionality and error scenarios
 
 ---
