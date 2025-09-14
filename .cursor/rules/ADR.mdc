@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0013 | [Transcription Job Queue Management Tool](#adr-0013)        | 2025-09-14 | Accepted | —          | —             |
 | 0012 | [Firestore Video Metadata Storage Tool](#adr-0012)          | 2025-09-14 | Accepted | —          | —             |
 | 0011 | [Google Sheets and Web Page YouTube Extraction Tools](#adr-0011) | 2025-09-14 | Accepted | —          | —             |
 | 0010 | [YouTube Uploads Playlist Discovery Tool](#adr-0010)         | 2025-09-14 | Accepted | —          | —             |
@@ -863,5 +864,85 @@ Implement SaveVideoMetadata tool using Firestore native upsert patterns with com
 - Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
 - Document structure compliance with PRD data model including all required fields and optional channel_id
 - Configuration integration tested with settings.yaml loading and default value fallbacks
+
+---
+
+## ADR-0013 — Transcription Job Queue Management Tool
+
+<a id="adr-0013"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Autopiloot scraper agent requires job queue management for transcription workflows after video discovery. The EnqueueTranscription tool must create job entries in `jobs/transcription` collection for eligible videos, enforce business rules (duration limits, existing transcript checks), prevent duplicate jobs, and maintain atomic operations linking video status updates with job creation. This tool bridges video discovery with the transcription processing pipeline.
+
+### Alternatives
+
+- **Direct transcription without queue**: Immediate processing without job tracking, no retry mechanism, difficult error recovery, no progress monitoring
+- **External queue systems (Redis/RabbitMQ)**: Additional infrastructure complexity, operational overhead, network dependencies, cost for MVP requirements
+- **File-based job queue**: No transaction support, difficult concurrent access, limited querying capabilities, no real-time monitoring
+- **In-memory job tracking**: Data loss on restart, no persistence across function invocations, unsuitable for production reliability
+- **Separate job creation and video update**: Race conditions between operations, potential inconsistent state, complex error handling
+
+### Decision
+
+Implement EnqueueTranscription tool using Firestore atomic batch operations with comprehensive validation and duplicate prevention:
+
+**Core Functionality:**
+
+- Atomic job creation in `jobs/transcription/{job_id}` collection with batch operations
+- Video status progression from `discovered` to `transcription_queued` in single transaction
+- Comprehensive eligibility validation: duration limits, existing transcripts, duplicate jobs
+- Business rule enforcement with 70-minute (4200 second) maximum duration from configuration
+- Structured job metadata including video details, timestamps, and processing status
+
+**Duplicate Prevention Logic:**
+
+- Existing transcript detection via `transcripts/{video_id}` document existence check
+- Active job detection using Firestore queries on video_id with status filtering (`pending`, `processing`, `completed`)
+- Idempotent operations returning existing job information when duplicates detected
+- Graceful handling of concurrent job creation attempts with proper error messaging
+
+**Firestore Integration Patterns:**
+
+- Batch write operations ensuring atomicity between job creation and video status updates
+- SERVER_TIMESTAMP usage for consistent timing across distributed environments
+- Proper collection structure following `jobs/transcription/{job_id}` hierarchy
+- Comprehensive job metadata preservation from original video document
+
+**Agency Swarm v1.0.0 Compliance:**
+
+- BaseTool inheritance with Pydantic field validation for video_id parameter
+- JSON string return format with structured responses including error handling
+- Comprehensive field descriptions enabling proper agent understanding
+- Production-ready test block demonstrating realistic usage scenarios
+
+**Error Handling and Validation:**
+
+- Video existence validation with clear error messages for missing documents
+- Duration validation against configurable limits with graceful rejection
+- Environment variable validation with descriptive error messages
+- Comprehensive exception handling returning structured JSON error responses
+
+### Consequences
+
+- **Pros**: Atomic batch operations prevent race conditions between job creation and video status updates, comprehensive duplicate prevention eliminates redundant processing and resource waste, Firestore query-based validation enables efficient existing job detection, structured job metadata provides complete audit trail for processing workflows, Agency Swarm compliance ensures seamless integration with agent orchestration, configurable business rules support different deployment environments, graceful error handling maintains system stability under failure conditions
+- **Cons / risks**: Firestore dependency creates external service coupling with latency and availability constraints, batch operation complexity increases debugging overhead for transaction failures, query-based duplicate detection may impact performance with large job collections, configuration-based business rules require deployment updates for rule changes, multiple Firestore reads per job creation increase API usage and costs
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Agency Swarm v1.0.0 BaseTool inheritance with proper Pydantic field validation and JSON string return format
+- Firestore atomic batch operations verified with set() for job creation and update() for video status changes
+- Duplicate prevention tested with existing transcript detection and active job query filtering
+- Business rule validation confirmed with 70-minute duration limit enforcement from configuration
+- Error handling verified for missing videos, Firestore connection failures, and invalid configurations
+- Job data structure compliance with complete metadata preservation from video documents
+- Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
+- Atomic transaction testing confirming rollback behavior on partial failures
+- Performance optimization verified with efficient Firestore query patterns for duplicate detection
 
 ---
