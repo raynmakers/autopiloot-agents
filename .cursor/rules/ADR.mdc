@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0014 | [Google Sheets Row Management and Archival Tool](#adr-0014) | 2025-09-14 | Accepted | —          | —             |
 | 0013 | [Transcription Job Queue Management Tool](#adr-0013)        | 2025-09-14 | Accepted | —          | —             |
 | 0012 | [Firestore Video Metadata Storage Tool](#adr-0012)          | 2025-09-14 | Accepted | —          | —             |
 | 0011 | [Google Sheets and Web Page YouTube Extraction Tools](#adr-0011) | 2025-09-14 | Accepted | —          | —             |
@@ -944,5 +945,89 @@ Implement EnqueueTranscription tool using Firestore atomic batch operations with
 - Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
 - Atomic transaction testing confirming rollback behavior on partial failures
 - Performance optimization verified with efficient Firestore query patterns for duplicate detection
+
+---
+
+## ADR-0014 — Google Sheets Row Management and Archival Tool
+
+<a id="adr-0014"></a>
+**Date**: 2025-09-14
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Autopiloot scraper agent requires cleanup of processed YouTube links from Google Sheets after successful backfill operations. The RemoveSheetRow tool must handle multiple row removal scenarios with archive-first approach for auditability, manage row index shifting during batch operations, and provide flexible clearing vs archival modes. This tool completes the Google Sheets workflow by maintaining clean input data while preserving processing history.
+
+### Alternatives
+
+- **Direct row deletion without archival**: Simple but loses audit trail, no recovery option for incorrectly processed rows, difficult troubleshooting
+- **Manual sheet management**: Operational burden, human error prone, doesn't scale with automation, inconsistent processing
+- **External archival storage**: Additional infrastructure complexity, data synchronization challenges, cost overhead for MVP requirements
+- **Copy-before-delete approach**: Requires multiple API calls, potential for partial failures, complex rollback logic
+- **Mark-as-processed columns**: Sheet becomes cluttered, filtering complexity, requires schema changes to existing sheets
+
+### Decision
+
+Implement RemoveSheetRow tool using Google Sheets API with archive-first approach and flexible operation modes:
+
+**Core Functionality:**
+
+- Archive-first approach moving processed rows to dedicated 'Archive' tab with timestamps and metadata
+- Fallback clear mode for scenarios where archival isn't needed or fails
+- Batch operations processing multiple row indices efficiently with single API calls
+- Automatic Archive sheet creation with proper headers when missing
+- Row index management handling deletion order to prevent index shifting issues
+
+**Archive Implementation:**
+
+- Dedicated 'Archive' tab creation with structured headers for audit trail
+- Row data preservation with additional metadata: archive timestamp, original row number
+- Atomic archival process: read → append to archive → delete from source
+- Archive tab isolation preventing interference with source sheet operations
+- Historical data retention enabling recovery and troubleshooting scenarios
+
+**Batch Processing Optimization:**
+
+- Descending order row processing to prevent index shifting during deletions
+- Google Sheets batchUpdate API usage for efficient multiple row operations
+- batchClear API integration for non-destructive content clearing
+- Empty row detection and skipping to avoid unnecessary archive entries
+- Comprehensive error handling for partial batch failures
+
+**Agency Swarm v1.0.0 Compliance:**
+
+- BaseTool inheritance with Pydantic field validation for all parameters
+- Flexible parameter configuration: sheet_id, row_indices, archive_mode, source_sheet_name
+- JSON string return format with detailed operation results and statistics
+- Comprehensive field descriptions enabling proper agent understanding
+
+**Error Handling and Validation:**
+
+- Sheet existence validation for both source and archive tabs
+- Service account authentication with proper credential management
+- API operation failure recovery with detailed error messaging
+- Configuration validation using settings.yaml sheet ID fallback
+- Graceful handling of missing rows and malformed sheet structures
+
+### Consequences
+
+- **Pros**: Archive-first approach provides complete audit trail for compliance and troubleshooting, batch operations minimize API calls and improve performance, flexible modes support different use cases from testing to production, automatic Archive sheet creation reduces manual setup overhead, descending order processing prevents row index shifting issues, Agency Swarm compliance ensures seamless agent integration, comprehensive error handling maintains system stability
+- **Cons / risks**: Archive tab grows over time requiring occasional cleanup or partitioning, additional API calls for archival increase Google Sheets quota usage, batch operations complexity increases debugging overhead for partial failures, row index management requires careful ordering to prevent data corruption, dependency on Google Sheets API availability and rate limits
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Agency Swarm v1.0.0 BaseTool inheritance with proper Pydantic field validation and JSON string return format
+- Google Sheets API integration verified with batchUpdate and batchClear operations for efficient processing
+- Archive functionality tested with automatic sheet creation, timestamp addition, and metadata preservation
+- Batch processing confirmed with descending order row deletion preventing index shifting issues
+- Error handling verified for missing sheets, API failures, authentication errors, and malformed configurations
+- Row index management tested with multiple scenarios including empty rows and out-of-order indices
+- Configuration integration validated with settings.yaml sheet ID loading and fallback behavior
+- Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
+- Archive tab structure compliance with proper headers and metadata columns for audit requirements
+- Performance optimization verified with minimal API calls through efficient batch operations
 
 ---
