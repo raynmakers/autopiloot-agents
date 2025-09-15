@@ -357,6 +357,30 @@ def get_assemblyai_daily_limit(config: AppConfig) -> int:
     return config.get("reliability", {}).get("quotas", {}).get("assemblyai_daily_limit", 100)
 
 
+def get_config_value(key_path: str, default=None):
+    """
+    Get a nested configuration value using dot notation.
+    
+    Args:
+        key_path: Dot-separated path to the configuration value (e.g., "scraper.handles")
+        default: Default value if key is not found
+        
+    Returns:
+        Configuration value or default
+    """
+    config = load_app_config()
+    keys = key_path.split('.')
+    value = config
+    
+    for key in keys:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return default
+    
+    return value
+
+
 if __name__ == "__main__":
     config = load_app_config()
     print(f"Configuration loaded successfully. Sheet ID: {config['sheet']}")

@@ -55,6 +55,11 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0019 | [Enhanced Zep GraphRAG Integration with Workflow Orchestration](#adr-0019) | 2025-09-15 | Accepted | —          | —             |
+| 0018 | [Multi-Platform Summary Storage and Reference Linking](#adr-0018) | 2025-09-15 | Accepted | —          | —             |
+| 0017 | [Coaching-Focused Summary Generation with LLM Integration](#adr-0017) | 2025-09-15 | Accepted | —          | —             |
+| 0016 | [AssemblyAI Transcript Processing Pipeline](#adr-0016)      | 2025-09-15 | Accepted | —          | —             |
+| 0015 | [Agency Swarm v1.0.0 Framework Restructuring](#adr-0015)    | 2025-09-15 | Accepted | —          | —             |
 | 0014 | [Google Sheets Row Management and Archival Tool](#adr-0014) | 2025-09-14 | Accepted | —          | —             |
 | 0013 | [Transcription Job Queue Management Tool](#adr-0013)        | 2025-09-14 | Accepted | —          | —             |
 | 0012 | [Firestore Video Metadata Storage Tool](#adr-0012)          | 2025-09-14 | Accepted | —          | —             |
@@ -1029,5 +1034,380 @@ Implement RemoveSheetRow tool using Google Sheets API with archive-first approac
 - Comprehensive test suite with 15+ unit tests covering functionality, edge cases, and error scenarios
 - Archive tab structure compliance with proper headers and metadata columns for audit requirements
 - Performance optimization verified with minimal API calls through efficient batch operations
+
+---
+
+## ADR-0015 — Agency Swarm v1.0.0 Framework Restructuring
+
+<a id="adr-0015"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot codebase had evolved with multiple conflicting directory structures and non-compliant tool implementations. An audit revealed 19 tools using custom `core.base_tool.BaseTool` instead of Agency Swarm's `agency_swarm.tools.BaseTool`, inconsistent agent definitions, and directory naming that violated framework conventions. The project required comprehensive restructuring to achieve full Agency Swarm v1.0.0 compliance for proper agent orchestration and tool integration.
+
+### Alternatives
+
+- **Maintain hybrid structure**: Keep both old and new tool implementations but would create confusion and maintenance overhead
+- **Gradual migration**: Convert tools incrementally over multiple releases but risks partial compliance and broken workflows
+- **Custom framework wrapper**: Build abstraction layer over Agency Swarm but adds unnecessary complexity and defeats framework benefits
+- **Fork Agency Swarm**: Modify framework to support existing structure but loses upgrade path and community support
+- **Complete restructuring**: Full migration to Agency Swarm v1.0.0 standards with clean directory organization
+
+### Decision
+
+Implement complete restructuring to Agency Swarm v1.0.0 framework standards:
+
+**Directory Structure Transformation:**
+
+- Migrate from camelCase/mixed directories (`ScraperAgent/`, `scraper/`) to consistent snake_case (`scraper_agent/`)
+- Remove all old non-compliant directories including `core/`, standalone tool directories, and virtual environments
+- Establish clean agent structure with `{agent_name}/tools/` hierarchy for all 4 agents
+- Create proper `__init__.py` files for clean module imports and agent exports
+
+**Tool Migration (20 tools total):**
+
+- Convert all tools from `core.base_tool.BaseTool` to `agency_swarm.tools.BaseTool` inheritance
+- Implement Pydantic Field validation replacing TypedDict request/response patterns
+- Standardize all tools to return JSON strings directly instead of Dict objects
+- Preserve comprehensive test blocks with proper `if __name__ == "__main__":` patterns
+
+**Agent Implementation:**
+
+- Create proper Agent classes using `agency_swarm.Agent` with ModelSettings configuration
+- Define communication flows in `AutopilootAgency` class with agency_chart specification
+- Implement ScraperAgent as CEO with bidirectional communication to all agents
+- Establish workflow pipeline: Scraper → Transcriber → Summarizer with Assistant oversight
+
+**Configuration and Documentation:**
+
+- Create `agency_manifesto.md` with mission, values, operational standards, and success metrics
+- Maintain agent-specific `instructions.md` files with role definitions and workflow steps
+- Preserve existing configuration system (`settings.yaml`, `env.template`, environment variables)
+- Document complete folder structure in `.cursor/rules/folder-structure.mdc`
+
+### Consequences
+
+- **Pros**: Full Agency Swarm v1.0.0 compliance enables proper agent orchestration and tool discovery, clean directory structure improves maintainability and reduces confusion, Pydantic validation prevents runtime errors and provides better IDE support, standardized tool interfaces ensure consistent error handling and testing, proper agent communication flows enable scalable workflow management, comprehensive documentation accelerates onboarding and development
+- **Cons / risks**: Large-scale restructuring requires careful migration of existing deployments, breaking changes for any external integrations using old import paths, team retraining needed for new structure and patterns, potential for missed files during cleanup requiring follow-up corrections, increased framework coupling makes future migration more complex
+- **Supersedes**: ADR-0006, ADR-0008
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All 20 tools successfully converted to `agency_swarm.tools.BaseTool` with Pydantic Field validation
+- Directory structure cleaned with removal of all non-compliant folders (scraper/, core/, *Agent/, venv/)
+- Proper snake_case agent directories created: scraper_agent/, transcriber_agent/, summarizer_agent/, assistant_agent/
+- Agent classes implemented with proper ModelSettings and temperature configurations
+- AutopilootAgency class created with comprehensive agency_chart defining all communication flows
+- Import patterns verified: `from scraper_agent import scraper_agent` working correctly
+- Test blocks preserved and functional in all converted tools
+- agency_manifesto.md created with complete operational standards and guidelines
+- Folder structure documented in folder-structure.mdc with architectural principles
+- Git status shows clean removal of old directories and proper new structure
+
+---
+
+## ADR-0016 — AssemblyAI Transcript Processing Pipeline
+
+<a id="adr-0016"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot transcriber agent required a complete pipeline for processing AssemblyAI transcription jobs from submission to final storage. TASK-TRN-0022 specified three critical tools: polling with exponential backoff, dual-format storage to Google Drive, and Firestore metadata persistence with status progression. The existing submit_assemblyai_job.py tool created jobs but lacked completion monitoring, file storage, and database integration to enable downstream summarization workflows.
+
+### Alternatives
+
+- **Webhook-only approach**: Rely solely on AssemblyAI webhooks but requires external endpoint, failure handling, and missed delivery scenarios
+- **Simple polling without backoff**: Basic status checking but wastes API quota and may overwhelm services during high-traffic periods
+- **Single format storage**: Store only text or JSON but limits flexibility for human review (text) vs machine processing (JSON)
+- **External storage services**: Use S3 or other providers but adds infrastructure complexity and authentication overhead for MVP requirements
+- **Separate status tracking**: Manual status updates but risks data inconsistency and complicates error recovery
+
+### Decision
+
+Implement comprehensive AssemblyAI transcript processing pipeline with three Agency Swarm v1.0.0 compliant tools:
+
+**PollTranscriptionJob Tool:**
+
+- Configurable exponential backoff polling with timeout caps (60s → 120s → 240s progression)
+- Parameter validation: max_attempts (1-10), base_delay_sec (10-300s), timeout_sec (5min-2h)
+- Comprehensive transcript data extraction including speaker labels, word-level timing, and confidence scores
+- Robust error handling for all AssemblyAI status states with structured JSON responses
+- Real-time timeout monitoring preventing excessive polling duration
+
+**StoreTranscriptToDrive Tool:**
+
+- Dual format storage: human-readable TXT with metadata headers and enhanced JSON with autopiloot metadata
+- SHA-256 digest generation for integrity verification and deduplication detection
+- Timestamped filenames following `{video_id}_{date}_transcript.{ext}` convention from settings.yaml
+- Google Drive API integration with proper service account authentication and folder organization
+- Comprehensive file upload reporting with size, creation time, and Drive file ID tracking
+
+**SaveTranscriptRecord Tool:**
+
+- Atomic Firestore transactions ensuring consistent video status updates and transcript document creation
+- Status progression validation from 'transcription_queued' → 'transcribed' with audit trail
+- Cost tracking integration with timestamped entries for budget monitoring and analysis
+- Video metadata preservation linking transcript records to original discovery data
+- Comprehensive error handling for missing documents, invalid states, and transaction failures
+
+**Implementation Standards:**
+
+- All tools use Agency Swarm BaseTool inheritance with Pydantic field validation
+- Environment-based configuration via GOOGLE_APPLICATION_CREDENTIALS and project settings
+- JSON string returns maintaining framework compliance and consistent error reporting
+- Comprehensive test blocks demonstrating realistic usage scenarios and error conditions
+
+### Consequences
+
+- **Pros**: Complete processing pipeline enables end-to-end transcript workflows from job submission to summarization readiness, exponential backoff polling optimizes API usage while ensuring timely completion detection, dual format storage supports both human review workflows and automated processing pipelines, atomic Firestore transactions prevent data inconsistency during status updates, comprehensive error handling enables reliable operation under API failures and network issues, Agency Swarm compliance ensures seamless integration with agent orchestration, extensive test coverage prevents regressions and validates production readiness
+- **Cons / risks**: Three-tool pipeline increases complexity with multiple failure points requiring coordination, Google Drive dependency creates external service coupling with quota and availability constraints, Firestore transaction complexity may impact performance with high concurrent processing, SHA-256 digest calculation adds computational overhead for large transcripts, comprehensive error handling increases tool maintenance overhead and debugging complexity
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All three tools implemented with agency_swarm.tools.BaseTool inheritance and Pydantic field validation
+- Exponential backoff algorithm verified with configurable delays capped at 240 seconds for API efficiency
+- Google Drive API integration tested with proper authentication, folder organization, and dual format uploads
+- Firestore atomic transactions confirmed for consistent video status progression and transcript document creation
+- Comprehensive test suites created with 35+ total test cases covering functionality, validation, and error scenarios
+- Error handling verified for API failures, timeout conditions, authentication errors, and configuration issues
+- JSON response formats standardized across all three tools with consistent error structures
+- Integration with existing submit_assemblyai_job.py tool confirmed for complete transcription workflow
+- Documentation updates completed in CLAUDE.md for testing commands and tool execution patterns
+
+## ADR-0017 — Coaching-Focused Summary Generation with LLM Integration
+
+<a id="adr-0017"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-SUM-0030 requires implementing GenerateShortSummary tool for the Summarizer Agent to create concise, actionable summaries from video transcripts specifically tailored for business coaching contexts. The tool must support configurable LLM models and temperatures via settings.yaml, implement adaptive chunking for long transcripts, integrate Langfuse tracing for observability, and generate structured output with bullets and key concepts. Target output is 6-12 actionable insights and 3-6 key frameworks that entrepreneurs can immediately implement.
+
+### Alternatives
+
+- **Simple prompt-based summarization**: No adaptive chunking, limited context handling, no observability, poor performance on long transcripts exceeding model context limits
+- **Fixed chunking strategy**: Inflexible for varying transcript lengths, potential loss of context at chunk boundaries, suboptimal token utilization
+- **Hard-coded LLM configuration**: No flexibility between environments, difficult testing with different models, prevents A/B testing of prompt strategies
+- **Basic error handling**: No graceful degradation, poor user experience during API failures, difficult debugging of production issues
+- **Manual token counting**: Error-prone estimation, inefficient context utilization, no model-specific optimization
+
+### Decision
+
+Implement comprehensive coaching-focused summary generation tool with enterprise-grade features:
+
+**Core Architecture:**
+
+- Agency Swarm BaseTool inheritance with Pydantic field validation for transcript_doc_ref and title parameters
+- Dynamic LLM configuration loading from settings.yaml with task-specific overrides (model, temperature, prompt_id)
+- Adaptive chunking using tiktoken for precise token counting and model-specific context optimization
+- Structured prompt engineering focused on actionable business insights and key frameworks
+- Optional Langfuse integration for LLM observability and performance monitoring
+
+**Adaptive Chunking Strategy:**
+
+- Model-specific context limits with conservative token reservations (GPT-4: 8k, GPT-4.1/4o: 128k)
+- Sentence-boundary chunking preserving semantic coherence across splits
+- Intelligent aggregation and deduplication of insights from multiple chunks
+- Target output constraints: 6-12 bullets maximum, 3-6 key concepts maximum
+
+**Configuration Management:**
+
+- Task-specific settings: `llm.tasks.summarizer_generate_short` with model, temperature, prompt_id overrides
+- Fallback to default LLM configuration with graceful degradation
+- Stable prompt_id generation using content hashing for reproducible results
+
+**Observability & Error Handling:**
+
+- Comprehensive error responses with structured JSON format maintaining tool interface consistency
+- Optional Langfuse tracing with metadata tracking (model, temperature, token usage, content metrics)
+- Graceful handling of API failures, configuration errors, and missing transcript data
+
+### Consequences
+
+- **Pros**: Configurable LLM integration enables A/B testing of different models and prompts for optimal coaching value, adaptive chunking handles transcripts of any length without losing context or exceeding model limits, structured coaching-focused prompts generate immediately actionable insights for entrepreneurs, Langfuse integration provides production-grade observability for LLM usage and performance optimization, comprehensive error handling ensures reliable operation during API failures and configuration issues, Agency Swarm compliance enables seamless integration with existing agent workflows, extensive test coverage (11 test cases) prevents regressions and validates production scenarios
+- **Cons / risks**: LLM API dependency creates external service coupling with latency and availability constraints, adaptive chunking complexity increases processing time and computational overhead for very long transcripts, configuration flexibility adds complexity requiring proper documentation and testing, Langfuse integration introduces optional dependency requiring graceful fallback handling, coaching-specific prompts may require periodic refinement based on user feedback and effectiveness metrics
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- GenerateShortSummary.py implemented with agency_swarm.tools.BaseTool inheritance and proper Pydantic validation
+- Dynamic configuration loading verified with task-specific overrides and fallback to default LLM settings
+- Adaptive chunking algorithm tested with tiktoken integration and model-specific context optimization
+- Coaching-focused prompt engineering validated to generate actionable insights and key frameworks
+- Optional Langfuse integration implemented with graceful fallback when credentials unavailable
+- Comprehensive test suite created with 11 test cases covering configuration loading, chunking, error handling, and observability
+- tiktoken dependency added to requirements.txt for production-ready tokenization
+- JSON response format standardized with bullets, key_concepts, token_usage, and prompt_id fields
+- Error handling verified for API failures, missing transcripts, and configuration issues
+- Integration tested with existing Firestore transcript storage from TASK-TRN-0022 pipeline
+
+## ADR-0018 — Multi-Platform Summary Storage and Reference Linking
+
+<a id="adr-0018"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-SUM-0031 requires implementing three complementary tools for the Summarizer Agent to persist generated summaries across multiple platforms: StoreShortInZep for Zep GraphRAG semantic search, StoreShortSummaryToDrive for dual-format Google Drive storage (JSON and Markdown), and SaveSummaryRecord for Firestore reference linking. The implementation must support coaching workflow requirements with human-readable formats, programmatic access, semantic search capabilities, and complete audit trail maintenance.
+
+### Alternatives
+
+- **Single storage platform**: Limited functionality, no redundancy, poor workflow support for both human review and automated processing
+- **Basic file storage**: No semantic search, no metadata linking, difficult content discovery and analysis
+- **Manual reference management**: Error-prone, no atomicity, difficult to maintain data consistency across platforms
+- **Separate unlinked tools**: No reference integrity, difficult audit trail, poor integration with existing transcript pipeline
+- **Hard-coded configuration**: Inflexible folder organization, difficult environment management, poor maintainability
+
+### Decision
+
+Implement comprehensive multi-platform summary storage with enterprise-grade reference linking:
+
+**Core Architecture:**
+
+- Three specialized Agency Swarm BaseTool implementations with Pydantic field validation
+- StoreShortInZep: Zep GraphRAG integration for semantic search and content discovery
+- StoreShortSummaryToDrive: Dual-format storage (JSON for programmatic access, Markdown for human review)
+- SaveSummaryRecord: Firestore atomic transactions linking all references with complete audit trail
+
+**Zep GraphRAG Integration:**
+
+- Dynamic collection creation with coaching-specific metadata structure
+- Content formatting optimized for semantic search: "ACTIONABLE INSIGHTS" and "KEY CONCEPTS" sections
+- Comprehensive metadata: video_id, content_type, bullets_count, concepts_count, prompt_id, source
+- Graceful handling of zep-python package availability with clear error messaging
+
+**Google Drive Dual-Format Storage:**
+
+- JSON format: Structured data for automated processing with comprehensive metadata
+- Markdown format: Human-readable summaries for review workflows with formatted headers and bullet points
+- Configurable naming conventions via settings.yaml for consistent file organization
+- Proper MIME type handling and folder organization using environment-based configuration
+
+**Firestore Reference Linking:**
+
+- Atomic transactions ensuring data consistency during video status progression
+- Complete reference linkage: transcript_doc_ref, zep_doc_id, short_drive_id, Drive IDs
+- Status progression: transcribed → summarized with proper validation
+- UTC timestamp standardization and audit trail maintenance
+
+**Error Handling & Configuration:**
+
+- Environment-based configuration for API keys, folder IDs, and service account paths
+- Comprehensive validation of required references and document existence
+- Graceful degradation for missing optional dependencies (zep-python)
+- Consistent JSON error response format across all three tools
+
+### Consequences
+
+- **Pros**: Multi-platform storage enables both semantic search and traditional file access workflows, dual-format Drive storage supports both automated processing and human review use cases, atomic Firestore transactions ensure complete reference integrity and audit trail consistency, Zep GraphRAG integration provides powerful content discovery and similarity search capabilities, comprehensive error handling enables reliable operation under various failure conditions, configurable file organization supports different deployment environments, extensive test coverage (31 test cases) validates all functionality and error scenarios
+- **Cons / risks**: Three-platform dependency increases complexity and potential failure points requiring coordination, external service coupling with Zep, Google Drive, and Firestore creates availability and quota constraints, atomic transaction complexity may impact performance with high concurrent processing, dual-format storage increases storage costs and processing overhead, comprehensive error handling increases maintenance complexity and debugging overhead
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All three tools implemented with agency_swarm.tools.BaseTool inheritance and comprehensive Pydantic field validation
+- Zep GraphRAG integration tested with dynamic collection creation, document storage, and semantic search optimization
+- Google Drive API integration verified with dual-format uploads, proper authentication, and configurable folder organization
+- Firestore atomic transactions confirmed for consistent reference linking and video status progression
+- Comprehensive test suites created with 31 total test cases covering functionality, validation, error handling, and edge cases
+- Environment-based configuration verified for API keys, service accounts, and platform-specific settings
+- JSON response standardization implemented across all tools with consistent error structures and success indicators
+- Integration compatibility confirmed with existing GenerateShortSummary.py from TASK-SUM-0030
+- Documentation updates completed in CLAUDE.md for testing commands and operational patterns
+
+## ADR-0019 — Enhanced Zep GraphRAG Integration with Workflow Orchestration
+
+<a id="adr-0019"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-ZEP-0006 requires enhanced Zep GraphRAG integration beyond the basic storage implemented in TASK-SUM-0031. The specification demands comprehensive metadata storage including video_id, title, published_at, channel_id, transcript_doc_ref, tags[], and rag_refs[] for advanced semantic search and content discovery. Additionally, requires end-to-end workflow orchestration connecting summary generation, Zep upsert, Drive storage, and enhanced Firestore record creation with complete reference linking.
+
+### Alternatives
+
+- **Extend existing StoreShortInZep**: Limited metadata support, no workflow orchestration, poor separation of concerns between basic and enhanced functionality
+- **Manual tool coordination**: Error-prone multi-step process, no atomic workflow execution, difficult reference linking maintenance
+- **Single monolithic tool**: Poor modularity, difficult testing, violation of single responsibility principle
+- **Basic metadata structure**: Limited search capabilities, poor content discovery, insufficient RAG reference tracking
+- **Separate uncoordinated tools**: Reference integrity issues, incomplete audit trail, complex agent orchestration requirements
+
+### Decision
+
+Implement comprehensive enhanced Zep GraphRAG integration with enterprise-grade workflow orchestration:
+
+**Core Architecture:**
+
+- Four specialized Agency Swarm BaseTool implementations with clear separation of concerns
+- UpsertSummaryToZep: Enhanced Zep integration with comprehensive metadata according to TASK-ZEP-0006 specification
+- SaveSummaryRecordEnhanced: Extended Firestore persistence with zep_doc_id and rag_refs storage
+- ProcessSummaryWorkflow: End-to-end orchestration tool coordinating all workflow steps
+- Comprehensive test suites validating functionality, error handling, and data flow integrity
+
+**Enhanced Zep GraphRAG Integration:**
+
+- TypedDict interfaces enforcing TASK-ZEP-0006 metadata specification: RAGRef, ZepMetadata types
+- Comprehensive video metadata: video_id, title, published_at, channel_id, transcript_doc_ref
+- RAG reference tracking with type classification: transcript_drive, logic_doc, other
+- Enhanced content formatting optimized for semantic search with coaching context sections
+- Dynamic collection creation with autopiloot_guidelines collection management
+
+**Workflow Orchestration:**
+
+- Atomic four-step process: Generate → Zep Upsert → Drive Storage → Enhanced Firestore Record
+- Comprehensive error handling with step-by-step failure isolation and recovery information
+- Reference flow validation ensuring data consistency across all storage platforms
+- Progress tracking with detailed status reporting for monitoring and debugging workflows
+
+**Enhanced Firestore Integration:**
+
+- Version 2.0 summary records with zep_doc_id, rag_refs, and comprehensive video metadata
+- Atomic transaction support ensuring consistency during video status progression from transcribed to summarized
+- Enhanced audit trail with RAG reference counts, Zep integration status, and complete reference linkage
+- Backward compatibility with existing summary record structure from TASK-SUM-0031
+
+**Configuration and Environment Management:**
+
+- Environment-based configuration supporting ZEP_API_KEY, ZEP_COLLECTION, ZEP_BASE_URL
+- Comprehensive validation of workflow requirements with clear error messaging
+- Graceful degradation for optional Zep features while maintaining core functionality
+- Integration with existing Google Drive and Firestore configuration from previous tasks
+
+### Consequences
+
+- **Pros**: Enhanced semantic search capabilities enable powerful content discovery and coaching insight retrieval, comprehensive metadata structure supports advanced RAG applications and content analysis, workflow orchestration ensures atomic execution and reference consistency across all platforms, modular tool design enables flexible agent coordination and independent testing of components, complete audit trail maintains full reference integrity for coaching workflows, TypedDict interfaces provide clear API contracts and type safety, extensive test coverage (47 test cases) validates all functionality and error scenarios, backward compatibility preserves existing summary workflows while adding enhanced capabilities
+- **Cons / risks**: Four-tool workflow increases complexity requiring careful orchestration and error handling, enhanced metadata structure increases storage overhead and processing time, Zep GraphRAG dependency introduces external service coupling with availability and performance constraints, comprehensive reference linking creates potential consistency challenges with high concurrent processing, workflow orchestration complexity may impact debugging and troubleshooting efficiency, enhanced Firestore records increase document size and query complexity
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All four tools implemented with agency_swarm.tools.BaseTool inheritance and comprehensive Pydantic field validation
+- Enhanced Zep GraphRAG integration verified with TASK-ZEP-0006 metadata specification compliance including all required fields
+- TypedDict interfaces implemented for RAGRef and ZepMetadata ensuring type safety and API clarity
+- Workflow orchestration tested with comprehensive error handling, step isolation, and reference flow validation
+- Enhanced Firestore integration confirmed with zep_doc_id storage, rag_refs persistence, and atomic transaction support
+- Comprehensive test suites created with 47 total test cases covering functionality, workflow coordination, error scenarios, and data integrity
+- Environment configuration verified for Zep credentials, collection management, and service integration
+- JSON response standardization maintained across all tools with consistent error structures and success indicators
+- Integration compatibility confirmed with existing GenerateShortSummary, StoreShortSummaryToDrive tools from previous tasks
+- Documentation updates completed with tool descriptions, workflow patterns, and testing guidance
 
 ---
