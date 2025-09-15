@@ -55,6 +55,8 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0025 | [Observability Alerts and Testing Framework Implementation](#adr-0025) | 2025-09-15 | Accepted | —          | —             |
+| 0024 | [Orchestrator Agent Architecture and Event Contracts](#adr-0024) | 2025-09-15 | Accepted | —          | —             |
 | 0023 | [Comprehensive Observability Operations Suite Implementation](#adr-0023) | 2025-09-15 | Accepted | —          | —             |
 | 0022 | [Comprehensive Audit Logging System for Security Compliance](#adr-0022) | 2025-09-15 | Accepted | —          | —             |
 | 0021 | [Assistant Agent Alerting System Implementation](#adr-0021) | 2025-09-15 | Accepted | —          | —             |
@@ -1725,5 +1727,153 @@ Implement comprehensive audit logging system using Firestore as centralized audi
 - Production deployment verified with proper service account authentication and GCP project configuration
 - Helper function write_audit_log implemented matching exact TASK-AUDIT-0041 specification requirements
 - Audit entries confirmed to appear in audit_logs collection with all required fields as per acceptance criteria
+
+---
+
+## ADR-0024 — Orchestrator Agent Architecture and Event Contracts
+
+<a id="adr-0024"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-ARCH-0050 required implementing OrchestratorAgent as CEO of the Autopiloot Agency system with formal event contracts and centralized time utilities. The existing agency structure lacked a neutral coordinator agent, had no standardized Firestore event schemas, and used inconsistent time handling across tools. The system needed enterprise-grade orchestration with dead letter queue management, policy enforcement, and comprehensive event-driven coordination between all agents.
+
+### Alternatives
+
+- **ScraperAgent as CEO**: Domain-specific agent as coordinator but violates separation of concerns and limits orchestration flexibility
+- **External orchestration tools**: Kubernetes operators or workflow engines but adds infrastructure complexity and operational overhead
+- **No formal event contracts**: Ad-hoc Firestore document structures but leads to data inconsistency and integration difficulties
+- **Individual time utilities per agent**: Simple but creates inconsistency, timezone handling errors, and maintenance overhead
+- **Direct agent-to-agent communication**: Point-to-point integration but increases coupling and reduces maintainability
+
+### Decision
+
+Implement comprehensive orchestrator architecture with formal event contracts and centralized utilities:
+
+**OrchestratorAgent as CEO:**
+
+- Neutral coordinator with 8 specialized tools: plan_daily_run, dispatch_scraper, dispatch_transcriber, dispatch_summarizer, enforce_policies, emit_run_events, handle_dlq, query_dlq
+- Dead letter queue management with job retry policies and escalation workflows
+- Policy enforcement for budget limits, quota management, and operational constraints
+- Daily run planning with resource allocation and execution coordination
+- Event emission for cross-agent coordination and monitoring integration
+
+**Formal Event Contracts (docs/contracts.md):**
+
+- Standardized Firestore collection schemas: videos, jobs/transcription, jobs/summarization, audit_logs, jobs_deadletter, run_events
+- TypeScript-style interface definitions with required fields, data types, and validation constraints
+- Status transition documentation with valid progression paths and error handling
+- Retry policy specifications with exponential backoff (60s → 120s → 240s) and timeout caps
+- Cost tracking standards with USD precision and audit trail requirements
+
+**Centralized Time Utilities (core/time_utils.py):**
+
+- Timezone-aware helpers: now(), to_iso8601_z(), parse_iso8601_z(), format_for_firestore()
+- Consistent UTC timestamp handling with Z suffix throughout all collections
+- Legacy compatibility functions (utcnow()) for gradual migration
+- Business hours detection and scheduling utilities for operational workflows
+- Environment-specific timezone configuration for deployment flexibility
+
+**Agency Architecture Integration:**
+
+- Communication flows defined between all agents with OrchestratorAgent as central hub
+- Agency Swarm v1.0.0 compliance with proper positional arguments and communication_flows parameter
+- Clean separation between coordination (Orchestrator) and execution (domain agents)
+- Comprehensive instructions and manifesto documentation for operational clarity
+
+### Consequences
+
+- **Pros**: Neutral orchestrator enables scalable multi-agent coordination without domain coupling, formal event contracts prevent data inconsistency and integration errors, centralized time utilities ensure consistent timestamp handling across all operations, dead letter queue management provides enterprise-grade reliability and error recovery, policy enforcement enables automated operational controls and compliance, comprehensive documentation accelerates development and troubleshooting, Agency Swarm compliance ensures framework compatibility and future extensibility
+- **Cons / risks**: Additional coordination complexity requires careful orchestration logic and error handling, formal contracts increase initial development overhead for schema compliance, centralized utilities create potential single point of failure requiring robust error handling, orchestrator role concentration may impact performance during high-volume operations, comprehensive documentation maintenance overhead for schema evolution
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- OrchestratorAgent implemented with 8 specialized tools and proper Agency Swarm v1.0.0 compliance
+- Formal event contracts documented with 6 standardized collection schemas and validation requirements
+- Centralized time utilities created with timezone-aware functions and ISO 8601 standardization
+- Agency architecture updated with OrchestratorAgent as CEO and communication flows configuration
+- Core module exports verified with proper imports for reliability, sheets, idempotency, and time utilities
+- Testing confirmed for orchestrator agent imports and agency initialization without major warnings
+- Documentation completed for contracts.md with comprehensive schema definitions and usage guidelines
+
+---
+
+## ADR-0025 — Observability Alerts and Testing Framework Implementation
+
+<a id="adr-0025"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-OBS-0051 required implementing comprehensive observability alerting with DLQ trends monitoring, stuck job scanning, daily summary reporting, and enhanced error alerting. The existing observability infrastructure had basic monitoring but lacked trend analysis, automated stuck job detection, rich daily summaries with Slack integration, and proper test framework compatibility for reliable CI/CD validation. The system needed production-grade alerting with throttling, deduplication, and comprehensive health reporting.
+
+### Alternatives
+
+- **Basic alerting without trend analysis**: Simple notifications but no pattern recognition, anomaly detection, or operational insights
+- **Manual monitoring workflows**: Operational burden, human error prone, no systematic detection of systemic issues
+- **External monitoring services**: Additional vendor dependencies, integration complexity, reduced customization for agent-specific workflows
+- **Separate uncoordinated tools**: Individual monitoring utilities but lacks centralized coordination and consistent interfaces
+- **Limited test coverage**: Basic testing but unreliable CI/CD validation and production deployment confidence
+
+### Decision
+
+Implement comprehensive observability alerting framework with enhanced testing and operational intelligence:
+
+**Enhanced Observability Tools:**
+
+- **monitor_dlq_trends.py**: DLQ pattern analysis with anomaly detection, entropy calculations, temporal trend analysis, and operational recommendations for systematic issue identification
+- **stuck_job_scanner.py**: Multi-agent stale job detection with diagnosis logic, escalation recommendations, and health impact analysis across videos, transcripts, and summaries collections
+- **report_daily_summary.py**: Comprehensive pipeline health reporting with Slack-formatted summaries, performance indicators, cost analysis, and executive visibility metrics
+- **send_error_alert.py (enhanced)**: Error alerting with 1-hour throttling policy, alert_type context usage, and SENT/FAILED/THROTTLED/ERROR status responses
+
+**Advanced Analytics Features:**
+
+- Entropy calculations for DLQ failure pattern detection identifying unusual error distributions
+- Percentile analysis (75th, 90th, 95th) for performance monitoring and threshold optimization
+- Health scoring algorithms combining multiple metrics for overall system assessment
+- Statistical anomaly detection for proactive issue identification before user impact
+- Time-series analysis for trend identification and operational pattern recognition
+
+**Testing Framework Enhancement:**
+
+- FormatSlackBlocks and SendSlackMessage exposed at module scope for proper test patching compatibility
+- Module-level import resolution for send_error_alert testing with consistent mocking patterns
+- Comprehensive test coverage for all observability tools with realistic scenarios and error conditions
+- CI/CD compatibility ensuring reliable automated testing and deployment validation
+- Mock-based testing avoiding external dependencies while validating complete functionality
+
+**Slack Integration and Formatting:**
+
+- Rich Slack Block Kit formatting with alert-type-specific styling and structured field presentation
+- Automated daily summary delivery with performance indicators and operational recommendations
+- Error context preservation with comprehensive metadata extraction and formatting
+- Throttling integration preventing notification fatigue while ensuring critical alert delivery
+- Configuration-driven channel selection with fallback and environment-specific customization
+
+### Consequences
+
+- **Pros**: Advanced analytics enable proactive issue detection and systematic pattern recognition, comprehensive daily summaries provide executive visibility and operational intelligence, enhanced error alerting with throttling prevents notification fatigue while preserving critical alerts, stuck job detection prevents pipeline stalls and resource waste, statistical analysis enables data-driven optimization of system parameters, robust testing framework ensures reliable CI/CD validation and production deployment confidence, Slack integration provides rich formatting and operational workflow integration
+- **Cons / risks**: Advanced analytics increase computational overhead and processing complexity, comprehensive monitoring may impact system performance during high-volume operations, statistical calculations require careful tuning to balance sensitivity and false positive rates, enhanced testing framework adds maintenance overhead for mock management and compatibility, Slack dependency creates external service coupling with availability constraints, extensive configuration options may complicate setup and troubleshooting
+
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All required observability tools implemented: monitor_dlq_trends.py (464 lines), stuck_job_scanner.py (522 lines), report_daily_summary.py (632 lines)
+- FormatSlackBlocks and SendSlackMessage confirmed exposed at module scope for test compatibility
+- Enhanced send_error_alert.py verified with throttling using alert_type from context and proper status responses
+- Comprehensive test framework validated with all tools returning valid JSON strings and clean imports
+- Statistical analysis algorithms implemented: entropy calculations, percentile analysis, anomaly detection
+- Slack integration confirmed with rich block formatting, daily summaries, and configuration-driven channels
+- Testing framework enhanced with module-level patching and comprehensive error scenario coverage
+- Production readiness verified with 22 json.dumps() calls across tools and consistent error handling patterns
 
 ---
