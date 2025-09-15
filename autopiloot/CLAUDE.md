@@ -20,6 +20,9 @@ python -m unittest discover tests -v
 python -m unittest tests.test_config -v           # Configuration tests
 python -m unittest tests.test_env_loader -v       # Environment validation tests
 python -m unittest tests.test_audit_logger -v     # Audit logging tests (TASK-AUDIT-0041)
+python -m unittest tests.test_observability_ops -v # Observability ops suite (TASK-OBS-0040)
+python -m unittest tests.test_send_error_alert -v  # Error alerting tests (TASK-OBS-0041)
+python -m unittest tests.test_llm_observability -v # LLM observability (TASK-LLM-0007)
 python -m unittest tests.test_remove_sheet_row -v # Tool-specific tests
 python -m unittest tests.test_get_video_audio_url -v # Audio extraction tests
 python -m unittest tests.test_submit_assemblyai_job -v # AssemblyAI job submission tests
@@ -34,6 +37,9 @@ python transcriber_agent/tools/submit_assemblyai_job.py
 python transcriber_agent/tools/poll_transcription_job.py
 python transcriber_agent/tools/store_transcript_to_drive.py
 python transcriber_agent/tools/save_transcript_record.py
+python observability_agent/tools/monitor_quota_state.py
+python observability_agent/tools/alert_engine.py
+python observability_agent/tools/stuck_job_scanner.py
 
 # Validate environment setup
 python config/env_loader.py
@@ -75,6 +81,8 @@ cp env.template .env
 - **Return Convention**: All tool `run()` methods return JSON strings (not Dict objects)
 - **Agent Structure**: Each agent is in `{agent_name}/` directory with `tools/` subdirectory
 - **Communication Flow**: ScraperAgent (CEO) → TranscriberAgent → SummarizerAgent, with ObservabilityAgent monitoring all
+- **Agent Count**: 4 production agents (31 total tools)
+- **Complete Architecture**: All 30 planned tasks completed and archived
 
 ### Multi-Layer Configuration System
 
@@ -86,7 +94,7 @@ cp env.template .env
 ### Firestore as Event Broker
 
 - **Pattern**: All data mutations flow through Firestore exclusively
-- **Collections**: `videos/`, `transcripts/`, `summaries/`, `jobs/transcription/`, `costs_daily/`, `audit_logs/`
+- **Collections**: `videos/`, `transcripts/`, `summaries/`, `jobs/transcription/`, `costs_daily/`, `audit_logs/`, `jobs_deadletter/`, `alert_throttling/`
 - **Status Progression**: `discovered` → `transcription_queued` → `transcribed` → `summarized`
 - **Idempotency**: Document IDs use YouTube video_id as natural key
 - **Audit Trail**: All key actions logged to `audit_logs` collection (TASK-AUDIT-0041)
@@ -123,6 +131,7 @@ agency_chart = [
     [scraper_agent, transcriber_agent],  # Workflow pipeline
     [transcriber_agent, summarizer_agent],
     [observability_agent, scraper_agent],  # Monitoring flows
+    [observability_agent, transcriber_agent, summarizer_agent],  # Observability monitoring
 ]
 ```
 
@@ -174,6 +183,13 @@ All tools return consistent JSON error structures:
 - `test_config.py`: YAML loading, validation, nested key access
 - `test_env_loader.py`: Environment variable validation, API key getters
 - Run `python config/env_loader.py` to validate current environment
+
+### Observability Suite Testing (TASK-OBS-0040/0041)
+
+- `test_observability_ops.py`: Comprehensive suite testing all 6 observability tools
+- `test_send_error_alert.py`: Error alerting with throttling, module-level imports, mocking patterns
+- `test_llm_observability.py`: LLM configuration, token usage tracking, Langfuse integration
+- `test_monitor_transcription_budget.py`: Budget monitoring with 80% threshold alerts
 
 ### TASK-TRN-0022 Tool Testing
 
@@ -231,3 +247,19 @@ firebase emulators:start
 - YouTube: Check `QuotaManager` status, wait for daily reset
 - AssemblyAI: Monitor `costs_daily` collection for budget status
 - Implement checkpoint-based resume from `lastPublishedAt`
+
+### Observability Monitoring
+
+- Use `monitor_quota_state.py` for real-time YouTube/AssemblyAI quota tracking
+- Check `monitor_dlq_trends.py` for dead letter queue anomaly detection
+- Run `stuck_job_scanner.py` to identify stale jobs across agent collections
+- Generate operational reports with `report_daily_summary.py` (Slack-formatted)
+- Track LLM usage and costs with `llm_observability_metrics.py`
+- Manage centralized alerting via `alert_engine.py` with throttling and deduplication
+
+### Task and Project Status
+
+- All 30 planned tasks completed and archived in `planning/archive/`
+- Production-ready status achieved with comprehensive test coverage (70+ tests)
+- Complete ADR documentation in `.cursor/rules/ADR.mdc` (23 architectural decisions)
+- Folder structure documented in `.cursor/rules/folder-structure.mdc`
