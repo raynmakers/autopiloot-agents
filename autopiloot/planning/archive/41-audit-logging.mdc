@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-AUDIT-0041"
 title: "Add audit logging to Firestore (audit_logs collection)"
-status: "planned"
+status: "done"
 priority: "P2"
 labels: ["audit", "firestore"]
 dependencies: []

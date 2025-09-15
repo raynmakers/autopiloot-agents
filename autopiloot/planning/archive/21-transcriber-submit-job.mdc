@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-TRN-0021"
 title: "Build SubmitAssemblyAIJob tool"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["transcriber", "assemblyai"]
 dependencies: ["TASK-TRN-0020"]

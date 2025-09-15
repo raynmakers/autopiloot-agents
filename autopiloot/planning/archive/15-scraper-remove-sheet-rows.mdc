@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCR-0015"
 title: "Build RemoveSheetRow tool (Sheets row clear/delete or archive)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["scraper", "sheets"]
 dependencies: ["TASK-SCR-0012"]

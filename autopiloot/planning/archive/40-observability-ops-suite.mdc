@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-OBS-0040"
 title: "Implement Observability ops tools suite"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["observability", "ops", "alerts", "metrics"]
 dependencies: ["40-assistant-alerts.mdc"]

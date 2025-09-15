@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ZEP-0006"
 title: "Store short summaries in Zep with metadata"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["zep", "summaries"]
 dependencies: ["TASK-SUM-0031"]

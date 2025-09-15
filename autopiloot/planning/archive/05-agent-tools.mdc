@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-AGENTS-0002"
 title: "Create agent tool modules (YouTube, AssemblyAI, Zep, Slack, Drive/Sheets)"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["agents", "tools"]
 dependencies: ["TASK-SCHED-0001"]

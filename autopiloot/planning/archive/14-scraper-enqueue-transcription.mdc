@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCR-0014"
 title: "Build EnqueueTranscription tool (jobs/transcription)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["scraper", "jobs"]
 dependencies: ["TASK-SCR-0013"]

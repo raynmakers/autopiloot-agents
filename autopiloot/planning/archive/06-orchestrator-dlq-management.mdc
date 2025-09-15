@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ORCH-0005"
 title: "Implement handle_dlq and query_dlq tools"
-status: "planned"
+status: "done"
 priority: "P2"
 labels: ["orchestrator", "dlq", "monitoring"]
 dependencies: ["04-reliability-quotas.mdc", "06-orchestrator-agent.mdc"]

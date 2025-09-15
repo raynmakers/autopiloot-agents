@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCR-0010"
 title: "Build ResolveChannelHandle tool (YouTube Data API v3)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["scraper", "youtube"]
 dependencies: ["TASK-AGENTS-0002"]

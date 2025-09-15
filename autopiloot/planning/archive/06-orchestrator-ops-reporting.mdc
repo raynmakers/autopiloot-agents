@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ORCH-0006"
 title: "Implement emit_run_events tool (ops consumed by ObservabilityAgent)"
-status: "planned"
+status: "done"
 priority: "P2"
 labels: ["orchestrator", "ops", "slack", "audit"]
 dependencies: ["06-orchestrator-agent.mdc", "40-assistant-alerts.mdc"]

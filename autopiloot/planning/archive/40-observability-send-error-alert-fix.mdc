@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-OBS-0041"
 title: "Fix Observability send_error_alert tests (patch targets, throttling, alert types)"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["observability", "alerts", "tests"]
 dependencies: ["40-assistant-alerts.mdc", "40-observability-ops-suite.mdc"]

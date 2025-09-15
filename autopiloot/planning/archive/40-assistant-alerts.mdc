@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ASSIST-0040"
 title: "Build Assistant alerting tools (budget, errors, Slack posting)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["assistant", "alerts", "slack"]
 dependencies: ["TASK-TRN-0022"]

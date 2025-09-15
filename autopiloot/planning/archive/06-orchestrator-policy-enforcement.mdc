@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ORCH-0004"
 title: "Implement enforce_policies tool"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["orchestrator", "policies", "reliability", "quotas"]
 dependencies: ["04-reliability-quotas.mdc", "06-orchestrator-agent.mdc"]

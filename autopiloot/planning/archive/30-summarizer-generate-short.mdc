@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SUM-0030"
 title: "Build GenerateShortSummary tool (gpt-5-mini, temp 0.2)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["summarizer", "llm"]
 dependencies: ["TASK-TRN-0022"]

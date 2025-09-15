@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SUM-0031"
 title: "Build StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["summarizer", "zep", "drive", "firestore"]
 dependencies: ["TASK-SUM-0030"]

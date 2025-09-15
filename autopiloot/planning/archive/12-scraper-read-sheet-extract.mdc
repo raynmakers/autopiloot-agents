@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCR-0012"
 title: "Build ReadSheetLinks + ExtractYouTubeFromPage"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["scraper", "sheets"]
 dependencies: ["TASK-AGENTS-0002"]

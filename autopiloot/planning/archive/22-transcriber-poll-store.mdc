@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-TRN-0022"
 title: "Build PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["transcriber", "drive", "firestore"]
 dependencies: ["TASK-TRN-0021"]

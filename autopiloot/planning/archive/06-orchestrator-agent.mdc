@@ -21,7 +21,7 @@ This file is a single, self-contained TASK for an AI agent. One task = one file.
 
 id: "TASK-ORCH-0001"
 title: "Create OrchestratorAgent (CEO) and instructions"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["agents", "orchestration", "ceo"]
 dependencies: [

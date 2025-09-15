@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ORCH-0002"
 title: "Implement plan_daily_run tool"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["orchestrator", "planning", "quotas", "budgets"]
 dependencies: ["06-orchestrator-agent.mdc", "04-reliability-quotas.mdc"]

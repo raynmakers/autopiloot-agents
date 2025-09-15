@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCR-0011"
 title: "Build ListRecentUploads tool (playlistItems + videos)"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["scraper", "youtube"]
 dependencies: ["TASK-SCR-0010"]
