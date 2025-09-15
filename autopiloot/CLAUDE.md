@@ -18,6 +18,7 @@ python -m unittest discover tests -v
 # Run specific test modules
 python -m unittest tests.test_config -v           # Configuration tests
 python -m unittest tests.test_env_loader -v       # Environment validation tests
+python -m unittest tests.test_audit_logger -v     # Audit logging tests (TASK-AUDIT-0041)
 python -m unittest tests.test_remove_sheet_row -v # Tool-specific tests
 python -m unittest tests.test_get_video_audio_url -v # Audio extraction tests
 python -m unittest tests.test_submit_assemblyai_job -v # AssemblyAI job submission tests
@@ -79,9 +80,10 @@ cp env.template .env
 
 ### Firestore as Event Broker
 - **Pattern**: All data mutations flow through Firestore exclusively
-- **Collections**: `videos/`, `transcripts/`, `summaries/`, `jobs/transcription/`, `costs_daily/`
+- **Collections**: `videos/`, `transcripts/`, `summaries/`, `jobs/transcription/`, `costs_daily/`, `audit_logs/`
 - **Status Progression**: `discovered` → `transcription_queued` → `transcribed` → `summarized`
 - **Idempotency**: Document IDs use YouTube video_id as natural key
+- **Audit Trail**: All key actions logged to `audit_logs` collection (TASK-AUDIT-0041)
 
 ### Reliability & Error Handling Architecture
 - **Dead Letter Queue**: Failed operations route to `jobs_deadletter` collection after 3 retries

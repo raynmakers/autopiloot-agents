@@ -33,6 +33,7 @@ class GenerateShortSummaryResponse(TypedDict):
     key_concepts: List[str]
     token_usage: TokenUsage
     prompt_id: str
+    prompt_version: str
 
 
 class GenerateShortSummary(BaseTool):
@@ -73,7 +74,9 @@ class GenerateShortSummary(BaseTool):
             llm_config = self._get_llm_config(config)
             model = llm_config["model"]
             temperature = llm_config["temperature"]
+            max_output_tokens = llm_config["max_output_tokens"]
             prompt_id = llm_config["prompt_id"]
+            prompt_version = llm_config["prompt_version"]
             
             # Initialize clients
             openai_client = self._initialize_openai_client()
@@ -88,12 +91,14 @@ class GenerateShortSummary(BaseTool):
                 transcript_text, 
                 self.title, 
                 model, 
-                temperature, 
-                prompt_id
+                temperature,
+                max_output_tokens,
+                prompt_id,
+                prompt_version
             )
             
             # Initialize Langfuse tracing if available
-            self._trace_with_langfuse(summary_response, model, temperature, prompt_id)
+            self._trace_with_langfuse(summary_response, model, temperature, prompt_id, prompt_version)
             
             return json.dumps(summary_response, indent=2)
             
@@ -103,7 +108,8 @@ class GenerateShortSummary(BaseTool):
                 "bullets": [],
                 "key_concepts": [],
                 "token_usage": {"input_tokens": 0, "output_tokens": 0},
-                "prompt_id": ""
+                "prompt_id": "",
+                "prompt_version": "v1"
             })
     
     def _get_llm_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -114,7 +120,7 @@ class GenerateShortSummary(BaseTool):
             config: Application configuration from settings.yaml
             
         Returns:
-            Dictionary with model, temperature, and prompt_id
+            Dictionary with model, temperature, max_output_tokens, prompt_id, and prompt_version
         """
         llm_section = config.get("llm", {})
         
@@ -125,7 +131,9 @@ class GenerateShortSummary(BaseTool):
             return {
                 "model": task_config.get("model", "gpt-4.1"),
                 "temperature": task_config.get("temperature", 0.2),
-                "prompt_id": task_config.get("prompt_id", "coach_v1")
+                "max_output_tokens": task_config.get("max_output_tokens", 1500),
+                "prompt_id": task_config.get("prompt_id", "coach_v1"),
+                "prompt_version": task_config.get("prompt_version", "v1")
             }
         
         # Fall back to default configuration
@@ -135,7 +143,9 @@ class GenerateShortSummary(BaseTool):
         return {
             "model": default_config.get("model", "gpt-4.1"),
             "temperature": default_config.get("temperature", 0.2),
-            "prompt_id": prompt_id
+            "max_output_tokens": default_config.get("max_output_tokens", 1500),
+            "prompt_id": prompt_id,
+            "prompt_version": "v1"
         }
     
     def _initialize_openai_client(self) -> OpenAI:
@@ -192,8 +202,10 @@ class GenerateShortSummary(BaseTool):
         transcript_text: str, 
         title: str, 
         model: str, 
-        temperature: float, 
-        prompt_id: str
+        temperature: float,
+        max_output_tokens: int,
+        prompt_id: str,
+        prompt_version: str
     ) -> GenerateShortSummaryResponse:
         """
         Generate summary using OpenAI with adaptive chunking for long transcripts.
@@ -204,7 +216,9 @@ class GenerateShortSummary(BaseTool):
             title: Video title
             model: LLM model name
             temperature: Model temperature
+            max_output_tokens: Maximum output tokens
             prompt_id: Prompt identifier
+            prompt_version: Prompt version (e.g., 'v1')
             
         Returns:
             Structured summary response
@@ -234,12 +248,12 @@ class GenerateShortSummary(BaseTool):
         if transcript_tokens <= max_transcript_tokens:
             # Process full transcript
             return self._generate_summary_chunk(
-                openai_client, transcript_text, title, model, temperature, prompt_id
+                openai_client, transcript_text, title, model, temperature, max_output_tokens, prompt_id, prompt_version
             )
         else:
             # Use adaptive chunking
             return self._generate_summary_chunked(
-                openai_client, transcript_text, title, model, temperature, prompt_id, encoding, max_transcript_tokens
+                openai_client, transcript_text, title, model, temperature, max_output_tokens, prompt_id, prompt_version, encoding, max_transcript_tokens
             )
     
     def _generate_summary_chunk(
@@ -248,8 +262,10 @@ class GenerateShortSummary(BaseTool):
         transcript_text: str, 
         title: str, 
         model: str, 
-        temperature: float, 
-        prompt_id: str
+        temperature: float,
+        max_output_tokens: int,
+        prompt_id: str,
+        prompt_version: str
     ) -> GenerateShortSummaryResponse:
         """
         Generate summary for a single chunk of transcript.
@@ -279,7 +295,7 @@ class GenerateShortSummary(BaseTool):
                 },
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1500
+            max_tokens=max_output_tokens
         )
         
         summary_text = response.choices[0].message.content
@@ -287,8 +303,8 @@ class GenerateShortSummary(BaseTool):
         # Parse structured output
         bullets, key_concepts = self._parse_summary_response(summary_text)
         
-        # Generate stable prompt ID hash
-        prompt_hash = hashlib.md5(f"{prompt_id}_{model}_{temperature}".encode()).hexdigest()[:8]
+        # Generate stable prompt ID hash including version
+        prompt_hash = hashlib.md5(f"{prompt_id}_{prompt_version}_{model}_{temperature}".encode()).hexdigest()[:8]
         
         return {
             "bullets": bullets,
@@ -297,7 +313,8 @@ class GenerateShortSummary(BaseTool):
                 "input_tokens": response.usage.prompt_tokens,
                 "output_tokens": response.usage.completion_tokens
             },
-            "prompt_id": f"{prompt_id}_{prompt_hash}"
+            "prompt_id": f"{prompt_id}_{prompt_hash}",
+            "prompt_version": prompt_version
         }
     
     def _generate_summary_chunked(
@@ -306,8 +323,10 @@ class GenerateShortSummary(BaseTool):
         transcript_text: str, 
         title: str, 
         model: str, 
-        temperature: float, 
-        prompt_id: str, 
+        temperature: float,
+        max_output_tokens: int,
+        prompt_id: str,
+        prompt_version: str,
         encoding, 
         max_tokens: int
     ) -> GenerateShortSummaryResponse:
@@ -338,7 +357,7 @@ class GenerateShortSummary(BaseTool):
         # Process each chunk
         for i, chunk in enumerate(chunks):
             chunk_response = self._generate_summary_chunk(
-                openai_client, chunk, f"{title} (Part {i+1}/{len(chunks)})", model, temperature, prompt_id
+                openai_client, chunk, f"{title} (Part {i+1}/{len(chunks)})", model, temperature, max_output_tokens, prompt_id, prompt_version
             )
             
             all_bullets.extend(chunk_response["bullets"])
@@ -354,8 +373,8 @@ class GenerateShortSummary(BaseTool):
         final_bullets = unique_bullets[:12]
         final_concepts = unique_concepts[:6]
         
-        # Generate stable prompt ID hash
-        prompt_hash = hashlib.md5(f"{prompt_id}_{model}_{temperature}_chunked".encode()).hexdigest()[:8]
+        # Generate stable prompt ID hash including version
+        prompt_hash = hashlib.md5(f"{prompt_id}_{prompt_version}_{model}_{temperature}_chunked".encode()).hexdigest()[:8]
         
         return {
             "bullets": final_bullets,
@@ -364,7 +383,8 @@ class GenerateShortSummary(BaseTool):
                 "input_tokens": total_input_tokens,
                 "output_tokens": total_output_tokens
             },
-            "prompt_id": f"{prompt_id}_{prompt_hash}"
+            "prompt_id": f"{prompt_id}_{prompt_hash}",
+            "prompt_version": prompt_version
         }
     
     def _chunk_transcript(self, transcript_text: str, encoding, max_tokens: int) -> List[str]:
@@ -509,7 +529,8 @@ Focus on practical, implementable advice rather than general observations."""
         summary_response: GenerateShortSummaryResponse, 
         model: str, 
         temperature: float, 
-        prompt_id: str
+        prompt_id: str,
+        prompt_version: str
     ) -> None:
         """
         Send trace information to Langfuse if configured.
@@ -519,6 +540,7 @@ Focus on practical, implementable advice rather than general observations."""
             model: LLM model used
             temperature: Model temperature
             prompt_id: Prompt identifier
+            prompt_version: Prompt version (e.g., 'v1')
         """
         try:
             # Check if Langfuse is configured
@@ -545,6 +567,7 @@ Focus on practical, implementable advice rather than general observations."""
                     "model": model,
                     "temperature": temperature,
                     "prompt_id": prompt_id,
+                    "prompt_version": prompt_version,
                     "transcript_doc_ref": self.transcript_doc_ref,
                     "title": self.title
                 }

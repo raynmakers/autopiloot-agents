@@ -6,6 +6,7 @@ Implements TASK-TRN-0022: Save transcript record with Drive IDs and status progr
 import os
 import json
 import hashlib
+import sys
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from pydantic import Field, validator
@@ -14,7 +15,12 @@ from google.oauth2 import service_account
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
 
+# Add core directory to path for audit logging
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
+
 load_dotenv()
+
+from audit_logger import audit_logger
 
 
 class SaveTranscriptRecord(BaseTool):
@@ -194,7 +200,22 @@ class SaveTranscriptRecord(BaseTool):
             transaction = db.transaction()
             
             @firestore.transactional
-            def update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data):\n                # Set transcript document\n                transaction.set(transcript_ref, transcript_data)\n                # Update video document\n                transaction.update(video_ref, video_update_data)\n                return True\n            \n            # Prepare video update data\n            video_update_data = {\n                'status': 'transcribed',  # Progress from 'transcription_queued' to 'transcribed'\n                'transcript_doc_ref': f\"transcripts/{self.video_id}\",\n                'transcript_drive_ids': self.drive_ids,\n                'transcript_digest': self.transcript_digest,\n                'costs': firestore.ArrayUnion([{\n                    'type': 'transcription',\n                    'amount_usd': self.costs['transcription_usd'],\n                    'timestamp': current_time_iso,\n                    'provider': 'assemblyai'\n                }]) if 'costs' not in video_data else self.costs,\n                'updated_at': current_time_iso,\n                'processing_completed_at': current_time_iso\n            }\n            \n            # Execute transaction\n            update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data)\n            \n            # Prepare successful response\n            result = {\n                \"transcript_doc_ref\": f\"transcripts/{self.video_id}\",\n                \"video_status\": \"transcribed\",\n                \"video_id\": self.video_id,\n                \"created_at\": current_time_iso,\n                \"drive_ids\": self.drive_ids,\n                \"transcript_digest\": self.transcript_digest,\n                \"costs\": self.costs,\n                \"status_change\": {\n                    \"from\": current_status,\n                    \"to\": \"transcribed\"\n                }\n            }\n            \n            return json.dumps(result, indent=2)\n            \n        except service_account.exceptions.ServiceAccountCredentialsError as e:\n            return json.dumps({\n                \"error\": \"credentials_error\",\n                \"message\": \"Invalid Google service account credentials\",\n                \"details\": str(e)\n            })\n        except Exception as e:\n            return json.dumps({\n                \"error\": \"firestore_error\",\n                \"message\": f\"Failed to save transcript record: {str(e)}\",\n                \"video_id\": self.video_id\n            })
+            def update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data):\n                # Set transcript document\n                transaction.set(transcript_ref, transcript_data)\n                # Update video document\n                transaction.update(video_ref, video_update_data)\n                return True\n            \n            # Prepare video update data\n            video_update_data = {\n                'status': 'transcribed',  # Progress from 'transcription_queued' to 'transcribed'\n                'transcript_doc_ref': f\"transcripts/{self.video_id}\",\n                'transcript_drive_ids': self.drive_ids,\n                'transcript_digest': self.transcript_digest,\n                'costs': firestore.ArrayUnion([{\n                    'type': 'transcription',\n                    'amount_usd': self.costs['transcription_usd'],\n                    'timestamp': current_time_iso,\n                    'provider': 'assemblyai'\n                }]) if 'costs' not in video_data else self.costs,\n                'updated_at': current_time_iso,\n                'processing_completed_at': current_time_iso\n            }\n            \n            # Execute transaction\n            update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data)\n            \n            # Prepare successful response\n            result = {\n                \"transcript_doc_ref\": f\"transcripts/{self.video_id}\",\n                \"video_status\": \"transcribed\",\n                \"video_id\": self.video_id,\n                \"created_at\": current_time_iso,\n                \"drive_ids\": self.drive_ids,\n                \"transcript_digest\": self.transcript_digest,\n                \"costs\": self.costs,\n                \"status_change\": {\n                    \"from\": current_status,\n                    \"to\": \"transcribed\"\n                }\n            }\n            \n            # Log transcript creation to audit trail (TASK-AUDIT-0041)
+            audit_logger.log_transcript_created(
+                video_id=self.video_id,
+                transcript_doc_ref=f"transcripts/{self.video_id}",
+                actor="TranscriberAgent"
+            )
+            
+            # Log cost update to audit trail
+            audit_logger.log_cost_updated(
+                date=current_time.strftime('%Y-%m-%d'),
+                cost_usd=self.costs['transcription_usd'],
+                cost_type="transcription",
+                actor="TranscriberAgent"
+            )
+            
+            return json.dumps(result, indent=2)\n            \n        except service_account.exceptions.ServiceAccountCredentialsError as e:\n            return json.dumps({\n                \"error\": \"credentials_error\",\n                \"message\": \"Invalid Google service account credentials\",\n                \"details\": str(e)\n            })\n        except Exception as e:\n            return json.dumps({\n                \"error\": \"firestore_error\",\n                \"message\": f\"Failed to save transcript record: {str(e)}\",\n                \"video_id\": self.video_id\n            })
 
 
 if __name__ == "__main__":

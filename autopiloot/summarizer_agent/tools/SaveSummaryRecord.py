@@ -16,6 +16,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var
+from audit_logger import audit_logger
 
 # Firestore imports
 from google.cloud import firestore
@@ -68,6 +69,13 @@ class SaveSummaryRecord(BaseTool):
             
             # Update video status to 'summarized'
             self._update_video_status(firestore_client)
+            
+            # Log summary creation to audit trail (TASK-AUDIT-0041)
+            audit_logger.log_summary_created(
+                video_id=self.video_id,
+                summary_doc_ref=summary_doc_ref,
+                actor="SummarizerAgent"
+            )
             
             return json.dumps({
                 "summary_doc_ref": summary_doc_ref
@@ -134,6 +142,7 @@ class SaveSummaryRecord(BaseTool):
             "transcript_drive_id_txt": self.refs.get("transcript_drive_id_txt"),
             "transcript_drive_id_json": self.refs.get("transcript_drive_id_json"),
             "prompt_id": self.refs.get("prompt_id"),
+            "prompt_version": self.refs.get("prompt_version", "v1"),
             "token_usage": self.refs.get("token_usage", {}),
             "rag_refs": self.refs.get("rag_refs", {}),
             
@@ -234,6 +243,7 @@ class SaveSummaryRecord(BaseTool):
                 "transcript_drive_id_txt": self.refs.get("transcript_drive_id_txt"),
                 "transcript_drive_id_json": self.refs.get("transcript_drive_id_json"),
                 "prompt_id": self.refs.get("prompt_id"),
+                "prompt_version": self.refs.get("prompt_version", "v1"),
                 "token_usage": self.refs.get("token_usage", {}),
                 "rag_refs": self.refs.get("rag_refs", {}),
                 "status": "completed",

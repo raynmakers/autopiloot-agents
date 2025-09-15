@@ -18,7 +18,8 @@ The Autopiloot project uses Python's `unittest` framework for comprehensive test
 ```
 tests/
 ├── __init__.py              # Test package initialization
-└── test_config.py          # Configuration loader tests (11 test cases)
+├── test_config.py          # Configuration loader tests (11 test cases)
+└── test_audit_logger.py    # Audit logging tests (15 test cases)
 ```
 
 ## Setup for Testing
@@ -72,6 +73,9 @@ OK
 ```bash
 # Run only configuration tests
 python -m unittest tests.test_config -v
+
+# Run only audit logging tests
+python -m unittest tests.test_audit_logger -v
 ```
 
 ### Method 3: Run Individual Test Cases
@@ -95,7 +99,40 @@ python -m unittest ../tests/test_config -v
 
 The configuration loader has **11 comprehensive test cases** covering all validation scenarios:
 
-#### ✅ Positive Test Cases
+### Audit Logger Tests (`test_audit_logger.py`)
+
+The audit logging system has **15 comprehensive test cases** implementing TASK-AUDIT-0041 requirements:
+
+#### ✅ Core Functionality Test Cases
+
+1. **`test_basic_audit_log_creation`**
+   - **Purpose**: Tests basic audit log entry creation and storage
+   - **Validates**: Firestore document creation, required fields, timestamp formatting
+   - **Assertions**: Document exists, all fields present, UTC ISO 8601 timestamp
+
+2. **`test_specialized_logging_methods`**
+   - **Purpose**: Tests all specialized logging methods (video discovered, transcript created, etc.)
+   - **Validates**: Agent-specific audit logging functionality
+   - **Methods Tested**: log_video_discovered, log_transcript_created, log_summary_created, log_budget_alert
+
+3. **`test_audit_log_entry_interface`**
+   - **Purpose**: Tests AuditLogEntry TypedDict interface compliance
+   - **Validates**: Required fields, data types, timestamp format
+   - **Assertions**: Interface structure matches TASK-AUDIT-0041 specification
+
+#### ✅ Error Handling Test Cases
+
+4. **`test_firestore_connection_error`**
+   - **Purpose**: Tests graceful handling of Firestore connection failures
+   - **Expected**: Returns False but doesn't raise exceptions
+   - **Validates**: Resilient error handling for external service failures
+
+5. **`test_invalid_parameters`**
+   - **Purpose**: Tests behavior with None/empty parameters
+   - **Validates**: Parameter validation and error handling
+   - **Expected**: Graceful degradation without workflow disruption
+
+#### ✅ Configuration Test Cases
 
 1. **`test_valid_configuration`**
 

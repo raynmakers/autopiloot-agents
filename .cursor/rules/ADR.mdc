@@ -55,6 +55,9 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0022 | [Comprehensive Audit Logging System for Security Compliance](#adr-0022) | 2025-09-15 | Accepted | —          | —             |
+| 0021 | [Assistant Agent Alerting System Implementation](#adr-0021) | 2025-09-15 | Accepted | —          | —             |
+| 0020 | [LLM Observability and Configuration Enhancement](#adr-0020) | 2025-09-15 | Accepted | —          | —             |
 | 0019 | [Enhanced Zep GraphRAG Integration with Workflow Orchestration](#adr-0019) | 2025-09-15 | Accepted | —          | —             |
 | 0018 | [Multi-Platform Summary Storage and Reference Linking](#adr-0018) | 2025-09-15 | Accepted | —          | —             |
 | 0017 | [Coaching-Focused Summary Generation with LLM Integration](#adr-0017) | 2025-09-15 | Accepted | —          | —             |
@@ -1409,5 +1412,241 @@ Implement comprehensive enhanced Zep GraphRAG integration with enterprise-grade 
 - JSON response standardization maintained across all tools with consistent error structures and success indicators
 - Integration compatibility confirmed with existing GenerateShortSummary, StoreShortSummaryToDrive tools from previous tasks
 - Documentation updates completed with tool descriptions, workflow patterns, and testing guidance
+
+---
+
+## ADR-0020 — LLM Observability and Configuration Enhancement
+
+<a id="adr-0020"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-LLM-0007 requires implementing comprehensive LLM observability features including GPT-4.1 defaults (temperature 0.2, max_output_tokens ~1500), Langfuse tracing integration, and prompt_version metadata tracking throughout the summarization pipeline. Existing GenerateShortSummary tool lacked configurable output limits, prompt versioning, and comprehensive tracing. The implementation must ensure all LLM calls use standardized configuration while maintaining backward compatibility and providing production-grade observability for coaching workflows.
+
+### Alternatives
+
+- **Hard-coded LLM parameters**: Simple but prevents A/B testing, environment-specific optimization, and configuration flexibility
+- **Basic Langfuse integration**: Minimal tracing without metadata context limits debugging and performance analysis capabilities
+- **No prompt versioning**: Prevents tracking of prompt effectiveness, A/B testing, and systematic prompt optimization
+- **Manual configuration per tool**: Inconsistent LLM settings across tools, maintenance overhead, configuration drift
+- **Separate observability tools**: Additional infrastructure complexity, fragmented monitoring, poor integration with existing workflow
+
+### Decision
+
+Implement comprehensive LLM observability and configuration enhancement with enterprise-grade features:
+
+**Core Configuration Enhancement:**
+
+- Extended settings.yaml with task-specific LLM configuration overrides under `llm.tasks.summarizer_generate_short`
+- Standardized GPT-4.1 defaults: temperature 0.2, max_output_tokens 1500, prompt_version "v1"
+- Fallback hierarchy: task-specific → default LLM → hardcoded fallbacks ensuring reliable operation
+- Dynamic configuration loading enabling runtime parameter changes without code deployment
+
+**Prompt Version Tracking:**
+
+- prompt_version field integrated throughout entire summarization pipeline from generation to Firestore storage
+- Prompt hash generation including version information for content reproducibility and debugging
+- TypedDict enhancement adding prompt_version to GenerateShortSummaryResponse interface
+- Complete audit trail enabling prompt effectiveness analysis and systematic optimization
+
+**Enhanced Langfuse Integration:**
+
+- Comprehensive trace metadata including model, temperature, prompt_id, prompt_version, content metrics
+- Token usage tracking with input/output token counts for cost analysis and optimization
+- Structured generation spans with detailed parameter logging for performance debugging
+- Graceful fallback handling when Langfuse credentials unavailable ensuring core functionality
+
+**Firestore Integration Enhancement:**
+
+- prompt_version persistence in both SaveSummaryRecord and SaveSummaryRecordEnhanced tools
+- Backward compatibility with existing summary record structure while adding observability fields
+- Atomic transaction support maintaining data consistency during enhanced metadata storage
+- Default fallback to "v1" when prompt_version not provided ensuring consistent data structure
+
+**Comprehensive Testing Framework:**
+
+- 16 specialized test cases covering LLM configuration, tracing integration, and Firestore persistence
+- Mock-based testing avoiding external API dependencies while validating all observability features
+- Error scenario validation ensuring graceful degradation under various failure conditions
+- Integration testing confirming end-to-end prompt_version flow from configuration to storage
+
+### Consequences
+
+- **Pros**: Configurable LLM parameters enable systematic optimization and A/B testing of summarization quality, comprehensive Langfuse tracing provides production-grade observability for performance monitoring and debugging, prompt_version tracking enables systematic prompt effectiveness analysis and optimization workflows, consistent configuration hierarchy reduces maintenance overhead and prevents configuration drift, graceful fallback handling ensures reliable operation under various failure scenarios, extensive test coverage prevents regressions and validates observability functionality, backward compatibility preserves existing workflows while adding enhanced capabilities
+- **Cons / risks**: Additional configuration complexity requires proper documentation and testing, Langfuse dependency introduces optional external service coupling, prompt_version tracking increases data storage overhead and processing complexity, comprehensive tracing may impact performance with high-volume LLM operations, configuration hierarchy complexity may complicate troubleshooting of parameter issues
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Settings.yaml enhanced with max_output_tokens 1500 and prompt_version "v1" configuration for task-specific overrides
+- GenerateShortSummary.py updated with configurable max_output_tokens usage and comprehensive prompt_version integration
+- Langfuse tracing enhanced with complete metadata including prompt_version, model parameters, and token usage
+- SaveSummaryRecord and SaveSummaryRecordEnhanced tools modified to persist prompt_version in Firestore documents
+- ProcessSummaryWorkflow updated to pass prompt_version through complete workflow pipeline
+- Comprehensive test suites created: test_llm_observability.py (10 test cases) and test_prompt_version_firestore.py (6 test cases)
+- All tool method signatures updated to support prompt_version parameter throughout the call chain
+- TypedDict interfaces enhanced with prompt_version field ensuring type safety and API consistency
+- Backward compatibility verified with default fallback to "v1" when prompt_version not provided
+- Integration testing confirmed for complete observability workflow from configuration to Firestore storage
+
+---
+
+## ADR-0021 — Assistant Agent Alerting System Implementation
+
+<a id="adr-0021"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-AST-0040 requires implementing comprehensive internal Slack alerting for budget monitoring and error notifications within the Autopiloot Agency system. The specification demands 80% budget threshold alerting, 1-per-type-per-hour throttling policy, and rich Slack block formatting using configured channels from settings.yaml. The assistant agent must monitor transcription budget usage against configured limits and send formatted error alerts with context while preventing notification spam through intelligent throttling.
+
+### Alternatives
+
+- **Simple text-based alerts**: Limited visual impact, poor information density, no structured formatting for complex error contexts
+- **Email-based notifications**: Higher latency, poor mobile experience, difficult to integrate with operational workflows
+- **Third-party monitoring tools**: Additional infrastructure complexity, vendor lock-in, reduced customization flexibility
+- **No throttling policy**: Risk of notification spam during cascading failures or repeated error conditions
+- **Hard-coded configuration**: Reduced flexibility, deployment requirements for configuration changes, poor environment management
+
+### Decision
+
+Implement comprehensive assistant agent alerting system with enterprise-grade features and TASK-AST-0040 compliance:
+
+**Core Alerting Architecture:**
+
+- Four specialized Agency Swarm BaseTool implementations with clear separation of concerns and responsibilities
+- FormatSlackBlocks: Rich Slack Block Kit formatting with alert-type-specific styling and structured field presentation
+- SendSlackMessage: Slack API integration with configuration-driven channel selection and error handling
+- MonitorTranscriptionBudget: Budget monitoring with 80% threshold alerting and automatic Slack notifications
+- SendErrorAlert: Error notification system with 1-per-type-per-hour throttling policy and context preservation
+
+**Budget Monitoring System:**
+
+- Dynamic budget configuration loading from settings.yaml budgets.transcription_daily_usd with fallback defaults
+- Multi-source cost calculation supporting both costs_daily collection optimization and transcripts collection fallback
+- 80% threshold alerting per TASK-AST-0040 specifications with automatic Slack notification integration
+- Comprehensive usage percentage calculation and status determination (OK, WARNING, THRESHOLD_REACHED, EXCEEDED)
+- Integration with existing Firestore cost tracking and real-time budget consumption monitoring
+
+**Intelligent Alert Throttling:**
+
+- Firestore-based throttling system using alert_throttling collection with per-type tracking
+- 1-per-type-per-hour policy implementation preventing notification spam during repeated failures
+- Automatic throttle expiry after 1-hour window with timestamp-based calculation and validation
+- Graceful degradation when throttling system fails, allowing critical alerts to proceed
+- Comprehensive throttle record management with alert count tracking and audit trail
+
+**Rich Slack Integration:**
+
+- Slack Block Kit formatting with alert-type-specific emojis, colors, and structured layouts
+- Configuration-driven channel selection from settings.yaml notifications.slack.channel with # prefix handling
+- Comprehensive error context preservation with automatic field extraction from error dictionaries
+- Fallback text generation for notification compatibility and accessibility requirements
+- Token usage tracking and API error handling with detailed failure reporting
+
+**Configuration and Environment Management:**
+
+- Environment-based configuration supporting SLACK_BOT_TOKEN, GCP_PROJECT_ID, and Firestore credentials
+- settings.yaml integration for budget limits, Slack channels, and notification preferences
+- Graceful fallback handling for missing configuration with sensible defaults
+- Environment variable validation with clear error messaging for missing requirements
+
+### Consequences
+
+- **Pros**: Comprehensive alerting system enables proactive monitoring and rapid incident response, 80% budget threshold prevents unexpected cost overruns with early warning system, intelligent throttling prevents notification fatigue while preserving critical alert visibility, rich Slack formatting improves alert readability and provides structured context for faster debugging, configuration-driven approach enables environment-specific customization without code changes, Firestore integration maintains consistency with existing data architecture, comprehensive test coverage (48 test cases) validates all functionality and error scenarios, modular tool design enables flexible agent coordination and independent testing
+- **Cons / risks**: Four-tool alerting system increases complexity requiring careful orchestration and error handling, Slack API dependency introduces external service coupling with availability constraints, throttling system adds Firestore write overhead and potential consistency challenges, budget monitoring frequency may impact performance with high-volume operations, alert configuration complexity may complicate troubleshooting of notification issues, comprehensive error context tracking increases data storage and processing overhead
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- All four tools implemented with agency_swarm.tools.BaseTool inheritance and comprehensive Pydantic field validation
+- 80% budget threshold alerting confirmed with TASK-AST-0040 specification compliance and automatic Slack notification
+- 1-per-type-per-hour throttling policy implemented with Firestore-based tracking and timestamp validation
+- Slack Block Kit integration verified with alert-type-specific formatting and structured field presentation
+- Configuration loading confirmed from settings.yaml for budget limits, channels, and notification preferences
+- Comprehensive test suites created with 48 total test cases covering functionality, throttling, error handling, and integration scenarios
+- Environment variable validation implemented for SLACK_BOT_TOKEN, GCP_PROJECT_ID, and Firestore credentials
+- JSON response standardization maintained across all tools with consistent error structures and success indicators
+- TypedDict interface compliance verified for BudgetMonitorResponse, SendSlackMessageResponse, and ErrorAlertRequest specifications
+- Integration testing completed for budget monitoring, alert formatting, throttling system, and Slack API communication
+
+---
+
+## ADR-0022 — Comprehensive Audit Logging System for Security Compliance
+
+<a id="adr-0022"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+TASK-AUDIT-0041 requires implementing audit logging for key system actions (transcript created, Slack alert sent, costs updated) in `audit_logs` Firestore collection to meet security and compliance requirements. The system lacked comprehensive audit trail capabilities for tracking agent operations, making troubleshooting, compliance verification, and operational monitoring difficult. All audit logging must avoid PII capture while providing structured metadata with actor, action, entity, entity_id, timestamp, and details fields for comprehensive operational visibility.
+
+### Alternatives
+
+- **File-based audit logging**: Simple but lacks querying capabilities, no real-time monitoring, difficult aggregation for operational analytics
+- **External logging services**: Additional infrastructure complexity, vendor lock-in, integration overhead, cost for structured audit data
+- **Database audit triggers**: Limited to data mutations, no application-level context, complex event correlation, poor observability integration  
+- **Manual audit logging**: Inconsistent implementation, human error prone, difficult maintenance across multiple agents and tools
+- **Event streaming approach**: Over-engineered for MVP requirements, additional infrastructure overhead, complex error handling
+
+### Decision
+
+Implement comprehensive audit logging system using Firestore as centralized audit store with cross-agent integration:
+
+**Core Architecture:**
+
+- Centralized AuditLogger utility class (`core/audit_logger.py`) with lazy Firestore initialization and specialized logging methods
+- AuditLogEntry TypedDict interface ensuring consistent data structure: actor, action, entity, entity_id, timestamp, details
+- Cross-agent integration: ScraperAgent (video discovery), TranscriberAgent (transcript completion), SummarizerAgent (summary creation), AssistantAgent (alerts/budget monitoring)
+- Graceful error handling without workflow disruption ensuring audit failures don't impact core operations
+
+**Implementation Standards:**
+
+- No PII capture with structured metadata-only approach following security compliance requirements
+- UTC ISO 8601 timestamp standardization with Z suffix for consistent temporal ordering  
+- Specialized logging methods for common workflows: log_video_discovered, log_transcript_created, log_summary_created, log_budget_alert
+- Environment-based Firestore authentication via GOOGLE_APPLICATION_CREDENTIALS and GCP_PROJECT_ID
+- JSON structured details field supporting workflow-specific metadata without schema constraints
+
+**Integration Points:**
+
+- ScraperAgent: SaveVideoMetadata tool logs video_discovered events with source tracking (scrape/sheet)
+- TranscriberAgent: SaveTranscriptRecord tool logs transcript_created events with document references  
+- SummarizerAgent: SaveSummaryRecord/Enhanced tools log summary_created events with storage references
+- AssistantAgent: MonitorTranscriptionBudget and SendErrorAlert tools log operational events with context
+
+**Production Features:**
+
+- Comprehensive test coverage (15 test cases) validating functionality, error handling, and interface compliance
+- Firestore collection structure optimized for operational queries with proper indexing considerations
+- Audit log document auto-generation using Firestore server-side document ID assignment
+- Error isolation preventing audit logging failures from disrupting main agent workflows
+
+### Consequences
+
+- **Pros**: Comprehensive audit trail enables security compliance and operational troubleshooting, centralized logging reduces complexity and ensures consistency across all agents, graceful error handling prevents audit failures from disrupting core workflows, structured metadata approach provides rich context without PII risks, Firestore integration leverages existing infrastructure with real-time query capabilities, specialized logging methods ensure consistent audit patterns across different agent operations, extensive test coverage prevents regressions and validates production readiness
+- **Cons / risks**: Additional Firestore write operations increase API usage and storage costs, audit logging dependency creates potential performance impact during high-volume operations, centralized utility coupling requires careful version management across agent updates, comprehensive metadata tracking increases document size and storage overhead, error handling complexity adds maintenance burden for audit system components
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- Core AuditLogger implemented with lazy initialization, specialized methods, and TypedDict interface compliance per TASK-AUDIT-0041
+- Cross-agent integration completed: 5 tools across 4 agents with proper audit logging integration points
+- AuditLogEntry interface enforced with required fields (actor, action, entity, entity_id, timestamp, details) and no PII capture
+- Comprehensive test suite created with 15 test cases covering basic functionality, specialized methods, error handling, and interface validation
+- Firestore audit_logs collection confirmed with proper document structure and server-side timestamp generation
+- Production deployment verified with proper service account authentication and GCP project configuration
+- Helper function write_audit_log implemented matching exact TASK-AUDIT-0041 specification requirements
+- Audit entries confirmed to appear in audit_logs collection with all required fields as per acceptance criteria
 
 ---

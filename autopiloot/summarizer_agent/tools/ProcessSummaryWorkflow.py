@@ -249,6 +249,7 @@ class ProcessSummaryWorkflow(BaseTool):
                 "zep_collection": zep_data["collection"],
                 "short_drive_id": drive_data["short_drive_id"],
                 "prompt_id": summary_data["prompt_id"],
+                "prompt_version": summary_data.get("prompt_version", "v1"),
                 "token_usage": summary_data["token_usage"],
                 "rag_refs": zep_data["rag_refs"],
                 "tags": self.tags,

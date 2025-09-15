@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_var
 from loader import load_app_config
+from audit_logger import audit_logger
 
 load_dotenv()
 
@@ -124,6 +125,13 @@ class SaveVideoMetadata(BaseTool):
                 # Update existing document (preserve created_at)
                 doc_ref.update(video_data)
                 operation = "updated"
+            
+            # Log video discovery to audit trail (TASK-AUDIT-0041)
+            audit_logger.log_video_discovered(
+                video_id=self.video_id,
+                source=self.source,
+                actor="ScraperAgent"
+            )
             
             # Return JSON response as required by Agency Swarm v1.0.0
             return json.dumps({

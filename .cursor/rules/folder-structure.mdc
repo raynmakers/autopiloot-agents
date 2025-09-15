@@ -1,197 +1,363 @@
 ---
-description: Agency Swarm v1.0.0 Compliant Folder Structure
+description: Production-Ready Autopiloot Agency Folder Structure
 globs:
 alwaysApply: true
 ---
 
 # Autopiloot Agency Folder Structure
 
-## Agency Swarm v1.0.0 Compliant Organization
+## Agency Swarm v1.0.0 Production Architecture
 
 ```
 autopiloot/
-├── agency.py                     # Main AutopilootAgency class inheriting from Agency
-├── agency_manifesto.md           # Shared instructions and operational standards
-├── requirements.txt              # Dependencies including agency-swarm>=0.7.2
-├── env.template                  # Environment variable reference documentation
+├── agency.py                     # Main AutopilootAgency class with complete agent orchestration
+├── agency_manifesto.md           # Shared operational standards and mission
+├── requirements.txt              # Production dependencies with agency-swarm>=0.7.2
+├── env.template                  # Complete environment variables reference
 │
-├── scraper_agent/               # ScraperAgent (CEO) - YouTube Discovery
+├── scraper_agent/               # ScraperAgent (CEO) - Content Discovery & Orchestration
 │   ├── __init__.py              # Package initialization with agent export
-│   ├── scraper_agent.py         # Agent definition with ModelSettings
-│   ├── instructions.md          # Agent-specific instructions and workflow
-│   └── tools/                   # Agency Swarm v1.0.0 compliant tools
+│   ├── scraper_agent.py         # Agent definition with ModelSettings and CEO configuration
+│   ├── instructions.md          # Discovery workflows and channel management
+│   └── tools/                   # 7 production-ready discovery tools
 │       ├── __init__.py
-│       ├── ResolveChannelHandles.py    # Batch YouTube handle resolution
-│       ├── ListRecentUploads.py        # Uploads playlist discovery
-│       ├── ReadSheetLinksSimple.py     # Google Sheets URL extraction
-│       ├── ExtractYouTubeFromPage.py   # Web page YouTube discovery
-│       ├── SaveVideoMetadata.py        # Firestore video persistence
-│       ├── EnqueueTranscription.py     # Job queue management
-│       └── RemoveSheetRow.py           # Sheet cleanup with archival
+│       ├── ResolveChannelHandles.py     # Batch YouTube handle → channel ID resolution
+│       ├── ListRecentUploads.py         # Uploads playlist discovery with checkpoints
+│       ├── ReadSheetLinks.py            # Google Sheets URL extraction (single column)
+│       ├── ExtractYouTubeFromPage.py    # Web page YouTube URL discovery
+│       ├── SaveVideoMetadata.py         # Firestore video storage with audit logging
+│       ├── EnqueueTranscription.py      # Transcription job queue with duplicate prevention
+│       └── RemoveSheetRow.py            # Sheet cleanup with archive-first approach
 │
-├── transcriber_agent/           # TranscriberAgent - AssemblyAI Processing
+├── transcriber_agent/           # TranscriberAgent - AssemblyAI Processing Pipeline
 │   ├── __init__.py
-│   ├── transcriber_agent.py     # Agent definition with temperature=0.1
-│   ├── instructions.md          # Transcription workflow and controls
-│   └── tools/                   # Complete AssemblyAI pipeline (TASK-TRN-0022)
+│   ├── transcriber_agent.py     # Agent definition optimized for transcription workflows
+│   ├── instructions.md          # AssemblyAI integration and cost management
+│   └── tools/                   # 5 complete transcription pipeline tools
 │       ├── __init__.py
-│       ├── get_video_audio_url.py      # YouTube audio stream extraction (yt-dlp)
-│       ├── submit_assemblyai_job.py    # Job submission with cost estimation & webhook
-│       ├── poll_transcription_job.py   # Exponential backoff polling with timeout caps
-│       ├── store_transcript_to_drive.py # Dual format storage (TXT+JSON) with digest
-│       └── save_transcript_record.py   # Atomic Firestore transactions with status progression
+│       ├── get_video_audio_url.py       # YouTube audio extraction via yt-dlp
+│       ├── submit_assemblyai_job.py     # Job submission with cost estimation
+│       ├── poll_transcription_job.py    # Exponential backoff polling (60s→120s→240s)
+│       ├── store_transcript_to_drive.py # Dual format storage (TXT+JSON) with SHA-256
+│       └── save_transcript_record.py    # Atomic Firestore updates with audit logging
 │
-├── summarizer_agent/            # SummarizerAgent - Content Summarization
+├── summarizer_agent/            # SummarizerAgent - Business-Focused Content Analysis
 │   ├── __init__.py
-│   ├── summarizer_agent.py      # Agent definition with temperature=0.3
-│   ├── instructions.md          # Summarization guidelines
-│   └── tools/                   # Summary generation and storage
+│   ├── summarizer_agent.py      # Agent definition for coaching-focused summaries
+│   ├── instructions.md          # LLM integration and content analysis guidelines
+│   └── tools/                   # 8 comprehensive summarization and storage tools
 │       ├── __init__.py
-│       ├── GenerateShortSummary.py     # Coaching-focused LLM summaries with adaptive chunking
-│       ├── StoreShortInZep.py         # Basic Zep GraphRAG storage (TASK-SUM-0031)
-│       ├── UpsertSummaryToZep.py      # Enhanced Zep integration with full metadata (TASK-ZEP-0006)
-│       ├── StoreShortSummaryToDrive.py # Dual-format Google Drive storage (JSON + Markdown)
-│       ├── SaveSummaryRecord.py       # Basic Firestore reference linking
-│       ├── SaveSummaryRecordEnhanced.py # Enhanced Firestore with Zep/RAG refs (TASK-ZEP-0006)
-│       └── ProcessSummaryWorkflow.py  # End-to-end workflow orchestration
+│       ├── GenerateShortSummary.py      # GPT-4.1 coaching summaries with adaptive chunking
+│       ├── StoreShortInZep.py          # Basic Zep GraphRAG storage
+│       ├── StoreShortSummaryToDrive.py # Dual-format Drive storage (JSON + Markdown)
+│       ├── SaveSummaryRecord.py        # Basic Firestore reference linking
+│       ├── SaveSummaryRecordEnhanced.py # Enhanced Firestore with Zep/RAG references
+│       ├── UpsertSummaryToZep.py       # Advanced Zep integration with full metadata
+│       ├── ProcessSummaryWorkflow.py   # End-to-end workflow orchestration
+│       └── generate_short_summary.py   # Legacy - maintained for compatibility
 │
-├── assistant_agent/             # AssistantAgent - Monitoring & Alerts
+├── assistant_agent/             # AssistantAgent - Operations Monitoring & Alerting
 │   ├── __init__.py
-│   ├── assistant_agent.py       # Agent definition with temperature=0.1
-│   ├── instructions.md          # Operational oversight guidelines
-│   └── tools/                   # Notification and monitoring tools
+│   ├── assistant_agent.py       # Agent definition for operational oversight
+│   ├── instructions.md          # Budget monitoring and error alerting workflows
+│   └── tools/                   # 4 comprehensive monitoring and notification tools
 │       ├── __init__.py
-│       ├── monitor_transcription_budget.py # $5 daily budget tracking
-│       ├── send_slack_message.py       # Slack notifications
-│       ├── send_error_alert.py         # Critical error alerts
-│       └── format_slack_blocks.py      # Rich message formatting
+│       ├── format_slack_blocks.py       # Rich Slack Block Kit message formatting
+│       ├── send_slack_message.py        # Slack API integration with channel management
+│       ├── monitor_transcription_budget.py # $5 daily budget with 80% threshold alerts
+│       └── send_error_alert.py          # Error notifications with 1-per-hour throttling
 │
-├── config/                      # Configuration Management
-│   ├── loader.py                # YAML configuration loader
-│   ├── settings.yaml            # System settings and parameters
-│   └── env_loader.py            # Environment variable validation
+├── core/                        # Shared Utilities and Infrastructure
+│   ├── __init__.py              # Core package initialization
+│   ├── audit_logger.py          # TASK-AUDIT-0041: Centralized audit logging system
+│   ├── reliability.py          # Dead letter queue and exponential backoff retry logic
+│   ├── sheets.py               # Google Sheets integration utilities
+│   └── idempotency.py          # Core naming conventions and deduplication logic
 │
-├── firebase/                    # Firebase Functions & Scheduling
-│   ├── functions/
-│   │   ├── main.py              # Function entry points
-│   │   ├── scheduler.py         # Scheduled and event-driven functions
-│   │   ├── core.py              # Core utilities
-│   │   └── requirements.txt    # Firebase-specific dependencies
-│   └── DEPLOYMENT.md            # Deployment instructions
+├── config/                      # Configuration Management System
+│   ├── loader.py                # YAML configuration loader with validation
+│   ├── settings.yaml            # Runtime settings: LLM, budgets, channels, business rules
+│   ├── env_loader.py            # Environment variable validation with service-specific getters
+│   └── test_config.py           # Configuration testing (legacy)
 │
-├── firestore/                   # Database Configuration
-│   └── indexes.md               # Firestore composite indexes
+├── firebase/                    # Cloud Functions and Scheduling Infrastructure
+│   ├── functions/               # Firebase Functions v2 for automated execution
+│   │   ├── main.py              # Function entry points and routing
+│   │   ├── scheduler.py         # Daily scheduling (01:00 CET) and budget monitoring
+│   │   ├── core.py              # Shared utilities for cloud functions
+│   │   ├── requirements.txt     # Firebase-specific Python dependencies
+│   │   ├── test_functions.py    # Integration tests for cloud functions
+│   │   ├── test_simple.py       # Simple function validation tests
+│   │   └── README.md            # Comprehensive Firebase deployment guide
+│   ├── firebase.json            # Firebase project configuration
+│   ├── firestore.rules          # Admin-only security rules (no client access)
+│   ├── firestore.indexes.json   # Composite indexes for efficient querying
+│   └── DEPLOYMENT.md            # Firebase deployment instructions
 │
-├── tests/                       # Comprehensive Test Suite
+├── firestore/                   # Database Documentation and Configuration
+│   └── indexes.md               # Firestore index documentation and rationale
+│
+├── scraper/                     # Legacy - maintained for compatibility
+│   └── tools/
+│       └── [legacy tool implementations]
+│
+├── tests/                       # Comprehensive Production Test Suite (60+ tests)
 │   ├── __init__.py
-│   ├── test_config.py           # Configuration loading tests
-│   ├── test_env_loader.py       # Environment validation tests  
-│   ├── test_get_video_audio_url.py # Audio extraction tests (9 cases)
-│   ├── test_submit_assemblyai_job.py # Job submission tests (12 cases)
-│   ├── test_poll_transcription_job.py # Polling & backoff tests (12 cases)
-│   ├── test_store_transcript_to_drive.py # Drive storage tests (11 cases)
-│   ├── test_save_transcript_record.py # Firestore metadata tests (12 cases)
-│   └── test_remove_sheet_row.py # Sheet management tests
+│   ├── test_config.py           # Configuration loading tests (11 cases)
+│   ├── test_env_loader.py       # Environment validation tests (17 cases)
+│   ├── test_audit_logger.py     # TASK-AUDIT-0041: Audit logging tests (15 cases)
+│   ├── test_idempotency.py      # Core utilities tests
+│   ├── test_reliability.py      # Error handling and retry logic tests (22 cases)
+│   ├── test_sheets.py           # Google Sheets integration tests (18 cases)
+│   │
+│   ├── # Scraper Agent Tests
+│   ├── test_resolve_channel_handles.py
+│   ├── test_list_recent_uploads.py
+│   ├── test_read_sheet_links.py
+│   ├── test_extract_youtube_from_page.py
+│   ├── test_save_video_metadata.py
+│   ├── test_enqueue_transcription.py
+│   ├── test_remove_sheet_row.py
+│   │
+│   ├── # Transcriber Agent Tests (TASK-TRN-0022)
+│   ├── test_get_video_audio_url.py      # Audio extraction tests (9 cases)
+│   ├── test_submit_assemblyai_job.py    # Job submission tests (12 cases)
+│   ├── test_poll_transcription_job.py   # Polling and exponential backoff (12 cases)
+│   ├── test_store_transcript_to_drive.py # Drive storage with dual formats (11 cases)
+│   ├── test_save_transcript_record.py   # Firestore metadata and transactions (12 cases)
+│   │
+│   ├── # Summarizer Agent Tests
+│   ├── test_generate_short_summary.py   # TASK-SUM-0030: LLM integration (11 cases)
+│   ├── test_store_short_in_zep.py       # TASK-SUM-0031: Zep GraphRAG storage
+│   ├── test_store_short_summary_to_drive.py # TASK-SUM-0031: Dual Drive storage
+│   ├── test_save_summary_record.py      # TASK-SUM-0031: Firestore reference linking
+│   ├── test_save_summary_record_enhanced.py # TASK-ZEP-0006: Enhanced Zep integration
+│   ├── test_upsert_summary_to_zep.py    # TASK-ZEP-0006: Advanced Zep features
+│   ├── test_process_summary_workflow.py # TASK-ZEP-0006: End-to-end orchestration
+│   ├── test_llm_observability.py       # TASK-LLM-0007: LLM configuration (10 cases)
+│   ├── test_prompt_version_firestore.py # TASK-LLM-0007: Prompt versioning (6 cases)
+│   │
+│   ├── # Assistant Agent Tests (TASK-AST-0040)
+│   ├── test_format_slack_blocks.py      # Slack Block Kit formatting (12 cases)
+│   ├── test_send_slack_message.py       # Slack API integration (10 cases)
+│   ├── test_monitor_transcription_budget.py # Budget monitoring (12 cases)
+│   └── test_send_error_alert.py         # Error alerting and throttling (14 cases)
 │
-├── planning/                    # Project Documentation
+├── planning/                    # Project Requirements and Task Documentation
 │   ├── prd.mdc                  # Product Requirements Document
-│   └── tasks/                   # Task specifications
-│       ├── *.mdc                # Individual task documents
-│       └── 15-scraper-remove-sheet-rows.mdc
+│   └── tasks/                   # Complete task specifications (22 completed)
+│       ├── 00-config-yaml.mdc   # Configuration system
+│       ├── 00-env-config.mdc    # Environment variables
+│       ├── 01-scheduling-firebase.mdc
+│       ├── 02-idempotency-naming.mdc
+│       ├── 03-google-sheet-flow.mdc
+│       ├── 04-reliability-quotas.mdc
+│       ├── 05-agent-tools.mdc
+│       ├── 10-scraper-resolve-channel.mdc
+│       ├── 11-scraper-list-uploads.mdc
+│       ├── 12-scraper-read-sheet-extract.mdc
+│       ├── 13-scraper-save-metadata.mdc
+│       ├── 14-scraper-enqueue-transcription.mdc
+│       ├── 15-scraper-remove-sheet-rows.mdc
+│       ├── 20-transcriber-get-audio.mdc
+│       ├── 21-transcriber-submit-job.mdc
+│       ├── 22-transcriber-poll-store.mdc
+│       ├── 30-summarizer-generate-short.mdc
+│       ├── 31-summarizer-store-zep-drive.mdc
+│       ├── 32-zep-integration.mdc
+│       ├── 37-llm-observability.mdc
+│       ├── 40-assistant-alerts.mdc
+│       └── 41-audit-logging.mdc
 │
-└── *.md                         # Implementation documentation
-    ├── README.md
-    ├── ENVIRONMENT.md
-    ├── FIREBASE_IMPLEMENTATION.md
-    ├── IDEMPOTENCY_IMPLEMENTATION.md
-    ├── RELIABILITY_IMPLEMENTATION.md
-    ├── SHEETS_IMPLEMENTATION.md
-    └── TESTING.md
+└── # Implementation Documentation (Production Ready)
+    ├── README.md                # Comprehensive project overview and quick start
+    ├── AGENTS_OVERVIEW.md       # Detailed agent documentation and tool reference
+    ├── TESTING.md               # Complete testing guide with 60+ test coverage
+    ├── ENVIRONMENT.md           # Environment setup and API key management
+    ├── CLAUDE.md                # Development guidance for Claude Code
+    ├── FIREBASE_IMPLEMENTATION.md # Firebase Functions deployment guide
+    ├── IDEMPOTENCY_IMPLEMENTATION.md # Deduplication and naming conventions
+    ├── RELIABILITY_IMPLEMENTATION.md # Error handling and retry systems
+    ├── SHEETS_IMPLEMENTATION.md # Google Sheets integration patterns
+    └── AUDIT_LOGGING_IMPLEMENTATION.md # TASK-AUDIT-0041 compliance documentation
 ```
 
-## Key Architectural Principles
+## Production Architecture Principles
 
-### 1. Agency Swarm v1.0.0 Compliance
-- All agents inherit from `agency_swarm.Agent`
-- All tools inherit from `agency_swarm.tools.BaseTool`
-- Pydantic field validation for all tool parameters
-- JSON string returns from all tool `run()` methods
+### 1. Agency Swarm v1.0.0 Full Compliance
+- **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings
+- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (25 production tools)
+- **Validation**: Comprehensive Pydantic Field validation throughout
+- **Returns**: JSON string responses from all tool `run()` methods
+- **Communication**: Proper agency_chart definition with CEO pattern
 
-### 2. Agent Naming Convention
-- Lowercase with underscores: `scraper_agent/`, `transcriber_agent/`
-- Agent class names: `scraper_agent`, `transcriber_agent`
-- Consistent `__init__.py` exports for clean imports
+### 2. Event-Driven Broker Architecture
+- **Firestore**: Primary data store and event broker for real-time coordination
+- **Status Progression**: `discovered → transcription_queued → transcribed → summarized`
+- **Atomic Transactions**: Data consistency across agent boundaries
+- **Audit Logging**: TASK-AUDIT-0041 compliance with structured metadata
 
-### 3. Tool Organization
-- One tool per file with descriptive class names
-- Tools grouped by agent in `{agent_name}/tools/` directories
-- All tools use environment variables for secrets (no hardcoded values)
-- Comprehensive test blocks in each tool file
+### 3. Multi-Platform Integration
+- **APIs**: YouTube Data API, AssemblyAI, OpenAI GPT-4.1, Slack API, Zep GraphRAG
+- **Storage**: Google Drive (dual formats), Firestore (structured data), Zep (semantic search)
+- **Authentication**: Service accounts, environment variables, no hardcoded secrets
+- **Monitoring**: Langfuse observability, structured logging, Slack alerts
 
-### 4. Communication Flow
+### 4. Production-Ready Reliability
+- **Error Handling**: Exponential backoff, dead letter queues, graceful degradation
+- **Cost Controls**: $5/day transcription budget with 80% threshold alerts
+- **Security**: Admin-only Firestore, PII avoidance, comprehensive audit trails
+- **Testing**: 60+ comprehensive tests with mock-based isolation
+
+## Agent Communication Architecture
+
+### CEO Pattern (ScraperAgent)
 ```
-ScraperAgent (CEO) ←→ All Agents
-ScraperAgent → TranscriberAgent → SummarizerAgent
-AssistantAgent ←→ All Agents (monitoring/alerts)
+ScraperAgent (CEO)
+├── → TranscriberAgent (workflow pipeline)
+│   └── → SummarizerAgent (content analysis)
+├── ↔ AssistantAgent (bidirectional monitoring)
+└── Direct communication with all agents
 ```
 
-### 5. Configuration Hierarchy
-- Environment variables (`.env` or system) for secrets
-- `settings.yaml` for business rules and parameters
-- `agency_manifesto.md` for shared operational standards
-- Agent-specific `instructions.md` for workflows
+### Status-Driven Workflow
+```
+Video Discovery → Transcription Queue → Processing → Analysis → Complete
+      ↓                ↓                   ↓           ↓         ↓
+  ScraperAgent    TranscriberAgent    TranscriberAgent  SummarizerAgent  Done
+```
 
-### 6. Testing Structure
-- Unit tests in `/tests/` directory with 145+ total test cases
-- Test files follow `test_{component}.py` naming convention
-- Mock-based testing avoiding external API dependencies
-- Comprehensive coverage: tools, configuration, reliability, and validation
-- TASK-TRN-0022 tools: 35 test cases across 3 tools with error scenarios
-- TASK-SUM-0030 tools: 11 test cases for GenerateShortSummary with LLM integration
-- TASK-SUM-0031 tools: 31 test cases across 3 tools for multi-platform storage
-- TASK-ZEP-0006 tools: 47 test cases across 4 tools for enhanced Zep GraphRAG integration
+## File Naming and Import Standards
 
-## File Naming Standards
-
-### Tools
-- PascalCase for class names matching file names
-- Example: `RemoveSheetRow.py` contains `class RemoveSheetRow`
-
-### Agents
-- Snake_case for directories: `scraper_agent/`
-- Snake_case for agent files: `scraper_agent.py`
-- Agent variable names: `scraper_agent = Agent(...)`
-
-### Tests
-- Prefix with `test_`: `test_remove_sheet_row.py`
-- Test classes: `TestRemoveSheetRow`
-
-## Import Patterns
-
+### Tools (25 Production Tools)
 ```python
-# Agent imports
+# PascalCase class names matching file names
+class SaveVideoMetadata(BaseTool):  # in SaveVideoMetadata.py
+class GenerateShortSummary(BaseTool):  # in GenerateShortSummary.py
+```
+
+### Agents (4 Production Agents)
+```python
+# Snake_case for directories and files
 from scraper_agent import scraper_agent
 from transcriber_agent import transcriber_agent
+from summarizer_agent import summarizer_agent  
+from assistant_agent import assistant_agent
+```
 
-# Tool imports (within agent)
-from agency_swarm.tools import BaseTool
+### Configuration and Core
+```python
+# Centralized configuration management
+from config.loader import load_app_config, get_config_value
+from config.env_loader import get_required_var, get_api_key
+from core.audit_logger import audit_logger
+from core.reliability import DeadLetterQueue, QuotaManager
+```
 
-# Configuration imports
-from config.loader import get_config_value
-from config.env_loader import get_api_key
+## Testing Architecture (60+ Comprehensive Tests)
+
+### Test Distribution
+- **Configuration**: 28 tests (config loading, environment validation)
+- **Core Systems**: 22 tests (reliability, audit logging, idempotency)
+- **Agent Tools**: 35+ tests per major workflow (transcription, summarization, alerts)
+- **Integration**: Firebase functions, API integrations, end-to-end workflows
+
+### Test Categories
+```
+Unit Tests (isolated functionality)
+├── test_config.py (11 tests)
+├── test_env_loader.py (17 tests)  
+├── test_audit_logger.py (15 tests)
+└── test_reliability.py (22 tests)
+
+Integration Tests (API and service integration)
+├── Transcriber Pipeline (56 tests across 5 tools)
+├── Summarizer Workflows (47+ tests across 7 tools)  
+├── Assistant Monitoring (48 tests across 4 tools)
+└── Scraper Discovery (35+ tests across 7 tools)
+
+End-to-End Tests
+├── Firebase Functions
+├── Complete Workflows
+└── Error Recovery Scenarios
 ```
 
 ## Deployment Structure
 
-### Required Files
-1. `agency.py` - Main agency orchestration
-2. `agency_manifesto.md` - Shared instructions
-3. `*/tools/*.py` - All tool implementations
-4. `requirements.txt` - Python dependencies
-5. `.env` - Environment variables (not in repo)
+### Required for Production
+1. **Core Files**
+   - `agency.py` - Main orchestration
+   - `agency_manifesto.md` - Operational standards
+   - All agent directories with tools
+   - `config/settings.yaml` - Runtime configuration
+   - `.env` - Environment variables (not in repo)
 
-### Optional Files
-- Firebase functions for scheduling
-- Test files for development
-- Planning documents for reference
-- Implementation documentation
+2. **Dependencies**
+   - `requirements.txt` - Python packages
+   - Service account credentials
+   - API keys and authentication tokens
+
+3. **Infrastructure** (Optional but Recommended)
+   - Firebase Functions for scheduling
+   - Firestore security rules and indexes
+   - Google Drive folder structure
+
+### Development Only
+- `/tests/` directory
+- `/planning/` documentation
+- Implementation guides (*.md)
+- Legacy compatibility files
+
+## Configuration Hierarchy
+
+### Runtime Configuration
+1. **Environment Variables** (secrets, credentials)
+2. **settings.yaml** (business rules, API settings, operational parameters)
+3. **agency_manifesto.md** (shared operational standards)
+4. **Agent instructions.md** (agent-specific workflows)
+
+### Example Configuration
+```yaml
+# settings.yaml
+scraper:
+  handles: ["@AlexHormozi"]
+  daily_limit_per_channel: 10
+
+llm:
+  default:
+    model: "gpt-4.1" 
+    temperature: 0.2
+  tasks:
+    summarizer_generate_short:
+      max_output_tokens: 1500
+      prompt_version: "v1"
+
+budgets:
+  transcription_daily_usd: 5.0
+
+notifications:
+  slack:
+    channel: "ops-autopiloot"
+```
+
+## Security and Compliance
+
+### Data Protection
+- **No PII Processing**: Only public YouTube content
+- **Audit Logging**: TASK-AUDIT-0041 compliance with structured metadata
+- **Admin-Only Access**: Firestore security rules prevent client access
+- **Environment Secrets**: All sensitive data via environment variables
+
+### Access Control
+- **Service Accounts**: Google Cloud services authentication
+- **Minimal Scopes**: Drive and Sheets access only
+- **API Key Rotation**: Environment-based configuration supports key updates
+- **Throttling**: 1-alert-per-type-per-hour prevents notification spam
+
+---
+
+**Architecture Status**: Production Ready ✅  
+**Latest Update**: 2025-09-15  
+**Total Tools**: 25 across 4 agents  
+**Test Coverage**: 60+ comprehensive tests  
+**Framework Compliance**: Agency Swarm v1.0.0 ✅
