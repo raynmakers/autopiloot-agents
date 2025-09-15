@@ -1,0 +1,61 @@
+---
+description: "Create OrchestratorAgent as CEO, wire flows, and minimal tools scaffold"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ARCH-0001"
+title: "Establish OrchestratorAgent (CEO) and wire agency flows"
+status: "planned"
+priority: "P0"
+labels: ["architecture", "orchestrator", "agency"]
+dependencies: []
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Install an OrchestratorAgent as CEO to plan, dispatch, enforce policies, and emit run events; update `agency.py` flows accordingly.
+
+# 2) Background / Context
+
+Scraper should not own orchestration; a neutral CEO enforces global policies and simplifies evolution.
+
+# 3) Assumptions & Constraints
+
+- Agency Swarm v1.0.0; tools auto-imported from `tools/`.
+- Orchestrator emits events; Observability sends Slack.
+
+# 4) Dependencies
+
+- core/reliability.py
+- config/loader.py
+
+# 5) Context Plan
+
+Beginning (read-only):
+- `agency.py`
+- `observability_agent/`, `scraper_agent/`, `transcriber_agent/`, `summarizer_agent/`
+
+End state (must exist after completion):
+- `orchestrator_agent/__init__.py`
+- `orchestrator_agent/orchestrator_agent.py`
+- `orchestrator_agent/instructions.md`
+- `orchestrator_agent/tools/` (empty for now)
+- `agency.py` updated with Orchestrator as CEO and flows
+
+# 6) Low-Level Steps
+
+1. Create `orchestrator_agent/orchestrator_agent.py` with Agent(name="Orchestrator", tools_folder="./tools").
+2. Add `instructions.md` with Role, Goals, Workflow, Notes.
+3. Export in `orchestrator_agent/__init__.py`.
+4. Update `agency.py`: set Orchestrator as first arg; flows: (orchestrator → scraper, transcriber, summarizer, observability).
+
+# 7) Acceptance Criteria
+
+- CEO agent exists and is importable
+- `agency.py` composes with Orchestrator as entrypoint
+
+# 8) Testing Strategy
+
+- Unit test to import orchestrator and verify flows (no network).
+

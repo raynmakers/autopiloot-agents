@@ -128,6 +128,7 @@ class TestEnvironmentLoader(unittest.TestCase):
             'YOUTUBE_API_KEY': 'test_youtube_key',
             'SLACK_BOT_TOKEN': 'test_slack_token',
             'GOOGLE_APPLICATION_CREDENTIALS': '/tmp/test_creds.json',
+            'GCP_PROJECT_ID': 'test-project-id',
             'GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS': 'test_transcript_folder',
             'GOOGLE_DRIVE_FOLDER_ID_SUMMARIES': 'test_summary_folder',
             'ZEP_API_KEY': 'test_zep_key',

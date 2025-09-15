@@ -96,6 +96,7 @@ def validate_environment() -> Dict[str, str]:
         "YOUTUBE_API_KEY": "YouTube Data API key for video discovery",
         "SLACK_BOT_TOKEN": "Slack bot token for notifications",
         "GOOGLE_APPLICATION_CREDENTIALS": "Path to Google service account JSON file",
+        "GCP_PROJECT_ID": "Google Cloud Project ID for Firestore and other GCP services",
         "GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS": "Google Drive folder ID for transcript storage",
         "GOOGLE_DRIVE_FOLDER_ID_SUMMARIES": "Google Drive folder ID for summary storage",
         "ZEP_API_KEY": "Zep API key for GraphRAG storage",
@@ -104,11 +105,13 @@ def validate_environment() -> Dict[str, str]:
     # Optional environment variables with defaults
     optional_vars = {
         "ZEP_COLLECTION": "autopiloot_guidelines",
+        "ZEP_BASE_URL": "https://api.getzep.com",
         "TIMEZONE": "Europe/Amsterdam",
         "LANGFUSE_HOST": "https://cloud.langfuse.com",
         "SLACK_SIGNING_SECRET": "",  # Optional for webhook verification
         "LANGFUSE_PUBLIC_KEY": "",   # Optional for observability
         "LANGFUSE_SECRET_KEY": "",   # Optional for observability
+        "SLACK_ALERTS_CHANNEL": "",  # Optional, can be set in settings.yaml
     }
     
     env_values = {}
