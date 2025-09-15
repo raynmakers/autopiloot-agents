@@ -56,16 +56,22 @@ autopiloot/
 │       ├── ProcessSummaryWorkflow.py   # End-to-end workflow orchestration
 │       └── generate_short_summary.py   # Legacy - maintained for compatibility
 │
-├── assistant_agent/             # AssistantAgent - Operations Monitoring & Alerting
+├── observability_agent/         # ObservabilityAgent - Comprehensive Operations Monitoring
 │   ├── __init__.py
-│   ├── assistant_agent.py       # Agent definition for operational oversight
-│   ├── instructions.md          # Budget monitoring and error alerting workflows
-│   └── tools/                   # 4 comprehensive monitoring and notification tools
+│   ├── observability_agent.py   # Agent definition for operational oversight and monitoring
+│   ├── instructions.md          # Budget monitoring, error alerting, and operational workflows
+│   └── tools/                   # 10 comprehensive monitoring, alerting, and analysis tools
 │       ├── __init__.py
 │       ├── format_slack_blocks.py       # Rich Slack Block Kit message formatting
 │       ├── send_slack_message.py        # Slack API integration with channel management
 │       ├── monitor_transcription_budget.py # $5 daily budget with 80% threshold alerts
-│       └── send_error_alert.py          # Error notifications with 1-per-hour throttling
+│       ├── send_error_alert.py          # Error notifications with 1-per-hour throttling
+│       ├── monitor_quota_state.py       # YouTube/AssemblyAI quota tracking with threshold alerts
+│       ├── monitor_dlq_trends.py        # Dead letter queue pattern analysis and anomaly detection
+│       ├── stuck_job_scanner.py         # Stale job detection across all agent collections
+│       ├── report_daily_summary.py      # Comprehensive pipeline health reporting with Slack formatting
+│       ├── llm_observability_metrics.py # Token usage tracking and cost analysis
+│       └── alert_engine.py              # Centralized alert management with throttling and deduplication
 │
 ├── core/                        # Shared Utilities and Infrastructure
 │   ├── __init__.py              # Core package initialization
@@ -80,22 +86,19 @@ autopiloot/
 │   ├── env_loader.py            # Environment variable validation with service-specific getters
 │   └── test_config.py           # Configuration testing (legacy)
 │
-├── firebase/                    # Cloud Functions and Scheduling Infrastructure
-│   ├── functions/               # Firebase Functions v2 for automated execution
-│   │   ├── main.py              # Function entry points and routing
-│   │   ├── scheduler.py         # Daily scheduling (01:00 CET) and budget monitoring
-│   │   ├── core.py              # Shared utilities for cloud functions
-│   │   ├── requirements.txt     # Firebase-specific Python dependencies
-│   │   ├── test_functions.py    # Integration tests for cloud functions
-│   │   ├── test_simple.py       # Simple function validation tests
-│   │   └── README.md            # Comprehensive Firebase deployment guide
-│   ├── firebase.json            # Firebase project configuration
-│   ├── firestore.rules          # Admin-only security rules (no client access)
-│   ├── firestore.indexes.json   # Composite indexes for efficient querying
-│   └── DEPLOYMENT.md            # Firebase deployment instructions
-│
-├── firestore/                   # Database Documentation and Configuration
-│   └── indexes.md               # Firestore index documentation and rationale
+├── services/                    # External Services Configuration and Infrastructure
+│   ├── firebase/                # Cloud Functions and Scheduling Infrastructure
+│   │   ├── functions/           # Firebase Functions v2 for automated execution
+│   │   │   ├── main.py          # Function entry points and routing
+│   │   │   ├── scheduler.py     # Daily scheduling (01:00 CET) and budget monitoring
+│   │   │   ├── core.py          # Shared utilities for cloud functions
+│   │   │   ├── requirements.txt # Firebase-specific Python dependencies
+│   │   │   ├── test_functions.py # Integration tests for cloud functions
+│   │   │   ├── test_simple.py   # Simple function validation tests
+│   │   │   └── README.md        # Comprehensive Firebase deployment guide
+│   │   └── DEPLOYMENT.md        # Firebase deployment instructions
+│   └── firestore/               # Database Documentation and Configuration
+│       └── indexes.md           # Firestore index documentation and rationale
 │
 ├── scraper/                     # Legacy - maintained for compatibility
 │   └── tools/
@@ -137,11 +140,12 @@ autopiloot/
 │   ├── test_llm_observability.py       # TASK-LLM-0007: LLM configuration (10 cases)
 │   ├── test_prompt_version_firestore.py # TASK-LLM-0007: Prompt versioning (6 cases)
 │   │
-│   ├── # Assistant Agent Tests (TASK-AST-0040)
+│   ├── # Observability Agent Tests (TASK-AST-0040, TASK-OBS-0040/0041)
 │   ├── test_format_slack_blocks.py      # Slack Block Kit formatting (12 cases)
 │   ├── test_send_slack_message.py       # Slack API integration (10 cases)
 │   ├── test_monitor_transcription_budget.py # Budget monitoring (12 cases)
-│   └── test_send_error_alert.py         # Error alerting and throttling (14 cases)
+│   ├── test_send_error_alert.py         # Error alerting and throttling (11 cases)
+│   └── test_observability_ops.py        # Comprehensive ops suite (6 tools, 100% coverage)
 │
 ├── planning/                    # Project Requirements and Task Documentation
 │   ├── prd.mdc                  # Product Requirements Document
@@ -167,6 +171,8 @@ autopiloot/
 │       ├── 32-zep-integration.mdc
 │       ├── 37-llm-observability.mdc
 │       ├── 40-assistant-alerts.mdc
+│       ├── 40-observability-ops-suite.mdc
+│       ├── 40-observability-send-error-alert-fix.mdc
 │       └── 41-audit-logging.mdc
 │
 └── # Implementation Documentation (Production Ready)
@@ -186,7 +192,7 @@ autopiloot/
 
 ### 1. Agency Swarm v1.0.0 Full Compliance
 - **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings
-- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (25 production tools)
+- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (31 production tools)
 - **Validation**: Comprehensive Pydantic Field validation throughout
 - **Returns**: JSON string responses from all tool `run()` methods
 - **Communication**: Proper agency_chart definition with CEO pattern
@@ -216,7 +222,7 @@ autopiloot/
 ScraperAgent (CEO)
 ├── → TranscriberAgent (workflow pipeline)
 │   └── → SummarizerAgent (content analysis)
-├── ↔ AssistantAgent (bidirectional monitoring)
+├── ↔ ObservabilityAgent (bidirectional monitoring)
 └── Direct communication with all agents
 ```
 
@@ -242,7 +248,7 @@ class GenerateShortSummary(BaseTool):  # in GenerateShortSummary.py
 from scraper_agent import scraper_agent
 from transcriber_agent import transcriber_agent
 from summarizer_agent import summarizer_agent  
-from assistant_agent import assistant_agent
+from observability_agent import observability_agent
 ```
 
 ### Configuration and Core
@@ -273,7 +279,7 @@ Unit Tests (isolated functionality)
 Integration Tests (API and service integration)
 ├── Transcriber Pipeline (56 tests across 5 tools)
 ├── Summarizer Workflows (47+ tests across 7 tools)  
-├── Assistant Monitoring (48 tests across 4 tools)
+├── Observability Monitoring (59+ tests across 10 tools)
 └── Scraper Discovery (35+ tests across 7 tools)
 
 End-to-End Tests
@@ -298,8 +304,8 @@ End-to-End Tests
    - API keys and authentication tokens
 
 3. **Infrastructure** (Optional but Recommended)
-   - Firebase Functions for scheduling
-   - Firestore security rules and indexes
+   - Firebase Functions for scheduling (services/firebase/)
+   - Firestore security rules and indexes (services/firestore/)
    - Google Drive folder structure
 
 ### Development Only
@@ -358,6 +364,6 @@ notifications:
 
 **Architecture Status**: Production Ready ✅  
 **Latest Update**: 2025-09-15  
-**Total Tools**: 25 across 4 agents  
-**Test Coverage**: 60+ comprehensive tests  
+**Total Tools**: 31 across 4 agents  
+**Test Coverage**: 70+ comprehensive tests  
 **Framework Compliance**: Agency Swarm v1.0.0 ✅
