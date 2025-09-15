@@ -28,7 +28,16 @@ End-to-end automation of content research, transcription, and summarization with
 
 ### 🤖 Agent Structure
 
-#### ScraperAgent (CEO)
+#### OrchestratorAgent (CEO)
+
+**Role**: End-to-end pipeline orchestration and policy enforcement
+
+- Plans daily runs (handles, per-channel limits, budget/quota windows)
+- Dispatches to Scraper/Transcriber/Summarizer
+- Enforces reliability policies (retry/backoff, checkpoints, DLQ)
+- Emits run events to Firestore; Observability consumes for alerts
+
+#### ScraperAgent
 
 **Role**: Content discovery and metadata management
 
@@ -187,6 +196,36 @@ autopiloot/
    ```bash
    python agency.py
    ```
+
+## 📚 Documentation Index
+
+- Project Overview
+  - [README.md](README.md)
+  - [QUICK_OVERVIEW.md](QUICK_OVERVIEW.md)
+  - [AGENTS_OVERVIEW.md](AGENTS_OVERVIEW.md)
+  - [agency_manifesto.md](agency_manifesto.md)
+- Agent Instructions
+  - [orchestrator_agent/instructions.md](orchestrator_agent/instructions.md)
+  - [scraper_agent/instructions.md](scraper_agent/instructions.md)
+  - [transcriber_agent/instructions.md](transcriber_agent/instructions.md)
+  - [summarizer_agent/instructions.md](summarizer_agent/instructions.md)
+  - [observability_agent/instructions.md](observability_agent/instructions.md)
+- Implementation Guides
+  - [IDEMPOTENCY_IMPLEMENTATION.md](IDEMPOTENCY_IMPLEMENTATION.md)
+  - [SHEETS_IMPLEMENTATION.md](SHEETS_IMPLEMENTATION.md)
+  - [RELIABILITY_IMPLEMENTATION.md](RELIABILITY_IMPLEMENTATION.md)
+  - [FIREBASE_IMPLEMENTATION.md](FIREBASE_IMPLEMENTATION.md)
+  - [AUDIT_LOGGING_IMPLEMENTATION.md](AUDIT_LOGGING_IMPLEMENTATION.md)
+- Testing & Environment
+  - [TESTING.md](TESTING.md)
+  - [ENVIRONMENT.md](ENVIRONMENT.md)
+- Firebase
+  - [firebase/DEPLOYMENT.md](firebase/DEPLOYMENT.md)
+  - [firebase/functions/README.md](firebase/functions/README.md)
+- Firestore
+  - [firestore/indexes.md](firestore/indexes.md)
+- Development Guidance
+  - [CLAUDE.md](CLAUDE.md)
 
 ## 🏗️ Technology Stack
 

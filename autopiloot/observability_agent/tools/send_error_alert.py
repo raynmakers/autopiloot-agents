@@ -14,8 +14,23 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 from env_loader import get_required_env_var
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
-from .format_slack_blocks import FormatSlackBlocks
-from .send_slack_message import SendSlackMessage
+# Import tools with fallback for direct execution
+try:
+    from .format_slack_blocks import FormatSlackBlocks
+    from .send_slack_message import SendSlackMessage
+except ImportError:
+    # Fallback for direct execution or testing
+    import sys
+    import os
+    tools_path = os.path.dirname(__file__)
+    sys.path.insert(0, tools_path)
+    
+    from format_slack_blocks import FormatSlackBlocks
+    from send_slack_message import SendSlackMessage
+
+# Import at module level for test patching compatibility
+FormatSlackBlocks = FormatSlackBlocks
+SendSlackMessage = SendSlackMessage
 
 
 class SendErrorAlert(BaseTool):
@@ -46,18 +61,21 @@ class SendErrorAlert(BaseTool):
             component = self.context.get("component", "Unknown")
             severity = self.context.get("severity", "HIGH")
             
+            # Use alert_type from context for throttling, or derive from severity
+            throttle_key = alert_type if "type" in self.context else self._map_severity_to_alert_type(severity)
+            
             # Check throttling before sending (1 alert per type per hour per TASK-AST-0040)
-            if not self._should_send_alert(alert_type):
+            if not self._should_send_alert(throttle_key):
                 return json.dumps({
                     "status": "THROTTLED",
-                    "message": f"Alert throttled: {alert_type} already sent within last hour",
+                    "message": f"Alert throttled: {throttle_key} already sent within last hour",
                     "alert_type": alert_type,
                     "throttle_remaining": "< 1 hour"
                 })
             
             # Load configuration
             config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", config, default="ops-autopiloot")
+            slack_channel = get_config_value("notifications.slack.channel", default="ops-autopiloot")
             
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):
@@ -86,7 +104,7 @@ class SendErrorAlert(BaseTool):
             
             if success:
                 # Record alert in throttling system
-                self._record_alert_sent(alert_type)
+                self._record_alert_sent(throttle_key)
                 
                 # Log error alert to audit trail (TASK-AUDIT-0041)
                 audit_logger.write_audit_log(
@@ -171,18 +189,21 @@ class SendErrorAlert(BaseTool):
         except Exception as e:
             print(f"Warning: Failed to record alert throttling: {str(e)}")
     
+    def _map_severity_to_alert_type(self, severity: str) -> str:
+        """Map severity level to alert type for Slack formatting."""
+        alert_type_map = {
+            "LOW": "warning",
+            "MEDIUM": "warning",
+            "HIGH": "error",
+            "CRITICAL": "error"
+        }
+        return alert_type_map.get(severity, "error")
+    
     def _send_slack_alert(self, channel: str, alert_items: Dict[str, Any], severity: str) -> bool:
         """Send alert to Slack using FormatSlackBlocks and SendSlackMessage tools."""
         try:
             # Determine alert type based on severity
-            alert_type_map = {
-                "LOW": "warning",
-                "MEDIUM": "warning",
-                "HIGH": "error",
-                "CRITICAL": "error"
-            }
-            
-            alert_type = alert_type_map.get(severity, "error")
+            alert_type = self._map_severity_to_alert_type(severity)
             
             # Format blocks
             formatter = FormatSlackBlocks(items=alert_items, alert_type=alert_type)

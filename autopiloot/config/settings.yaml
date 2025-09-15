@@ -1,5 +1,5 @@
 # Autopiloot Configuration File
-# Runtime settings for scraper, transcriber, summarizer, and assistant agents
+# Runtime settings for orchestrator, scraper, transcriber, summarizer, and observability agents
 
 # ID of the Google Sheet used for backfill links
 sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"

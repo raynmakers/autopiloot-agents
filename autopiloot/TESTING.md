@@ -8,18 +8,24 @@ The Autopiloot project uses Python's `unittest` framework for comprehensive test
 
 ### Test Philosophy
 
-- **Integration-focused**: Tests call real APIs and validate end-to-end functionality
-- **No mocking**: Tests use actual configuration and validate real behavior
-- **Comprehensive coverage**: All validation scenarios and edge cases tested
-- **Fast execution**: All tests complete in ~20ms
+- **Integration-focused**: Validate end-to-end functionality
+- **Selective mocking**: External services are mocked in unit tests; configs are real
+- **Comprehensive coverage**: Validation scenarios and edge cases
+- **Fast execution**: Test suite optimized for CI
 
 ## Test Structure
 
 ```
 tests/
-├── __init__.py              # Test package initialization
-├── test_config.py          # Configuration loader tests (11 test cases)
-└── test_audit_logger.py    # Audit logging tests (15 test cases)
+├── __init__.py
+├── test_config.py
+├── test_env_loader.py
+├── test_audit_logger.py
+├── test_reliability.py
+├── test_sheets.py
+├── test_send_slack_message.py
+├── test_send_error_alert.py
+└── ... (additional agent tool tests)
 ```
 
 ## Setup for Testing
@@ -106,11 +112,13 @@ The audit logging system has **15 comprehensive test cases** implementing TASK-A
 #### ✅ Core Functionality Test Cases
 
 1. **`test_basic_audit_log_creation`**
+
    - **Purpose**: Tests basic audit log entry creation and storage
    - **Validates**: Firestore document creation, required fields, timestamp formatting
    - **Assertions**: Document exists, all fields present, UTC ISO 8601 timestamp
 
 2. **`test_specialized_logging_methods`**
+
    - **Purpose**: Tests all specialized logging methods (video discovered, transcript created, etc.)
    - **Validates**: Agent-specific audit logging functionality
    - **Methods Tested**: log_video_discovered, log_transcript_created, log_summary_created, log_budget_alert
@@ -123,6 +131,7 @@ The audit logging system has **15 comprehensive test cases** implementing TASK-A
 #### ✅ Error Handling Test Cases
 
 4. **`test_firestore_connection_error`**
+
    - **Purpose**: Tests graceful handling of Firestore connection failures
    - **Expected**: Returns False but doesn't raise exceptions
    - **Validates**: Resilient error handling for external service failures

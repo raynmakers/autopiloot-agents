@@ -1,0 +1,91 @@
+---
+description: "Fix ObservabilityAgent send_error_alert tests and align module patch targets"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-OBS-0041"
+title: "Fix Observability send_error_alert tests (patch targets, throttling, alert types)"
+status: "planned"
+priority: "P0"
+labels: ["observability", "alerts", "tests"]
+dependencies: ["40-assistant-alerts.mdc", "40-observability-ops-suite.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Make `observability_agent/tools/send_error_alert.py` fully compatible with existing tests by exposing patchable symbols, aligning throttling and alert type mappings, and returning expected JSON statuses.
+
+# 2) Background / Context
+
+After renaming Assistant → Observability, tests in `tests/test_send_error_alert.py` fail due to different import paths and expectations (e.g., `FormatSlackBlocks` patch target, alert_type names, return statuses).
+
+# 3) Assumptions & Constraints
+
+- Keep tool return values as JSON strings.
+- Do not change test contracts; update tool code to satisfy tests.
+- No external Slack/Firestore calls during tests (patched).
+
+# 4) Dependencies
+
+- tests/test_send_error_alert.py (read-only)
+- observability_agent/tools/format_slack_blocks.py (read-only)
+- observability_agent/tools/send_slack_message.py (read-only)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- observability_agent/tools/send_error_alert.py
+- tests/test*send_error_alert.py *(read-only)\_
+
+End state (must exist after completion):
+
+- observability_agent/tools/send_error_alert.py (updated)
+- All tests in `tests/test_send_error_alert.py` pass
+
+# 6) Low-Level Steps (Ordered)
+
+1. Expose patch targets at module scope:
+
+   - Import `FormatSlackBlocks` and `SendSlackMessage` at top-level so tests can `patch('observability_agent.tools.send_error_alert.FormatSlackBlocks')`.
+
+2. Align alert type mapping and throttling keys:
+
+   - Map severity → alert_type exactly as tests expect (e.g., `api_quota` when present in context; otherwise severity map).
+   - For throttling, use document key equal to `alert_type` from context when provided; default to derived type.
+
+3. Return statuses to match tests:
+
+   - Success: `{ "status": "SENT", ... }`
+   - Slack failure: `{ "status": "FAILED", ... }`
+   - Throttled: `{ "status": "THROTTLED", ... }`
+   - Unexpected exception: `{ "status": "ERROR", "error": ... }`
+
+4. Ensure channel prefix handling (`#`), and include `alert_type` in response body.
+
+5. Run and fix remaining mismatches by reading assertions in tests and adjusting field names accordingly.
+
+# 7) Types & Interfaces
+
+```python
+from typing import TypedDict, Dict, Any
+
+class SendErrorAlertResponse(TypedDict):
+    status: str
+    message: str
+    alert_type: str
+    component: str
+    channel: str
+```
+
+# 8) Acceptance Criteria
+
+- All tests in `tests/test_send_error_alert.py` pass locally
+- No changes required in the tests themselves
+- Tool keeps Agency Swarm conventions (BaseTool, Pydantic Fields, JSON string returns)
+
+# 9) Testing Strategy
+
+- Run `python -m unittest tests.test_send_error_alert -v`
+- Iterate until all assertions pass

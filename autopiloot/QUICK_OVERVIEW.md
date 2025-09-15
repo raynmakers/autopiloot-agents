@@ -13,13 +13,14 @@ Autopiloot is an **automated YouTube content processing pipeline** that:
 ## 🏗️ System Architecture
 
 ```
-ScraperAgent (CEO) → discovers videos, manages workflow
+OrchestratorAgent (CEO) → plans/dispatches/enforces policies
+    ↓
+ScraperAgent → discovers videos, saves metadata, enqueues jobs
     ↓
 TranscriberAgent → extracts audio, creates transcripts
     ↓
 SummarizerAgent → generates coaching-focused summaries
-    ↑↓
-ObservabilityAgent → monitors budgets, sends alerts
+ObservabilityAgent → monitors budgets/health, sends alerts
 ```
 
 **Data Flow**: Firestore acts as event broker, triggering the next agent when status changes.
