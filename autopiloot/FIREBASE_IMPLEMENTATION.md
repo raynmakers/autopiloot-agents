@@ -8,11 +8,11 @@ This document summarizes the Firebase Functions v2 implementation for Autopiloot
 
 ### Core Implementation
 
-- `firebase/functions/main.py` - Main functions implementation
-- `firebase/functions/__init__.py` - Package initialization
-- `firebase/functions/requirements.txt` - Python dependencies
-- `firebase/functions/README.md` - Detailed documentation
-- `firebase/functions/test_simple.py` - Basic verification tests
+- `services/firebase/functions/main.py` - Main functions implementation
+- `services/firebase/functions/__init__.py` - Package initialization
+- `services/firebase/functions/requirements.txt` - Python dependencies
+- `services/firebase/functions/README.md` - Detailed documentation
+- `services/firebase/functions/test_simple.py` - Basic verification tests
 
 ### Configuration Files
 
@@ -23,8 +23,8 @@ This document summarizes the Firebase Functions v2 implementation for Autopiloot
 
 ### Documentation
 
-- `firebase/DEPLOYMENT.md` - Complete deployment guide
-- `firebase/functions/README.md` - Functions documentation
+- `services/firebase/DEPLOYMENT.md` - Complete deployment guide
+- `services/firebase/functions/README.md` - Functions documentation
 
 ## 🔧 Functions Implemented
 
@@ -115,7 +115,7 @@ firebase functions:config:set slack.bot_token="xoxb-your-token"
 firebase deploy --only functions,firestore:rules,firestore:indexes
 ```
 
-See `firebase/DEPLOYMENT.md` for complete deployment instructions.
+See `services/firebase/DEPLOYMENT.md` for complete deployment instructions.
 
 ## 🔒 Security Features
 

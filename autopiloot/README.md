@@ -220,10 +220,10 @@ autopiloot/
   - [TESTING.md](TESTING.md)
   - [ENVIRONMENT.md](ENVIRONMENT.md)
 - Firebase
-  - [firebase/DEPLOYMENT.md](firebase/DEPLOYMENT.md)
-  - [firebase/functions/README.md](firebase/functions/README.md)
+  - [services/firebase/DEPLOYMENT.md](services/firebase/DEPLOYMENT.md)
+  - [services/firebase/functions/README.md](services/firebase/functions/README.md)
 - Firestore
-  - [firestore/indexes.md](firestore/indexes.md)
+  - [services/firestore/indexes.md](services/firestore/indexes.md)
 - Development Guidance
   - [CLAUDE.md](CLAUDE.md)
 

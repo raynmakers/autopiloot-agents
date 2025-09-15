@@ -110,7 +110,7 @@ cp env.template .env
 
 - **Scheduled**: Daily scraping at 01:00 Europe/Amsterdam via Cloud Scheduler
 - **Event-Driven**: Budget monitoring triggered by Firestore document writes
-- **Deployment**: Manual via Firebase CLI with service account authentication
+- **Deployment**: Manual via Firebase CLI with service account authentication (functions in services/firebase/)
 - **Configuration**: Functions import agency classes directly, reuse environment config
 
 ## Critical Implementation Details
@@ -202,7 +202,7 @@ All tools return consistent JSON error structures:
 ### Functions Structure
 
 ```
-firebase/functions/
+services/firebase/functions/
 ├── main.py          # Entry points
 ├── scheduler.py     # Scheduled and event-driven functions
 ├── core.py          # Utilities
