@@ -37,7 +37,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 2. Configure environment
-cp ../.env.template .env
+cp .env.template .env
 # Edit .env with your API keys (see below for required keys)
 
 # 3. Validate setup

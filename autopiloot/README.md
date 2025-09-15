@@ -173,7 +173,7 @@ autopiloot/
 2. **Configure credentials:**
 
    ```bash
-   cp ../.env.template .env
+   cp .env.template .env
    # Edit .env with your API keys (see ENVIRONMENT.md for details)
 
    # Validate configuration

@@ -7,7 +7,7 @@ This document explains how to configure environment variables for the Autopiloot
 1. **Copy the template:**
 
    ```bash
-   cp ../.env.template .env
+   cp .env.template .env
    ```
 
 2. **Fill in your API keys and credentials in `.env`**
@@ -127,7 +127,7 @@ Missing required environment variables:
   - OPENAI_API_KEY: OpenAI API key for LLM operations
 ```
 
-**Solution**: Copy `../.env.template` to `.env` and fill in the missing values.
+**Solution**: Copy `.env.template` to `.env` and fill in the missing values.
 
 ### File Not Found
 
