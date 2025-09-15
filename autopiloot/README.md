@@ -200,9 +200,9 @@ autopiloot/
 
 - Project Overview
   - [README.md](README.md)
-  - [documentation/QUICK_OVERVIEW.md](documentation/QUICK_OVERVIEW.md)
-  - [documentation/AGENTS_OVERVIEW.md](documentation/AGENTS_OVERVIEW.md)
-  - [documentation/agency_manifesto.md](documentation/agency_manifesto.md)
+  - [docs/QUICK_OVERVIEW.md](docs/QUICK_OVERVIEW.md)
+  - [docs/AGENTS_OVERVIEW.md](docs/AGENTS_OVERVIEW.md)
+  - [docs/agency_manifesto.md](docs/agency_manifesto.md)
 - Agent Instructions
   - [orchestrator_agent/instructions.md](orchestrator_agent/instructions.md)
   - [scraper_agent/instructions.md](scraper_agent/instructions.md)
@@ -210,21 +210,21 @@ autopiloot/
   - [summarizer_agent/instructions.md](summarizer_agent/instructions.md)
   - [observability_agent/instructions.md](observability_agent/instructions.md)
 - Implementation Guides
-  - [documentation/IDEMPOTENCY_IMPLEMENTATION.md](documentation/IDEMPOTENCY_IMPLEMENTATION.md)
-  - [documentation/SHEETS_IMPLEMENTATION.md](documentation/SHEETS_IMPLEMENTATION.md)
-  - [documentation/RELIABILITY_IMPLEMENTATION.md](documentation/RELIABILITY_IMPLEMENTATION.md)
-  - [documentation/FIREBASE_IMPLEMENTATION.md](documentation/FIREBASE_IMPLEMENTATION.md)
-  - [documentation/AUDIT_LOGGING_IMPLEMENTATION.md](documentation/AUDIT_LOGGING_IMPLEMENTATION.md)
+  - [docs/IDEMPOTENCY_IMPLEMENTATION.md](docs/IDEMPOTENCY_IMPLEMENTATION.md)
+  - [docs/SHEETS_IMPLEMENTATION.md](docs/SHEETS_IMPLEMENTATION.md)
+  - [docs/RELIABILITY_IMPLEMENTATION.md](docs/RELIABILITY_IMPLEMENTATION.md)
+  - [docs/FIREBASE_IMPLEMENTATION.md](docs/FIREBASE_IMPLEMENTATION.md)
+  - [docs/AUDIT_LOGGING_IMPLEMENTATION.md](docs/AUDIT_LOGGING_IMPLEMENTATION.md)
 - Testing & Environment
-  - [documentation/TESTING.md](documentation/TESTING.md)
-  - [documentation/ENVIRONMENT.md](documentation/ENVIRONMENT.md)
+  - [docs/TESTING.md](docs/TESTING.md)
+  - [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)
 - Firebase
   - [services/firebase/DEPLOYMENT.md](services/firebase/DEPLOYMENT.md)
   - [services/firebase/functions/README.md](services/firebase/functions/README.md)
 - Firestore
   - [services/firestore/indexes.md](services/firestore/indexes.md)
 - Development Guidance
-  - [documentation/CLAUDE.md](documentation/CLAUDE.md)
+  - [docs/CLAUDE.md](docs/CLAUDE.md)
 
 ## 🏗️ Technology Stack
 
@@ -429,10 +429,10 @@ firebase emulators:start --only functions,firestore
 
 ## 📚 Documentation
 
-- **[documentation/CLAUDE.md](documentation/CLAUDE.md)** - Development guidance and common commands
-- **[documentation/TESTING.md](documentation/TESTING.md)** - Comprehensive testing instructions
-- **[documentation/ENVIRONMENT.md](documentation/ENVIRONMENT.md)** - Environment setup guide
-- **[documentation/AUDIT_LOGGING_IMPLEMENTATION.md](documentation/AUDIT_LOGGING_IMPLEMENTATION.md)** - Security compliance details
+- **[docs/CLAUDE.md](docs/CLAUDE.md)** - Development guidance and common commands
+- **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing instructions
+- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** - Environment setup guide
+- **[docs/AUDIT_LOGGING_IMPLEMENTATION.md](docs/AUDIT_LOGGING_IMPLEMENTATION.md)** - Security compliance details
 - **[planning/prd.mdc](planning/prd.mdc)** - Product requirements document
 - **[ADR System](.cursor/rules/ADR.mdc)** - Architectural decision records
 
