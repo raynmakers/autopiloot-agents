@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 
 id: "TASK-DOC-0055"
-title: "Documentation — CHANGELOG.md, tasks accuracy, GitHub roadmap"
+title: "Documentation — changelog.md, tasks accuracy, GitHub roadmap"
 status: "planned"
 priority: "P1"
 labels: ["docs", "roadmap"]
@@ -14,12 +14,12 @@ created: "2025-09-15"
 
 # Objective
 
-Create CHANGELOG.md, keep TASKS.md in sync, and generate a GitHub-friendly roadmap.
+Create changelog.md, keep docs/tasks.md in sync, and generate a GitHub-friendly roadmap.
 
 # Steps
 
-1. Add `CHANGELOG.md` following Keep a Changelog format.
-2. Update `TASKS.md` programmatically from `planning/tasks/*.mdc` statuses.
+1. Add `changelog.md` following Keep a Changelog format.
+2. Update `docs/tasks.md` programmatically from `planning/tasks/*.mdc` statuses.
 3. Create `.github/ROADMAP.md` summarizing milestones and linking tasks.
 
 # Acceptance

@@ -11,7 +11,7 @@ This document summarizes the Firebase Functions v2 implementation for Autopiloot
 - `services/firebase/functions/main.py` - Main functions implementation
 - `services/firebase/functions/__init__.py` - Package initialization
 - `services/firebase/functions/requirements.txt` - Python dependencies
-- `services/firebase/functions/README.md` - Detailed documentation
+- `services/firebase/functions/readme.md` - Detailed documentation
 - `services/firebase/functions/test_simple.py` - Basic verification tests
 
 ### Configuration Files
@@ -24,7 +24,7 @@ This document summarizes the Firebase Functions v2 implementation for Autopiloot
 ### Documentation
 
 - `services/firebase/DEPLOYMENT.md` - Complete deployment guide
-- `services/firebase/functions/README.md` - Functions documentation
+- `services/firebase/functions/readme.md` - Functions documentation
 
 ## 🔧 Functions Implemented
 

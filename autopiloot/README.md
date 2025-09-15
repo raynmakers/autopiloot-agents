@@ -36,6 +36,7 @@ End-to-end automation of content research, transcription, and summarization with
 - Dispatches to Scraper/Transcriber/Summarizer
 - Enforces reliability policies (retry/backoff, checkpoints, DLQ)
 - Emits run events to Firestore; Observability consumes for alerts
+- **8 tools**: dispatch_scraper, dispatch_summarizer, dispatch_transcriber, emit_run_events, enforce_policies, handle_dlq, plan_daily_run, query_dlq
 
 #### ScraperAgent
 
@@ -45,6 +46,7 @@ End-to-end automation of content research, transcription, and summarization with
 - Google Sheets backfill processing
 - Video metadata storage with business rule validation (70-min limit)
 - Transcription job queue management
+- **7 tools**: EnqueueTranscription, ExtractYouTubeFromPage, ListRecentUploads, ReadSheetLinks, RemoveSheetRow, ResolveChannelHandles, SaveVideoMetadata
 
 #### TranscriberAgent
 
@@ -54,6 +56,7 @@ End-to-end automation of content research, transcription, and summarization with
 - Dual-format storage (JSON + TXT) to Google Drive
 - Cost tracking and budget monitoring integration
 - Firestore transcript metadata management
+- **5 tools**: get_video_audio_url, poll_transcription_job, save_transcript_record, store_transcript_to_drive, submit_assemblyai_job
 
 #### SummarizerAgent
 
@@ -63,6 +66,7 @@ End-to-end automation of content research, transcription, and summarization with
 - Zep GraphRAG storage for semantic search
 - Multi-platform persistence (Firestore, Drive, Zep)
 - Enhanced metadata and reference linking
+- **6 tools**: generate_short_summary, ProcessSummaryWorkflow, save_summary_record, SaveSummaryRecordEnhanced, store_short_in_zep, store_short_summary_to_drive
 
 #### ObservabilityAgent
 
@@ -72,6 +76,7 @@ End-to-end automation of content research, transcription, and summarization with
 - Slack notifications with 1-per-type-per-hour throttling
 - Error alerting and operational health monitoring
 - Rich Slack Block Kit formatting for notifications
+- **10 tools**: alert_engine, format_slack_blocks, llm_observability_metrics, monitor_dlq_trends, monitor_quota_state, monitor_transcription_budget, report_daily_summary, send_error_alert, send_slack_message, stuck_job_scanner
 
 ## Project Structure
 
@@ -79,6 +84,18 @@ End-to-end automation of content research, transcription, and summarization with
 autopiloot/
 ├── agency.py                     # Main agency orchestration
 ├── agency_manifesto.md           # Shared operational standards
+├── orchestrator_agent/
+│   ├── orchestrator_agent.py    # Agent definition and configuration
+│   ├── instructions.md          # Agent-specific workflows
+│   └── tools/                   # 8 orchestration tools
+│       ├── dispatch_scraper.py
+│       ├── dispatch_summarizer.py
+│       ├── dispatch_transcriber.py
+│       ├── emit_run_events.py
+│       ├── enforce_policies.py
+│       ├── handle_dlq.py
+│       ├── plan_daily_run.py
+│       └── query_dlq.py
 ├── scraper_agent/
 │   ├── scraper_agent.py         # Agent definition and configuration
 │   ├── instructions.md          # Agent-specific workflows
@@ -102,22 +119,27 @@ autopiloot/
 ├── summarizer_agent/
 │   ├── summarizer_agent.py      # Agent definition
 │   ├── instructions.md
-│   └── tools/                   # 8 summary tools
-│       ├── GenerateShortSummary.py
-│       ├── StoreShortInZep.py
-│       ├── StoreShortSummaryToDrive.py
-│       ├── SaveSummaryRecord.py
+│   └── tools/                   # 6 summary tools
+│       ├── generate_short_summary.py
+│       ├── ProcessSummaryWorkflow.py
+│       ├── save_summary_record.py
 │       ├── SaveSummaryRecordEnhanced.py
-│       ├── UpsertSummaryToZep.py
-│       └── ProcessSummaryWorkflow.py
+│       ├── store_short_in_zep.py
+│       └── store_short_summary_to_drive.py
 ├── observability_agent/
 │   ├── observability_agent.py   # Agent definition
 │   ├── instructions.md
-│   └── tools/                   # 4 monitoring tools
+│   └── tools/                   # 10 monitoring tools
+│       ├── alert_engine.py
 │       ├── format_slack_blocks.py
-│       ├── send_slack_message.py
+│       ├── llm_observability_metrics.py
+│       ├── monitor_dlq_trends.py
+│       ├── monitor_quota_state.py
 │       ├── monitor_transcription_budget.py
-│       └── send_error_alert.py
+│       ├── report_daily_summary.py
+│       ├── send_error_alert.py
+│       ├── send_slack_message.py
+│       └── stuck_job_scanner.py
 ├── core/
 │   ├── audit_logger.py          # TASK-AUDIT-0041: Centralized audit logging
 │   ├── reliability.py          # Dead letter queue and retry logic
@@ -127,27 +149,42 @@ autopiloot/
 │   ├── settings.yaml           # Runtime configuration
 │   ├── loader.py              # Configuration management
 │   └── env_loader.py          # Environment validation
-├── firebase/
-│   ├── functions/             # Firebase Functions v2 for scheduling
-│   │   ├── main.py           # Entry points
-│   │   ├── scheduler.py      # Scheduled and event-driven functions
-│   │   └── requirements.txt  # Firebase dependencies
-│   ├── firebase.json         # Firebase project configuration
-│   ├── firestore.rules      # Security rules (admin-only)
-│   └── firestore.indexes.json
-├── tests/                     # Comprehensive test suite
-│   ├── test_config.py        # Configuration tests (11 tests)
-│   ├── test_env_loader.py    # Environment tests (17 tests)
-│   ├── test_audit_logger.py  # Audit logging tests (15 tests)
-│   └── [25 additional test files]
+├── services/
+│   ├── firebase/
+│   │   ├── functions/         # Firebase Functions v2 for scheduling
+│   │   │   ├── main.py       # Entry points
+│   │   │   ├── scheduler.py  # Scheduled and event-driven functions
+│   │   │   └── requirements.txt  # Firebase dependencies
+│   │   └── deployment.md     # Deployment guide
+│   └── firestore/
+│       └── indexes.md        # Firestore index configuration
+├── tests/                     # Comprehensive test suite (32 test files)
+│   ├── test_config.py        # Configuration tests
+│   ├── test_env_loader.py    # Environment tests
+│   ├── test_audit_logger.py  # Audit logging tests
+│   └── [29 additional test files]
 ├── planning/
-│   ├── prd.mdc              # Product Requirements Document
-│   └── tasks/               # Implementation tasks (22 completed)
-├── CLAUDE.md                # Development guidance for Claude Code
-├── TESTING.md              # Comprehensive testing guide
-├── ENVIRONMENT.md          # Environment setup guide
-├── AUDIT_LOGGING_IMPLEMENTATION.md
-├── requirements.txt        # Python dependencies
+│   ├── tasks.md              # Active task tracking
+│   └── archive/              # Completed tasks and documentation
+├── docs/                     # Comprehensive documentation
+│   ├── claude.md            # Development guidance for Claude Code
+│   ├── testing.md           # Testing guide
+│   ├── environment.md       # Environment setup guide
+│   ├── agents_overview.md   # Agent architecture overview
+│   ├── quick_overview.md    # Project quick start
+│   ├── contracts.md         # API contracts
+│   ├── module_execution.md  # Module execution patterns
+│   ├── firebase_implementation.md
+│   ├── audit_logging_implementation.md
+│   ├── idempotency_implementation.md
+│   ├── reliability_implementation.md
+│   └── sheets_implementation.md
+├── firebase.json              # Firebase project configuration
+├── firestore.rules           # Security rules (admin-only)
+├── firestore.indexes.json    # Firestore composite indexes
+├── changelog.md              # Project change history
+├── requirements.txt          # Python dependencies
+└── pyproject.toml           # Python project configuration
 ```
 
 ## 🚀 Quick Start
@@ -174,7 +211,7 @@ autopiloot/
 
    ```bash
    cp .env.template .env
-   # Edit .env with your API keys (see ENVIRONMENT.md for details)
+   # Edit .env with your API keys (see docs/environment.md for details)
 
    # Validate configuration
    python config/env_loader.py
@@ -199,7 +236,7 @@ autopiloot/
 ## 📚 Documentation Index
 
 - Project Overview
-  - [README.md](README.md)
+  - [readme.md](readme.md)
   - [docs/QUICK_OVERVIEW.md](docs/QUICK_OVERVIEW.md)
   - [docs/AGENTS_OVERVIEW.md](docs/AGENTS_OVERVIEW.md)
   - [docs/agency_manifesto.md](docs/agency_manifesto.md)
@@ -216,15 +253,15 @@ autopiloot/
   - [docs/FIREBASE_IMPLEMENTATION.md](docs/FIREBASE_IMPLEMENTATION.md)
   - [docs/AUDIT_LOGGING_IMPLEMENTATION.md](docs/AUDIT_LOGGING_IMPLEMENTATION.md)
 - Testing & Environment
-  - [docs/TESTING.md](docs/TESTING.md)
-  - [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)
+  - [docs/testing.md](docs/testing.md)
+  - [docs/environment.md](docs/environment.md)
 - Firebase
   - [services/firebase/DEPLOYMENT.md](services/firebase/DEPLOYMENT.md)
-  - [services/firebase/functions/README.md](services/firebase/functions/README.md)
+  - [services/firebase/functions/readme.md](services/firebase/functions/readme.md)
 - Firestore
   - [services/firestore/indexes.md](services/firestore/indexes.md)
 - Development Guidance
-  - [docs/CLAUDE.md](docs/CLAUDE.md)
+  - [docs/claude.md](docs/claude.md)
 
 ## 🏗️ Technology Stack
 
@@ -338,28 +375,30 @@ reliability:
 
 ## 🧪 Testing Framework
 
-Comprehensive test suite with **60+ tests** across all components:
+Comprehensive test suite with **32 test files** across all components:
 
 ```bash
 # Run all tests
 python -m unittest discover tests -v
 
 # Component-specific tests
-python -m unittest tests.test_audit_logger -v     # Audit logging (15 tests)
-python -m unittest tests.test_config -v           # Configuration (11 tests)
-python -m unittest tests.test_reliability -v      # Error handling (22 tests)
-python -m unittest tests.test_sheets -v           # Google Sheets (18 tests)
+python -m unittest tests.test_audit_logger -v     # Audit logging tests
+python -m unittest tests.test_config -v           # Configuration tests
+python -m unittest tests.test_reliability -v      # Error handling tests
+python -m unittest tests.test_sheets -v           # Google Sheets tests
+python -m unittest tests.test_observability_ops -v # Observability suite
+python -m unittest tests.test_send_error_alert -v  # Error alerting tests
 
 # Tool integration tests
 python scraper_agent/tools/SaveVideoMetadata.py
 python transcriber_agent/tools/poll_transcription_job.py
-python summarizer_agent/tools/GenerateShortSummary.py
+python summarizer_agent/tools/generate_short_summary.py
 python observability_agent/tools/send_error_alert.py
 ```
 
 **Test Coverage:**
 
-- ✅ All 25 production tools with standalone test blocks
+- ✅ All 36 production tools with standalone test blocks (8+7+5+6+10 across agents)
 - ✅ Configuration loading and validation
 - ✅ Environment variable management
 - ✅ Error handling and retry logic
@@ -408,15 +447,15 @@ firebase emulators:start --only functions,firestore
 
 ## 📋 Implementation Status
 
-### ✅ Completed (22/22 tasks)
+### ✅ Completed (All planned tasks)
 
-- **Configuration System**: YAML + environment validation (28 tests)
-- **Agent Architecture**: 4 agents with 25 production tools
+- **Configuration System**: YAML + environment validation
+- **Agent Architecture**: 5 agents with 36 production tools (OrchestratorAgent added)
 - **Core Infrastructure**: Firebase Functions, Firestore, scheduling
 - **Reliability System**: Dead letter queues, retry logic, quota management
-- **Audit Logging**: TASK-AUDIT-0041 compliance with 15 tests
-- **Comprehensive Testing**: 60+ tests across all components
-- **Documentation**: ADR system, testing guides, deployment docs
+- **Audit Logging**: TASK-AUDIT-0041 compliance
+- **Comprehensive Testing**: 32 test files across all components
+- **Documentation**: Complete documentation suite with ADR system
 
 ### 🎯 Production Ready Features
 
@@ -429,9 +468,9 @@ firebase emulators:start --only functions,firestore
 
 ## 📚 Documentation
 
-- **[docs/CLAUDE.md](docs/CLAUDE.md)** - Development guidance and common commands
-- **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing instructions
-- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** - Environment setup guide
+- **[docs/claude.md](docs/claude.md)** - Development guidance and common commands
+- **[docs/testing.md](docs/testing.md)** - Comprehensive testing instructions
+- **[docs/environment.md](docs/environment.md)** - Environment setup guide
 - **[docs/AUDIT_LOGGING_IMPLEMENTATION.md](docs/AUDIT_LOGGING_IMPLEMENTATION.md)** - Security compliance details
 - **[planning/prd.mdc](planning/prd.mdc)** - Product requirements document
 - **[ADR System](.cursor/rules/ADR.mdc)** - Architectural decision records
@@ -454,11 +493,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - **Agency Swarm**: [Documentation](https://agency-swarm.ai) | [GitHub](https://github.com/VRSEN/agency-swarm)
 - **Project Issues**: Create GitHub issues for bugs or feature requests
-- **Development**: See CLAUDE.md for common development patterns
+- **Development**: See docs/claude.md for common development patterns
 
 ---
 
-**Status**: Production Ready ✅  
-**Latest Update**: 2025-09-15  
-**Agent Count**: 4 agents, 25 tools  
-**Test Coverage**: 60+ comprehensive tests
+**Status**: Production Ready ✅
+**Latest Update**: 2025-09-16
+**Agent Count**: 5 agents, 36 tools
+**Test Coverage**: 32 comprehensive test files

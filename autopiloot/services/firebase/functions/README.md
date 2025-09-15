@@ -72,7 +72,7 @@ firebase/functions/
 ├── scheduler.py         # Scheduled and event-driven function implementations
 ├── core.py             # Shared utilities and error handling
 ├── requirements.txt    # Python dependencies for Firebase runtime
-└── README.md          # This documentation
+└── readme.md          # This documentation
 ```
 
 ## Configuration

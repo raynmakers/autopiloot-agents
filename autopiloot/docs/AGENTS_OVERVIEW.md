@@ -4,9 +4,10 @@ This document provides detailed information about each agent in the Autopiloot A
 
 ## Agent Architecture
 
-The Autopiloot Agency consists of 4 specialized agents following the Agency Swarm v1.0.0 framework:
+The Autopiloot Agency consists of 5 specialized agents following the Agency Swarm v1.0.0 framework:
 
-- **ScraperAgent** (CEO) - Content discovery and orchestration
+- **OrchestratorAgent** (CEO) - End-to-end pipeline orchestration and policy enforcement
+- **ScraperAgent** - Content discovery and metadata management
 - **TranscriberAgent** - Audio processing and transcription
 - **SummarizerAgent** - Content analysis and summarization
 - **ObservabilityAgent** - Operations monitoring and alerting
@@ -14,21 +15,58 @@ The Autopiloot Agency consists of 4 specialized agents following the Agency Swar
 ## Communication Flow
 
 ```
-ScraperAgent (CEO)
+OrchestratorAgent (CEO)
     ↓ ↑
-    ├── TranscriberAgent
+    ├── ScraperAgent
     │   ↓ ↑
-    │   └── SummarizerAgent
+    │   ├── TranscriberAgent
+    │   │   ↓ ↑
+    │   │   └── SummarizerAgent
     ↓ ↑
 ObservabilityAgent (monitoring all)
 ```
 
 ---
 
-## 🔍 ScraperAgent (CEO)
+## 🎛️ OrchestratorAgent (CEO)
 
-**Role**: Content discovery and metadata management  
-**Status**: CEO (can communicate with all agents)  
+**Role**: End-to-end pipeline orchestration and policy enforcement
+**Status**: CEO (can communicate with all agents)
+**Tools**: 8 orchestration and coordination tools
+
+### Primary Functions
+
+- **Daily Run Planning**: Handle channel limits, budget windows, quota management
+- **Agent Dispatching**: Coordinate Scraper → Transcriber → Summarizer workflows
+- **Policy Enforcement**: Reliability policies, retry/backoff, checkpoints, DLQ management
+- **Event Management**: Emit run events to Firestore for observability monitoring
+
+### Tools Overview
+
+| Tool                      | Purpose                                           | Integration                   |
+| ------------------------- | ------------------------------------------------- | ----------------------------- |
+| `plan_daily_run.py`       | Plan daily scraping runs with resource allocation | Configuration + Firestore     |
+| `dispatch_scraper.py`     | Coordinate ScraperAgent execution                 | Agent Communication           |
+| `dispatch_transcriber.py` | Coordinate TranscriberAgent execution             | Agent Communication           |
+| `dispatch_summarizer.py`  | Coordinate SummarizerAgent execution              | Agent Communication           |
+| `emit_run_events.py`      | Emit operational events for monitoring            | Firestore Event Publishing    |
+| `enforce_policies.py`     | Enforce reliability and business policies         | Configuration + Validation    |
+| `handle_dlq.py`           | Process dead letter queue failures               | DLQ Management + Retry Logic  |
+| `query_dlq.py`            | Query and analyze DLQ trends                     | Firestore Analytics           |
+
+### Key Features
+
+- **Resource Management**: Daily limits, budget allocation, quota tracking
+- **Reliability Coordination**: DLQ handling, retry policies, checkpoint management
+- **Agent Coordination**: Neutral orchestration without operational bias
+- **Event Publishing**: Structured events for observability and monitoring
+
+---
+
+## 🔍 ScraperAgent
+
+**Role**: Content discovery and metadata management
+**Communication**: Dispatched by OrchestratorAgent
 **Tools**: 7 specialized discovery and management tools
 
 ### Primary Functions
@@ -108,9 +146,9 @@ scraper:
 
 ## 📝 SummarizerAgent
 
-**Role**: Content analysis and insight generation  
-**Communication**: TranscriberAgent → SummarizerAgent  
-**Tools**: 8 advanced summarization and storage tools
+**Role**: Content analysis and insight generation
+**Communication**: TranscriberAgent → SummarizerAgent
+**Tools**: 6 advanced summarization and storage tools
 
 ### Primary Functions
 
@@ -123,12 +161,11 @@ scraper:
 
 | Tool                           | Purpose                                     | Integration                   |
 | ------------------------------ | ------------------------------------------- | ----------------------------- |
-| `GenerateShortSummary.py`      | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
-| `StoreShortInZep.py`           | Save to Zep GraphRAG for semantic search    | Zep API                       |
-| `StoreShortSummaryToDrive.py`  | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
-| `SaveSummaryRecord.py`         | Basic Firestore summary records             | Firestore                     |
+| `generate_short_summary.py`    | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
+| `store_short_in_zep.py`        | Save to Zep GraphRAG for semantic search    | Zep API                       |
+| `store_short_summary_to_drive.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
+| `save_summary_record.py`       | Basic Firestore summary records             | Firestore                     |
 | `SaveSummaryRecordEnhanced.py` | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
-| `UpsertSummaryToZep.py`        | Advanced Zep integration with RAG refs      | Zep API + Enhanced Metadata   |
 | `ProcessSummaryWorkflow.py`    | End-to-end orchestration tool               | Multi-platform Coordination   |
 
 ### Key Features
@@ -155,9 +192,9 @@ llm:
 
 ## 🚨 ObservabilityAgent
 
-**Role**: Operations monitoring and alerting  
-**Communication**: Monitors all agents, sends alerts  
-**Tools**: 4 comprehensive monitoring and notification tools
+**Role**: Operations monitoring and alerting
+**Communication**: Monitors all agents, sends alerts
+**Tools**: 10 comprehensive monitoring and notification tools
 
 ### Primary Functions
 
@@ -170,10 +207,16 @@ llm:
 
 | Tool                              | Purpose                                                 | Integration         |
 | --------------------------------- | ------------------------------------------------------- | ------------------- |
+| `alert_engine.py`                 | Centralized alerting with throttling and deduplication | Firestore + Slack   |
 | `format_slack_blocks.py`          | Create rich Slack Block Kit notifications               | Slack Block Kit API |
-| `send_slack_message.py`           | Send formatted messages to configured channels          | Slack API           |
+| `llm_observability_metrics.py`    | Track LLM usage, costs, and performance metrics         | Firestore + Langfuse |
+| `monitor_dlq_trends.py`           | Analyze dead letter queue patterns and anomalies       | Firestore Analytics |
+| `monitor_quota_state.py`          | Track API quotas and rate limiting status              | Multi-API Monitoring |
 | `monitor_transcription_budget.py` | Track daily spending with threshold alerts              | Firestore + Slack   |
+| `report_daily_summary.py`         | Generate comprehensive operational summaries           | Firestore + Slack   |
 | `send_error_alert.py`             | Error notifications with 1-per-type-per-hour throttling | Firestore + Slack   |
+| `send_slack_message.py`           | Send formatted messages to configured channels          | Slack API           |
+| `stuck_job_scanner.py`            | Detect and alert on stale jobs across collections      | Firestore Analytics |
 
 ### Key Features
 
@@ -222,17 +265,18 @@ All agent tools follow consistent patterns:
 
 ### Message Flow
 
-1. **ScraperAgent** discovers videos and creates transcription jobs
-2. **TranscriberAgent** processes audio and stores transcripts
-3. **SummarizerAgent** generates summaries with multi-platform storage
-4. **ObservabilityAgent** monitors costs and sends alerts throughout
+1. **OrchestratorAgent** plans daily runs and dispatches agents
+2. **ScraperAgent** discovers videos and creates transcription jobs
+3. **TranscriberAgent** processes audio and stores transcripts
+4. **SummarizerAgent** generates summaries with multi-platform storage
+5. **ObservabilityAgent** monitors costs and sends alerts throughout
 
 ### Status Progression
 
 ```
-discovered → transcription_queued → transcribed → summarized
-     ↓              ↓                    ↓            ↓
-  ScraperAgent  TranscriberAgent  SummarizerAgent  Complete
+planned → discovered → transcription_queued → transcribed → summarized
+    ↓          ↓              ↓                    ↓            ↓
+Orchestrator ScraperAgent  TranscriberAgent  SummarizerAgent  Complete
 ```
 
 ### Event Triggers
@@ -273,7 +317,7 @@ python observability_agent/tools/send_error_alert.py
 
 ---
 
-**Agents Status**: Production Ready ✅  
-**Total Tools**: 25 across 4 agents  
-**Framework**: Agency Swarm v1.0.0  
+**Agents Status**: Production Ready ✅
+**Total Tools**: 36 across 5 agents
+**Framework**: Agency Swarm v1.0.0
 **Test Coverage**: Comprehensive with standalone tool tests

@@ -5,15 +5,15 @@ All notable changes to the Autopiloot Agency project will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-09-15
+## [1.0.0] - 2025-09-16
 
 ### Added
 
 #### Core Architecture & Framework
 - **Agency Swarm v1.0.0 Framework**: Complete multi-agent system with OrchestratorAgent as CEO
-- **4 Production Agents**: Scraper, Transcriber, Summarizer, and Observability agents with 31 total tools
+- **5 Production Agents**: Orchestrator, Scraper, Transcriber, Summarizer, and Observability agents with 36 total tools
 - **Event-driven Architecture**: Firestore as event broker and data store with Firebase Functions integration
-- **Comprehensive Tool Suite**: 70+ test cases covering all functionality
+- **Comprehensive Test Suite**: 32 test files covering all functionality
 
 #### Configuration & Environment System (TASK-CFG-0052)
 - **Multi-layer Configuration**: Environment variables, settings.yaml, agency manifesto, and agent-specific instructions
@@ -54,13 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Security & Secrets Management (TASK-SEC-0056)
 - **Secret Hygiene**: Repository audit confirms no secrets in code, .env in .gitignore
-- **Service Account Documentation**: ENVIRONMENT.md expanded with creation steps and minimal scopes
+- **Service Account Documentation**: docs/environment.md expanded with creation steps and minimal scopes
 - **Firestore Security**: FIREBASE_IMPLEMENTATION.md with Admin SDK usage and security rules guidance
 - **CI Security Scanning**: Automated secret detection, vulnerability scanning, credential validation
 
 #### Documentation & Roadmap (TASK-DOC-0055)
-- **Comprehensive Documentation**: CHANGELOG.md, updated TASKS.md, GitHub roadmap
-- **TESTING.md**: Complete testing guide with CI/CD integration and mocking strategies
+- **Comprehensive Documentation**: changelog.md, updated docs/tasks.md, GitHub roadmap
+- **docs/testing.md**: Complete testing guide with CI/CD integration and mocking strategies
 - **ADR Documentation**: 25 architectural decision records tracking system evolution
 - **API Documentation**: Tool interfaces, configuration schemas, deployment guides
 
@@ -79,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Specifications
 
 #### Multi-Agent Communication
-- **Agency Chart**: ScraperAgent (CEO) → TranscriberAgent → SummarizerAgent with ObservabilityAgent monitoring
+- **Agency Chart**: OrchestratorAgent (CEO) coordinating Scraper → Transcriber → Summarizer with Observability monitoring
 - **Communication Flows**: Event-driven coordination through Firestore collections
 - **Workflow Pipeline**: Video discovery → transcription → summarization with checkpoints
 
@@ -127,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Testing**: Use new mock patterns for external service integration
 
 ### Performance Metrics
-- **Test Suite**: 70+ test cases executing in <200ms
+- **Test Suite**: 32 test files with comprehensive coverage executing in <200ms
 - **Code Coverage**: 80%+ for core modules, 70%+ for tools
 - **Agent Response Time**: <5 seconds for standard operations
 - **Pipeline Throughput**: 10 videos/day per channel with budget constraints

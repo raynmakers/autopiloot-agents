@@ -143,7 +143,7 @@ def validate_environment() -> Dict[str, str]:
         error_msg += f"\n  1. Copy .env.template to .env: cp .env.template .env"
         error_msg += f"\n  2. Edit .env and fill in your actual values"
         error_msg += f"\n  3. Restart your application"
-        error_msg += f"\n\nFor detailed setup instructions, see ENVIRONMENT.md"
+        error_msg += f"\n\nFor detailed setup instructions, see docs/environment.md"
         raise EnvironmentError(error_msg)
     
     # Set optional variables

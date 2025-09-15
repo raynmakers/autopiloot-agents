@@ -24,4 +24,4 @@ Introduce a CI workflow running unit tests; ensure external integrations are moc
 
 # Acceptance
 
-- CI passes on clean repo; tests deterministic; docs updated in TESTING.md.
+- CI passes on clean repo; tests deterministic; docs updated in docs/testing.md.
