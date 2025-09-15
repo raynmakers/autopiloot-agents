@@ -4,12 +4,12 @@ Legend: [x] done, [ ] planned
 
 ## Core Configuration & Infrastructure
 
-- [x] 00-config-yaml.mdc — settings.yaml and loader
-- [x] 00-env-config.mdc — environment loader and template
-- [x] 01-scheduling-firebase.mdc — Firebase Functions scheduling and budget trigger
-- [x] 02-idempotency-naming.mdc — idempotency and Drive naming
-- [x] 03-google-sheet-flow.mdc — Sheets ingestion and archival
-- [x] 04-reliability-quotas.mdc — quotas, DLQ, backoff, checkpoints
+- [ ] 00-config-yaml.mdc — settings.yaml and loader
+- [ ] 00-env-config.mdc — environment loader and template
+- [ ] 01-scheduling-firebase.mdc — Firebase Functions scheduling and budget trigger
+- [ ] 02-idempotency-naming.mdc — idempotency and Drive naming
+- [ ] 03-google-sheet-flow.mdc — Sheets ingestion and archival
+- [ ] 04-reliability-quotas.mdc — quotas, DLQ, backoff, checkpoints
 
 ## Orchestrator (CEO)
 
