@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from summarizer_agent.tools.StoreShortInZep import StoreShortInZep
+    from summarizer_agent.tools.store_short_in_zep import StoreShortInZep
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
@@ -22,9 +22,9 @@ except ImportError:
         '..', 
         'summarizer_agent', 
         'tools', 
-        'StoreShortInZep.py'
+        'store_short_in_zep.py'
     )
-    spec = importlib.util.spec_from_file_location("StoreShortInZep", tool_path)
+    spec = importlib.util.spec_from_file_location("store_short_in_zep", tool_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     StoreShortInZep = module.StoreShortInZep
@@ -55,7 +55,8 @@ class TestStoreShortInZep(unittest.TestCase):
         
         self.tool = StoreShortInZep(
             video_id="test_video_123",
-            short_summary=self.test_summary
+            bullets=self.test_summary["bullets"],
+            key_concepts=self.test_summary["key_concepts"]
         )
 
     @patch('summarizer_agent.tools.StoreShortInZep.get_required_env_var')

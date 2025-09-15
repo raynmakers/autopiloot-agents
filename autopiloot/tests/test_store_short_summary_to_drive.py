@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from summarizer_agent.tools.StoreShortSummaryToDrive import StoreShortSummaryToDrive
+    from summarizer_agent.tools.store_short_summary_to_drive import StoreShortSummaryToDrive
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
@@ -23,9 +23,9 @@ except ImportError:
         '..', 
         'summarizer_agent', 
         'tools', 
-        'StoreShortSummaryToDrive.py'
+        'store_short_summary_to_drive.py'
     )
-    spec = importlib.util.spec_from_file_location("StoreShortSummaryToDrive", tool_path)
+    spec = importlib.util.spec_from_file_location("store_short_summary_to_drive", tool_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     StoreShortSummaryToDrive = module.StoreShortSummaryToDrive

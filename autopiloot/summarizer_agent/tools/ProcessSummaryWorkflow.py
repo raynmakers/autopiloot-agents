@@ -17,9 +17,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 from env_loader import get_required_env_var, get_optional_env_var
 
 # Import related tools
-from .GenerateShortSummary import GenerateShortSummary
-from .UpsertSummaryToZep import UpsertSummaryToZep
-from .StoreShortSummaryToDrive import StoreShortSummaryToDrive
+from .generate_short_summary import GenerateShortSummary
+from .store_short_in_zep import StoreShortInZep
+from .store_short_summary_to_drive import StoreShortSummaryToDrive
 from .SaveSummaryRecordEnhanced import SaveSummaryRecordEnhanced
 
 
@@ -181,13 +181,13 @@ class ProcessSummaryWorkflow(BaseTool):
             short_summary: Generated summary data
             
         Returns:
-            JSON string result from UpsertSummaryToZep
+            JSON string result from StoreShortInZep
         """
         try:
             # Build RAG references from known transcript storage
             rag_refs = self._build_rag_references()
             
-            zep_upserter = UpsertSummaryToZep(
+            zep_upserter = StoreShortInZep(
                 video_id=self.video_id,
                 short_summary=short_summary,
                 video_metadata=self.video_metadata,
