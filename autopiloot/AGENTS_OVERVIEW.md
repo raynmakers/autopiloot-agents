@@ -267,7 +267,7 @@ python observability_agent/tools/send_error_alert.py
 ### Configuration Updates
 
 - **settings.yaml**: Runtime configuration changes
-- **env.template**: New environment variables
+- **../.env.template**: New environment variables
 - **instructions.md**: Agent workflow updates
 - **ADR updates**: Document architectural decisions
 

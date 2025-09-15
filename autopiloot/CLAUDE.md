@@ -69,7 +69,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Configure environment (REQUIRED before running)
-cp env.template .env
+cp ../.env.template .env
 # Edit .env with actual API keys
 ```
 
@@ -226,7 +226,7 @@ firebase emulators:start
 
 ### Missing Environment Variables
 
-- Check `.env` file exists and contains all variables from `env.template`
+- Check `.env` file exists and contains all variables from `../.env.template`
 - Run `python config/env_loader.py` to identify missing variables
 - Ensure Google service account file exists at path specified
 

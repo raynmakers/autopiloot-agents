@@ -124,7 +124,7 @@ def validate_environment() -> Dict[str, str]:
     # If any required variables are missing, raise an error with all missing vars
     if missing_vars:
         error_msg = "Missing required environment variables:\n" + "\n".join(missing_vars)
-        error_msg += f"\n\nPlease copy env.template to .env and fill in your values."
+        error_msg += f"\n\nPlease copy ../.env.template to .env and fill in your values."
         raise EnvironmentError(error_msg)
     
     # Set optional variables

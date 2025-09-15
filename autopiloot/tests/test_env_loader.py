@@ -117,7 +117,7 @@ class TestEnvironmentLoader(unittest.TestCase):
         error_msg = str(cm.exception)
         self.assertIn('Missing required environment variables', error_msg)
         self.assertIn('OPENAI_API_KEY', error_msg)
-        self.assertIn('env.template', error_msg)
+        self.assertIn('.env.template', error_msg)
     
     def test_validate_environment_success(self):
         """Test successful environment validation."""
