@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SHEET-0004"
 title: "Build Sheets ingestion and archival for backfill links"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["sheets", "ingestion"]
 dependencies: ["TASK-AGENTS-0002"]

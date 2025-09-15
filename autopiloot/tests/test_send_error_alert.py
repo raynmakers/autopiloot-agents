@@ -14,14 +14,14 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from assistant_agent.tools.send_error_alert import SendErrorAlert
+    from observability_agent.tools.send_error_alert import SendErrorAlert
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
         os.path.dirname(__file__), 
         '..', 
-        'assistant_agent', 
+        'observability_agent', 
         'tools', 
         'send_error_alert.py'
     )
@@ -48,9 +48,9 @@ class TestSendErrorAlert(unittest.TestCase):
             "time_occurred": "2025-09-15T14:30:00Z"
         }
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
-    @patch('assistant_agent.tools.send_error_alert.firestore.Client')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.firestore.Client')
     def test_successful_error_alert_first_time(self, mock_firestore, mock_config, mock_env):
         """Test successful error alert sending when no previous alert exists."""
         # Mock environment and configuration
@@ -85,9 +85,9 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Successful error alert first time test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
-    @patch('assistant_agent.tools.send_error_alert.firestore.Client')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.firestore.Client')
     def test_throttling_within_hour(self, mock_firestore, mock_config, mock_env):
         """Test alert throttling when same type was sent within last hour."""
         # Mock environment and configuration
@@ -122,9 +122,9 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Throttling within hour test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
-    @patch('assistant_agent.tools.send_error_alert.firestore.Client')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.firestore.Client')
     def test_throttling_expired_after_hour(self, mock_firestore, mock_config, mock_env):
         """Test that throttling expires after 1 hour."""
         # Mock environment and configuration
@@ -159,9 +159,9 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Throttling expired after hour test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
-    @patch('assistant_agent.tools.send_error_alert.firestore.Client')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.firestore.Client')
     def test_different_alert_types_not_throttled(self, mock_firestore, mock_config, mock_env):
         """Test that different alert types are not throttled against each other."""
         # Mock environment and configuration
@@ -211,9 +211,9 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Different alert types not throttled test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
-    @patch('assistant_agent.tools.send_error_alert.firestore.Client')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.firestore.Client')
     def test_slack_alert_failure(self, mock_firestore, mock_config, mock_env):
         """Test handling when Slack alert sending fails."""
         # Mock environment and configuration
@@ -243,8 +243,8 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Slack alert failure test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
-    @patch('assistant_agent.tools.send_error_alert.load_app_config')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.load_app_config')
     def test_firestore_error_fallback(self, mock_config, mock_env):
         """Test graceful handling when Firestore operations fail."""
         # Mock environment and configuration
@@ -252,7 +252,7 @@ class TestSendErrorAlert(unittest.TestCase):
         mock_config.return_value = self.mock_config
         
         # Mock Firestore failure
-        with patch('assistant_agent.tools.send_error_alert.firestore.Client', side_effect=Exception("Firestore error")):
+        with patch('observability_agent.tools.send_error_alert.firestore.Client', side_effect=Exception("Firestore error")):
             with patch.object(SendErrorAlert, '_send_slack_alert', return_value=True):
                 tool = SendErrorAlert(
                     message="Test error",
@@ -278,9 +278,9 @@ class TestSendErrorAlert(unittest.TestCase):
             "error_code": "timeout"
         }
         
-        with patch('assistant_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.send_error_alert.load_app_config') as mock_config, \
-             patch('assistant_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
+        with patch('observability_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.send_error_alert.load_app_config') as mock_config, \
+             patch('observability_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
             
             # Mock successful setup
             mock_env.return_value = "test-project"
@@ -320,9 +320,9 @@ class TestSendErrorAlert(unittest.TestCase):
         ]
         
         for severity, expected_alert_type in severity_mappings:
-            with patch('assistant_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
-                 patch('assistant_agent.tools.send_error_alert.load_app_config') as mock_config, \
-                 patch('assistant_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
+            with patch('observability_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
+                 patch('observability_agent.tools.send_error_alert.load_app_config') as mock_config, \
+                 patch('observability_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
                 
                 # Mock setup
                 mock_env.return_value = "test-project"
@@ -335,8 +335,8 @@ class TestSendErrorAlert(unittest.TestCase):
                 mock_db.collection.return_value.document.return_value.get.return_value = mock_throttle_doc
                 
                 # Mock FormatSlackBlocks to capture alert_type
-                with patch('assistant_agent.tools.send_error_alert.FormatSlackBlocks') as mock_formatter, \
-                     patch('assistant_agent.tools.send_error_alert.SendSlackMessage') as mock_messenger:
+                with patch('observability_agent.tools.send_error_alert.FormatSlackBlocks') as mock_formatter, \
+                     patch('observability_agent.tools.send_error_alert.SendSlackMessage') as mock_messenger:
                     
                     mock_formatter.return_value.run.return_value = json.dumps({"blocks": []})
                     mock_messenger.return_value.run.return_value = json.dumps({"ts": "123", "channel": "#test"})
@@ -354,7 +354,7 @@ class TestSendErrorAlert(unittest.TestCase):
         
         print("✅ Severity to alert type mapping test passed")
 
-    @patch('assistant_agent.tools.send_error_alert.get_required_env_var')
+    @patch('observability_agent.tools.send_error_alert.get_required_env_var')
     def test_missing_environment_variable(self, mock_env):
         """Test error handling when environment variable is missing."""
         mock_env.side_effect = ValueError("GCP_PROJECT_ID environment variable is required")
@@ -375,9 +375,9 @@ class TestSendErrorAlert(unittest.TestCase):
 
     def test_throttle_record_creation(self):
         """Test that throttle records are properly created in Firestore."""
-        with patch('assistant_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.send_error_alert.load_app_config') as mock_config, \
-             patch('assistant_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
+        with patch('observability_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.send_error_alert.load_app_config') as mock_config, \
+             patch('observability_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
             
             # Mock setup
             mock_env.return_value = "test-project"
@@ -414,9 +414,9 @@ class TestSendErrorAlert(unittest.TestCase):
         """Test proper handling of missing context values with defaults."""
         minimal_context = {}  # No context values
         
-        with patch('assistant_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.send_error_alert.load_app_config') as mock_config, \
-             patch('assistant_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
+        with patch('observability_agent.tools.send_error_alert.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.send_error_alert.load_app_config') as mock_config, \
+             patch('observability_agent.tools.send_error_alert.firestore.Client') as mock_firestore:
             
             # Mock setup
             mock_env.return_value = "test-project"

@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-REL-0003"
 title: "Add quota strategy, Firestore composite indexes, and dead-letter queue"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["reliability", "quotas", "firestore"]
 dependencies: ["TASK-AGENTS-0002"]

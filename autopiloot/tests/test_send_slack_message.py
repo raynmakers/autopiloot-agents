@@ -13,14 +13,14 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from assistant_agent.tools.send_slack_message import SendSlackMessage
+    from observability_agent.tools.send_slack_message import SendSlackMessage
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
         os.path.dirname(__file__), 
         '..', 
-        'assistant_agent', 
+        'observability_agent', 
         'tools', 
         'send_slack_message.py'
     )
@@ -54,9 +54,9 @@ class TestSendSlackMessage(unittest.TestCase):
             ]
         }
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_successful_message_sending(self, mock_webclient, mock_config, mock_env):
         """Test successful Slack message sending with blocks."""
         # Mock environment and configuration
@@ -91,9 +91,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Successful message sending test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_configuration_channel_fallback(self, mock_webclient, mock_config, mock_env):
         """Test fallback to configured channel when no channel provided."""
         # Mock environment and configuration
@@ -123,8 +123,8 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Configuration channel fallback test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
     def test_missing_slack_token_error(self, mock_config, mock_env):
         """Test error handling when Slack token is missing."""
         # Mock missing environment variable
@@ -145,9 +145,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Missing Slack token error test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_slack_api_error_handling(self, mock_webclient, mock_config, mock_env):
         """Test handling of Slack API errors."""
         # Mock environment and configuration
@@ -174,9 +174,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Slack API error handling test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_fallback_text_extraction(self, mock_webclient, mock_config, mock_env):
         """Test extraction of fallback text from blocks."""
         # Mock environment and configuration
@@ -203,9 +203,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Fallback text extraction test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_empty_blocks_handling(self, mock_webclient, mock_config, mock_env):
         """Test handling of empty blocks array."""
         # Mock environment and configuration
@@ -231,9 +231,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Empty blocks handling test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_network_error_handling(self, mock_webclient, mock_config, mock_env):
         """Test handling of network errors during API call."""
         # Mock environment and configuration
@@ -259,15 +259,15 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Network error handling test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
     def test_configuration_loading_failure(self, mock_config, mock_env):
         """Test graceful handling of configuration loading failures."""
         # Mock environment and configuration failure
         mock_env.return_value = "test-slack-token"
         mock_config.side_effect = Exception("Config file not found")
         
-        with patch('assistant_agent.tools.send_slack_message.WebClient') as mock_webclient:
+        with patch('observability_agent.tools.send_slack_message.WebClient') as mock_webclient:
             mock_client = MagicMock()
             mock_webclient.return_value = mock_client
             mock_response = {"ok": True, "ts": "1234567890.123"}
@@ -286,9 +286,9 @@ class TestSendSlackMessage(unittest.TestCase):
         
         print("✅ Configuration loading failure test passed")
 
-    @patch('assistant_agent.tools.send_slack_message.get_required_env_var')
-    @patch('assistant_agent.tools.send_slack_message.load_app_config')
-    @patch('assistant_agent.tools.send_slack_message.WebClient')
+    @patch('observability_agent.tools.send_slack_message.get_required_env_var')
+    @patch('observability_agent.tools.send_slack_message.load_app_config')
+    @patch('observability_agent.tools.send_slack_message.WebClient')
     def test_channel_prefix_handling(self, mock_webclient, mock_config, mock_env):
         """Test proper handling of channel prefixes."""
         # Mock environment and configuration
@@ -317,9 +317,9 @@ class TestSendSlackMessage(unittest.TestCase):
 
     def test_response_structure_compliance(self):
         """Test that response structure matches SendSlackMessageResponse TypedDict."""
-        with patch('assistant_agent.tools.send_slack_message.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.send_slack_message.load_app_config') as mock_config, \
-             patch('assistant_agent.tools.send_slack_message.WebClient') as mock_webclient:
+        with patch('observability_agent.tools.send_slack_message.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.send_slack_message.load_app_config') as mock_config, \
+             patch('observability_agent.tools.send_slack_message.WebClient') as mock_webclient:
             
             # Mock successful response
             mock_env.return_value = "test-token"

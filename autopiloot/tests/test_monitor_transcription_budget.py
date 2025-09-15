@@ -14,14 +14,14 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from assistant_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
+    from observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
         os.path.dirname(__file__), 
         '..', 
-        'assistant_agent', 
+        'observability_agent', 
         'tools', 
         'monitor_transcription_budget.py'
     )
@@ -42,9 +42,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
             "notifications": {"slack": {"channel": "ops-autopiloot"}}
         }
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_budget_ok_status(self, mock_firestore, mock_config, mock_env):
         """Test budget monitoring when usage is below 70% (OK status)."""
         # Mock environment and configuration
@@ -76,9 +76,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Budget OK status test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_budget_warning_status_no_alert(self, mock_firestore, mock_config, mock_env):
         """Test budget monitoring when usage is 70-79% (WARNING status, no alert)."""
         # Mock environment and configuration
@@ -110,9 +110,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Budget WARNING status (no alert) test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_budget_threshold_reached_with_alert(self, mock_firestore, mock_config, mock_env):
         """Test budget monitoring when 80% threshold is reached (should send alert)."""
         # Mock environment and configuration
@@ -146,9 +146,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Budget threshold reached with alert test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_budget_exceeded_status(self, mock_firestore, mock_config, mock_env):
         """Test budget monitoring when usage exceeds 100%."""
         # Mock environment and configuration
@@ -182,9 +182,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Budget exceeded status test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_fallback_to_transcripts_collection(self, mock_firestore, mock_config, mock_env):
         """Test fallback to transcripts collection when costs_daily doesn't exist."""
         # Mock environment and configuration
@@ -227,8 +227,8 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Fallback to transcripts collection test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
     def test_invalid_date_format(self, mock_config, mock_env):
         """Test error handling for invalid date format."""
         mock_env.return_value = "test-project"
@@ -245,7 +245,7 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Invalid date format test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
     def test_missing_environment_variable(self, mock_env):
         """Test error handling when environment variable is missing."""
         mock_env.side_effect = ValueError("GCP_PROJECT_ID environment variable is required")
@@ -260,9 +260,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Missing environment variable test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_firestore_connection_error(self, mock_firestore, mock_config, mock_env):
         """Test error handling when Firestore connection fails."""
         # Mock environment and configuration
@@ -282,9 +282,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
         
         print("✅ Firestore connection error test passed")
 
-    @patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var')
-    @patch('assistant_agent.tools.monitor_transcription_budget.load_app_config')
-    @patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client')
+    @patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var')
+    @patch('observability_agent.tools.monitor_transcription_budget.load_app_config')
+    @patch('observability_agent.tools.monitor_transcription_budget.firestore.Client')
     def test_budget_configuration_fallback(self, mock_firestore, mock_config, mock_env):
         """Test fallback to default budget when configuration is missing."""
         # Mock environment and missing budget configuration
@@ -314,8 +314,8 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
 
     def test_send_budget_alert_integration(self):
         """Test _send_budget_alert method integration."""
-        with patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.monitor_transcription_budget.load_app_config') as mock_config:
+        with patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.monitor_transcription_budget.load_app_config') as mock_config:
             
             mock_env.return_value = "test-project"
             mock_config.return_value = self.mock_config
@@ -323,8 +323,8 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
             tool = MonitorTranscriptionBudget(date=self.test_date)
             
             # Mock the FormatSlackBlocks and SendSlackMessage tools
-            with patch('assistant_agent.tools.monitor_transcription_budget.FormatSlackBlocks') as mock_formatter, \
-                 patch('assistant_agent.tools.monitor_transcription_budget.SendSlackMessage') as mock_messenger:
+            with patch('observability_agent.tools.monitor_transcription_budget.FormatSlackBlocks') as mock_formatter, \
+                 patch('observability_agent.tools.monitor_transcription_budget.SendSlackMessage') as mock_messenger:
                 
                 # Mock formatter response
                 mock_formatter.return_value.run.return_value = json.dumps({
@@ -349,9 +349,9 @@ class TestMonitorTranscriptionBudget(unittest.TestCase):
 
     def test_response_structure_compliance(self):
         """Test that response structure matches BudgetMonitorResponse TypedDict."""
-        with patch('assistant_agent.tools.monitor_transcription_budget.get_required_env_var') as mock_env, \
-             patch('assistant_agent.tools.monitor_transcription_budget.load_app_config') as mock_config, \
-             patch('assistant_agent.tools.monitor_transcription_budget.firestore.Client') as mock_firestore:
+        with patch('observability_agent.tools.monitor_transcription_budget.get_required_env_var') as mock_env, \
+             patch('observability_agent.tools.monitor_transcription_budget.load_app_config') as mock_config, \
+             patch('observability_agent.tools.monitor_transcription_budget.firestore.Client') as mock_firestore:
             
             # Mock successful response
             mock_env.return_value = "test-project"

@@ -1,0 +1,125 @@
+---
+description: "Create OrchestratorAgent as CEO to coordinate end-to-end pipeline"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+
+1. Name: `06-orchestrator-agent.mdc` under `./planning/tasks/`.
+2. Keep frontmatter accurate. Status: planned.
+3. Use information-dense keywords (file paths, function signatures, exact names).
+4. Define types/interfaces first if new. Reference by exact name later.
+5. Order steps so later steps explicitly reference earlier artifacts by exact name.
+6. Scope must be completable independently; split into smaller tasks if needed.
+7. Acceptance criteria must be testable and unambiguous.
+8. Context plan lists files to include at start, and the end-state files.
+
+---
+
+id: "TASK-ORCH-0001"
+title: "Create OrchestratorAgent (CEO) and instructions"
+status: "planned"
+priority: "P0"
+labels: ["agents", "orchestration", "ceo"]
+dependencies: [
+"04-reliability-quotas.mdc",
+"02-idempotency-naming.mdc",
+"03-google-sheet-flow.mdc",
+"01-scheduling-firebase.mdc"
+]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Establish a neutral CEO agent (OrchestratorAgent) that owns end-to-end pipeline coordination, policies, and cross-agent communication.
+
+# 2) Background / Context
+
+ScraperAgent should not be CEO. We need a centralized orchestrator to apply budgets/quotas, backoff policies, status transitions, and dispatch work to Scraper/Transcriber/Summarizer while reporting to AssistantAgent.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Agency Swarm v1.0.0 is used; tools discovered automatically from `tools/` folder.
+- Constraint: Follow "Production Architecture Principles" and Firestore as event broker.
+- Constraint: No secrets in code; rely on `env_loader.py` and `settings.yaml`.
+
+# 4) Dependencies
+
+- planning/tasks/04-reliability-quotas.mdc (retry/backoff, DLQ)
+- planning/tasks/02-idempotency-naming.mdc (status progression)
+- planning/tasks/03-google-sheet-flow.mdc (Sheets ingestion)
+- planning/tasks/01-scheduling-firebase.mdc (scheduling)
+
+# 5) Context Plan
+
+Beginning (read-only):
+
+- `config/loader.py`
+- `config/settings.yaml`
+- `core/reliability.py`
+- `core/idempotency.py`
+- `firebase/functions/main.py` (read-only)
+
+End state (must exist after completion):
+
+- `orchestrator_agent/__init__.py`
+- `orchestrator_agent/orchestrator_agent.py`
+- `orchestrator_agent/instructions.md`
+- `orchestrator_agent/tools/` (empty for now; see follow-up tasks)
+- `tests/test_orchestrator_agent.py`
+- `agency.py` updated to set OrchestratorAgent as CEO and define flows
+
+# 6) Low-Level Steps
+
+1. Create agent module
+
+   - File: `orchestrator_agent/orchestrator_agent.py`
+   - Instantiate Agent with:
+     - name: "Orchestrator"
+     - description: "CEO: end-to-end pipeline orchestration and policy enforcement"
+     - instructions: `./instructions.md`
+     - tools_folder: `./tools`
+     - model_settings aligned with `settings.yaml.llm.default`
+
+2. Create `instructions.md`
+
+   - Define Role, Goals (budgets, quotas, SLAs, status transitions), Process Workflow (numbered), and Additional Notes.
+
+3. Package init
+
+   - File: `orchestrator_agent/__init__.py`
+   - Export `orchestrator` instance.
+
+4. Wire agency
+
+   - File: `agency.py`
+   - Import `orchestrator` and set as first argument in `Agency(...)` (CEO).
+   - Define flows: `(orchestrator, scraper_agent)`, `(orchestrator, transcriber_agent)`, `(orchestrator, summarizer_agent)`, `(orchestrator, observability_agent)`.
+
+5. Tests
+   - File: `tests/test_orchestrator_agent.py`
+   - Verify: agent loads with instructions; tools auto-import; communication flows include all target agents; model settings align with config.
+
+# 7) Types & Interfaces
+
+No new types in this task. Use existing config helpers from `config/loader.py`.
+
+# 8) Acceptance Criteria
+
+- OrchestratorAgent module exists with correct initialization
+- `instructions.md` outlines explicit orchestration responsibilities
+- `agency.py` sets Orchestrator as CEO and defines flows to all agents
+- Unit test validates agent initialization and wiring
+
+# 9) Testing Strategy
+
+- Import-based tests (no external API calls).
+- Validate Agent properties and communication flows.
+
+# 10) Notes / Links
+
+- See ADR-0005 (Reliability and Quota Management System)
+- Production Architecture Principles in repository root docs

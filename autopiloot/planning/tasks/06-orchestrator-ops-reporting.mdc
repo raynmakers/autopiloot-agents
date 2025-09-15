@@ -1,0 +1,40 @@
+---
+description: "Operational reporting to ObservabilityAgent/Slack and audit logging"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ORCH-0006"
+title: "Implement emit_run_events tool (ops consumed by ObservabilityAgent)"
+status: "planned"
+priority: "P2"
+labels: ["orchestrator", "ops", "slack", "audit"]
+dependencies: ["06-orchestrator-agent.mdc", "40-assistant-alerts.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Send structured operational updates to ObservabilityAgent/Slack and write audit logs.
+
+# 5) Context Plan
+
+Beginning:
+
+- `observability_agent/tools/format_slack_blocks.py` (read-only)
+- `observability_agent/tools/send_slack_message.py` (read-only)
+- `core/audit_logger.py` (read-only if present)
+
+End state:
+
+- `orchestrator_agent/tools/emit_run_events.py`
+- Tests in `tests/test_orchestrator_agent.py`
+
+# 6) Low-Level Steps
+
+1. Format payload with run summary: planned, succeeded, failed, dlq_count, quota_state.
+2. Send Slack message via ObservabilityAgent tool; write audit log entry.
+
+# 8) Acceptance Criteria
+
+- Slack payload and audit entries contain required fields
+- Tests verify formatting and tool invocation

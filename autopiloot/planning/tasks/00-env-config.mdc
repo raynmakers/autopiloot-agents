@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-ENV-0000"
 title: "Configure environment variables for Autopiloot agents"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["env", "config"]
 dependencies: []

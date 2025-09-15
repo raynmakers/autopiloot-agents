@@ -1,0 +1,39 @@
+---
+description: "DLQ routing and monitoring tools for OrchestratorAgent"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ORCH-0005"
+title: "Implement handle_dlq and query_dlq tools"
+status: "planned"
+priority: "P2"
+labels: ["orchestrator", "dlq", "monitoring"]
+dependencies: ["04-reliability-quotas.mdc", "06-orchestrator-agent.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Provide DLQ routing on terminal failure and monitoring utilities to surface patterns.
+
+# 5) Context Plan
+
+Beginning:
+
+- `core/reliability.py` (read-only)
+
+End state:
+
+- `orchestrator_agent/tools/handle_dlq.py`
+- `orchestrator_agent/tools/query_dlq.py`
+- Tests in `tests/test_orchestrator_agent.py`
+
+# 6) Low-Level Steps
+
+1. `handle_dlq`: write standardized entry to `jobs_deadletter` with context.
+2. `query_dlq`: filter by job_type/video_id; provide summary stats.
+
+# 8) Acceptance Criteria
+
+- DLQ entries are idempotent and structured
+- Query tool returns entries and stats deterministically in tests

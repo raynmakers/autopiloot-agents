@@ -169,7 +169,7 @@ class MonitorTranscriptionBudget(BaseTool):
                     date=date,
                     amount_spent=spent,
                     threshold_percentage=percentage,
-                    actor="AssistantAgent"
+                    actor="ObservabilityAgent"
                 )
             
             return success
@@ -206,3 +206,4 @@ if __name__ == "__main__":
         print(f"Test error: {str(e)}")
         import traceback
         traceback.print_exc()
+

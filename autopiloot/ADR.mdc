@@ -1,0 +1,171 @@
+# Architecture Decision Log
+
+<!--
+ADR_AGENT_PROTOCOL v1.0
+
+INVARIANTS
+- Keep this exact file structure and headings.
+- All ADR entries use H2 headings: "## ADR-XXXX — <Title>" (4-digit zero-padded ID).
+- Allowed Status values: Proposed | Accepted | Superseded
+- Date format: YYYY-MM-DD
+- New entries must be appended to the END of the file.
+- The Index table between the INDEX markers must always reflect the latest state and be sorted by ID desc (newest on top).
+- Each ADR MUST contain: Date, Status, Owner, Context, Decision, Consequences.
+- Each ADR must include an explicit anchor `<a id="adr-XXXX"></a>` so links remain stable.
+-->
+
+## Index
+
+<!-- BEGIN:ADR_INDEX -->
+
+| ID   | Title                                                                      | Date       | Status   | Supersedes | Superseded by |
+| ---- | -------------------------------------------------------------------------- | ---------- | -------- | ---------- | ------------- |
+| 0024 | [OrchestratorAgent CEO Implementation with Comprehensive Tooling](#adr-0024) | 2025-09-15 | Accepted | —          | —             |
+| 0023 | [Rename AssistantAgent to ObservabilityAgent](#adr-0023)                   | 2025-09-15 | Accepted | —          | —             |
+| 0022 | [Comprehensive Audit Logging System for Security Compliance](#adr-0022)    | 2025-09-15 | Accepted | —          | —             |
+| 0021 | [Assistant Agent Alerting System Implementation](#adr-0021)                | 2025-09-15 | Accepted | —          | —             |
+| 0020 | [LLM Observability and Configuration Enhancement](#adr-0020)               | 2025-09-15 | Accepted | —          | —             |
+| 0019 | [Enhanced Zep GraphRAG Integration with Workflow Orchestration](#adr-0019) | 2025-09-15 | Accepted | —          | —             |
+| 0018 | [Multi-Platform Summary Storage and Reference Linking](#adr-0018)          | 2025-09-15 | Accepted | —          | —             |
+| 0017 | [Coaching-Focused Summary Generation with LLM Integration](#adr-0017)      | 2025-09-15 | Accepted | —          | —             |
+| 0016 | [AssemblyAI Transcript Processing Pipeline](#adr-0016)                     | 2025-09-15 | Accepted | —          | —             |
+| 0015 | [Agency Swarm v1.0.0 Framework Restructuring](#adr-0015)                   | 2025-09-15 | Accepted | —          | —             |
+| 0014 | [Google Sheets Row Management and Archival Tool](#adr-0014)                | 2025-09-14 | Accepted | —          | —             |
+| 0013 | [Transcription Job Queue Management Tool](#adr-0013)                       | 2025-09-14 | Accepted | —          | —             |
+| 0012 | [Firestore Video Metadata Storage Tool](#adr-0012)                         | 2025-09-14 | Accepted | —          | —             |
+| 0011 | [Google Sheets and Web Page YouTube Extraction Tools](#adr-0011)           | 2025-09-14 | Accepted | —          | —             |
+| 0010 | [YouTube Uploads Playlist Discovery Tool](#adr-0010)                       | 2025-09-14 | Accepted | —          | —             |
+| 0009 | [YouTube Channel Handle Resolution Tool](#adr-0009)                        | 2025-09-14 | Accepted | —          | —             |
+| 0008 | [Agency Swarm v1.0.0 Tool Implementation](#adr-0008)                       | 2025-09-14 | Accepted | —          | —             |
+| 0007 | [Firebase Functions v2 Scheduling Architecture](#adr-0007)                 | 2025-09-14 | Accepted | —          | —             |
+| 0006 | [Modular Agent Tool Architecture](#adr-0006)                               | 2025-09-14 | Accepted | —          | —             |
+| 0005 | [Reliability and Quota Management System](#adr-0005)                       | 2025-09-14 | Accepted | —          | —             |
+| 0004 | [Comprehensive Environment Configuration System](#adr-0004)                | 2025-01-15 | Accepted | —          | —             |
+| 0003 | [MVP Orchestration and Tooling Choices](#adr-0003)                         | 2025-09-11 | Accepted | —          | —             |
+| 0002 | [Event-Driven Broker Architecture with Firestore](#adr-0002)               | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Agent-Focused Repository Structure](#adr-0001)                            | 2025-01-27 | Accepted | —          | —             |
+
+<!-- END:ADR_INDEX -->
+
+---
+
+## ADR-0023 — Rename AssistantAgent to ObservabilityAgent
+
+<a id="adr-0023"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The agent previously named AssistantAgent primarily handled monitoring budgets, sending alerts, and operational oversight. The name did not clearly reflect its observability-focused responsibilities and created ambiguity with end-user assistance.
+
+### Alternatives
+
+- Keep AssistantAgent: unclear scope, misleading association with end-user assistance
+- MonitoringAgent/AlertingAgent: narrower than actual scope (observability + alerting + ops)
+- OpsAgent/Watchdog: brandable but less descriptive of observability domain
+
+### Decision
+
+Rename AssistantAgent to ObservabilityAgent across code, tests, and docs. Update imports, communication flows, audit logger default actor names, and remove legacy assistant_agent directory.
+
+### Consequences
+
+- **Pros**: Clearer intent, aligns with SRE/observability domain, improves maintainability and onboarding
+- **Cons / risks**: Rename churn across docs/tests; potential missed references (mitigated by repo-wide updates)
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+- `agency.py` imports and agency_chart updated to `observability_agent`
+- All tests updated to reference `observability_agent.tools.*`
+- Docs updated (`AGENTS_OVERVIEW.md`, `README.md`, `CLAUDE.md`, `AUDIT_LOGGING_IMPLEMENTATION.md`, `agency_manifesto.md`, `QUICK_OVERVIEW.md`, Firebase README)
+- Legacy `assistant_agent/` removed; new `observability_agent/` with tools in place
+- `core/audit_logger` default actor updated to "ObservabilityAgent", tests adjusted
+
+---
+
+## ADR-0024 — OrchestratorAgent CEO Implementation with Comprehensive Tooling
+
+<a id="adr-0024"></a>
+**Date**: 2025-09-15
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot Agency required centralized coordination and policy enforcement for end-to-end pipeline orchestration. ScraperAgent as CEO created unclear responsibilities and lacked sophisticated orchestration capabilities for managing budgets, quotas, retry policies, and cross-agent coordination in production.
+
+### Alternatives
+
+- Keep ScraperAgent as CEO: insufficient orchestration capabilities, mixed responsibilities
+- Promote existing agent to CEO: each agent is specialized and lacks broad coordination scope
+- External orchestration service: additional complexity, reduced system cohesion
+
+### Decision
+
+Implement OrchestratorAgent as CEO with comprehensive tooling suite:
+
+**Core Agent**: 
+- OrchestratorAgent with CEO responsibilities and coordination mandate
+- Configuration-driven model settings from settings.yaml
+- Comprehensive instructions covering budget/quota/policy enforcement
+
+**Tool Suite (8 tools)**:
+- `plan_daily_run`: Quota-aware planning with checkpoint management (TASK-ORCH-0002)
+- `dispatch_scraper/transcriber/summarizer`: Structured work order dispatch with idempotency (TASK-ORCH-0003)
+- `enforce_policies`: Centralized retry/backoff/quota decision making (TASK-ORCH-0004)
+- `handle_dlq`: Standardized dead letter queue routing with context preservation (TASK-ORCH-0005)
+- `query_dlq`: DLQ monitoring with filtering and statistics (TASK-ORCH-0005)
+- `emit_run_events`: Operational reporting with Slack integration and audit logging (TASK-ORCH-0006)
+
+**Agency Structure**: 
+- OrchestratorAgent set as first element in agency_chart (CEO position)
+- Communication flows: OrchestratorAgent → all other agents
+- Maintained existing inter-agent workflows (Scraper → Transcriber → Summarizer)
+
+### Consequences
+
+- **Pros**: 
+  - Centralized policy enforcement and quota management
+  - Sophisticated retry/backoff/DLQ handling with exponential backoff
+  - Comprehensive operational visibility with health scoring
+  - Clear separation of concerns: orchestration vs. execution
+  - Production-ready with budget constraints and error handling
+  - Extensive test coverage (15+ test methods, 100+ assertions)
+
+- **Cons / risks**: 
+  - Additional complexity layer requiring maintenance
+  - Potential single point of failure (mitigated by stateless design)
+  - Learning curve for operations team (mitigated by comprehensive documentation)
+
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+**Agent Implementation**:
+- `orchestrator_agent/orchestrator_agent.py` with config-driven model settings
+- `orchestrator_agent/instructions.md` with CEO responsibilities and workflow
+- `orchestrator_agent/__init__.py` with proper exports
+- `agency.py` updated with OrchestratorAgent as CEO and communication flows
+
+**Tool Implementation** (8 tools with validation):
+- All tools inherit from BaseTool with Pydantic Field validation
+- JSON string returns per Agency Swarm v1.0.0 requirements
+- Comprehensive error handling and input validation
+- Integration with audit_logger for operational tracking
+- Test blocks in each tool for standalone verification
+
+**Testing**: 
+- `tests/test_orchestrator_agent.py` with 100+ test assertions
+- Agent initialization, wiring, and instructions validation
+- Individual tool testing with mocking for external dependencies
+- Policy enforcement logic testing with edge cases
+- Metrics calculation and health scoring validation
+
+**Documentation**:
+- Updated `agency.py` comments to reflect 5-agent structure
+- Maintained existing agent responsibilities and communication patterns

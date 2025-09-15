@@ -1,0 +1,91 @@
+---
+description: "Add tool to compute daily plan using quotas, budgets, checkpoints"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ORCH-0002"
+title: "Implement plan_daily_run tool"
+status: "planned"
+priority: "P1"
+labels: ["orchestrator", "planning", "quotas", "budgets"]
+dependencies: ["06-orchestrator-agent.mdc", "04-reliability-quotas.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Compute the actionable plan for today's run respecting budget, quotas, and checkpoints.
+
+# 2) Background / Context
+
+Plan must align with daily spend limits, YouTube quota windows, and idempotency checkpoints (e.g., lastPublishedAt) to reduce API usage.
+
+# 3) Assumptions & Constraints
+
+- Use `core/reliability.py` helpers and `config/loader.py` getters.
+- No external API calls; pure planning based on config and persisted state (Firestore reads mocked in tests).
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- planning/tasks/04-reliability-quotas.mdc
+- core/reliability.py (read-only)
+- config/loader.py (read-only)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- config/loader.py
+- core/reliability.py
+- config/settings.yaml (read-only)
+
+End state (must exist after completion):
+
+- orchestrator_agent/tools/plan_daily_run.py
+- tests/test_orchestrator_agent.py (planning tests)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create tool module
+
+   - File: `orchestrator_agent/tools/plan_daily_run.py`
+   - Exported API:
+     ```python
+     class PlanDailyRun(BaseTool):
+         target_channels: Optional[List[str]]
+         max_videos_per_channel: Optional[int]
+         def run(self) -> str: ...  # returns JSON string plan
+     ```
+   - Details:
+     - Load config via `load_app_config()` and getters
+     - Incorporate `get_youtube_daily_limit`, `get_retry_base_delay`, checkpoints (stub read)
+     - Output plan: { channels: [...], per_channel_limit, windows, checkpoints }
+
+2. Tests
+   - File: `tests/test_orchestrator_agent.py`
+   - Cases: defaults from config; overrides; edge case when quota nearly exhausted.
+
+# 7) Types & Interfaces
+
+```python
+from typing import TypedDict, List, Optional
+
+class DailyPlan(TypedDict):
+    channels: List[str]
+    per_channel_limit: int
+    windows: List[str]
+    checkpoints: dict
+```
+
+# 8) Acceptance Criteria
+
+- Tool returns deterministic JSON plan honoring limits and inputs
+- Unit tests pass
+
+# 9) Testing Strategy
+
+- Unit tests with mocked config values; no network or Firestore writes.
+
+# 10) Notes / Links
+
+- Reference ADR-0005 for reliability policies.

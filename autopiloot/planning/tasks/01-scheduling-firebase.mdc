@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-SCHED-0001"
 title: "Set up Firebase v2 Scheduled Functions and event triggers"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["infra", "firebase", "scheduling"]
 dependencies: []

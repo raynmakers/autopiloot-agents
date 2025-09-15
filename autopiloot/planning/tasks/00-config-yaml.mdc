@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-CFG-0000"
 title: "Add settings.yaml configuration and loader"
-status: "planned"
+status: "done"
 priority: "P0"
 labels: ["config", "yaml"]
 dependencies: []

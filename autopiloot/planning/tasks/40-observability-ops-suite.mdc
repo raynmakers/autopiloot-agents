@@ -1,0 +1,66 @@
+---
+description: "Observability Agent ops suite: quotas, DLQ trends, stuck jobs, daily summary, LLM metrics, alert engine"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-OBS-0040"
+title: "Implement Observability ops tools suite"
+status: "planned"
+priority: "P1"
+labels: ["observability", "ops", "alerts", "metrics"]
+dependencies: ["40-assistant-alerts.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Provide comprehensive operational visibility and alerting, consuming events from Orchestrator and brokered Firestore state.
+
+# 2) Tools to Implement
+
+- `monitor_quota_state.py` — Track YouTube/AssemblyAI quota status and reset windows
+- `monitor_dlq_trends.py` — Analyze `jobs_deadletter` patterns and spikes
+- `stuck_job_scanner.py` — Detect stale jobs by status age; escalate
+- `report_daily_summary.py` — Send daily pipeline summary to Slack
+- `llm_observability_metrics.py` — Token/cost metrics; prompt version tracking
+- `alert_engine.py` — Throttling/dedup/escalation orchestration for alerts
+
+# 3) Assumptions & Constraints
+
+- Read-only against Firestore except for alert throttle records
+- Slack integration via existing `send_slack_message.py` and `format_slack_blocks.py`
+- No secrets in code; env via `env_loader.py`
+
+# 4) Context Plan
+
+Beginning (add to model context):
+
+- observability_agent/instructions.md
+- observability*agent/tools/send_slack_message.py *(read-only)\_
+- observability*agent/tools/format_slack_blocks.py *(read-only)\_
+- core/reliability.py _(read-only)_
+- firestore/indexes.md _(read-only)_
+
+End state (must exist after completion):
+
+- observability_agent/tools/monitor_quota_state.py
+- observability_agent/tools/monitor_dlq_trends.py
+- observability_agent/tools/stuck_job_scanner.py
+- observability_agent/tools/report_daily_summary.py
+- observability_agent/tools/llm_observability_metrics.py
+- observability_agent/tools/alert_engine.py
+- tests/test_observability_ops.py
+
+# 5) Low-Level Steps
+
+1. Implement `monitor_quota_state`: compute remaining quota/next reset; alert on thresholds.
+2. Implement `monitor_dlq_trends`: last 24h counts, top reasons; alert on spikes.
+3. Implement `stuck_job_scanner`: query jobs by status age; alert/escalate.
+4. Implement `report_daily_summary`: summarize run stats; Slack message at EOD.
+5. Implement `llm_observability_metrics`: tokens, cost, prompt versions; optional Langfuse emit.
+6. Implement `alert_engine`: central throttling/dedup; integrate with existing throttling records.
+
+# 6) Acceptance Criteria
+
+- Each tool returns JSON strings with strict schema; Slack alerts formatted with blocks
+- Tests cover success paths and error handling; no external API calls

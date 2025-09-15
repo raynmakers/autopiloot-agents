@@ -6,7 +6,7 @@ alwaysApply: false
 
 id: "TASK-IDEM-0005"
 title: "Implement idempotency keys and Drive naming"
-status: "planned"
+status: "done"
 priority: "P1"
 labels: ["idempotency", "drive"]
 dependencies: []

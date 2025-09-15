@@ -1,0 +1,39 @@
+---
+description: "Enforce reliability policies: retries, backoff, quotas, checkpoints"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ORCH-0004"
+title: "Implement enforce_policies tool"
+status: "planned"
+priority: "P1"
+labels: ["orchestrator", "policies", "reliability", "quotas"]
+dependencies: ["04-reliability-quotas.mdc", "06-orchestrator-agent.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Centralize enforcement of backoff, max attempts, quota windows, and checkpoint usage.
+
+# 5) Context Plan
+
+Beginning:
+
+- `core/reliability.py` (read-only)
+- `config/loader.py` (read-only)
+
+End state:
+
+- `orchestrator_agent/tools/enforce_policies.py`
+- Tests in `tests/test_orchestrator_agent.py`
+
+# 6) Low-Level Steps
+
+1. Implement `enforce_policies` to evaluate a job context and return action: proceed, retry_in (sec), or dlq.
+2. Use `calculate_backoff_delay`, `should_retry_job`, quota getters, and checkpoint info.
+
+# 8) Acceptance Criteria
+
+- Deterministic decisions based on inputs and config
+- Unit tests cover retry thresholds, backoff math, and quota reset times

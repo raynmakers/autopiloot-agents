@@ -1,0 +1,41 @@
+---
+description: "Add dispatch tools to coordinate Scraper, Transcriber, Summarizer"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ORCH-0003"
+title: "Implement dispatch\_\* tools for agent coordination"
+status: "planned"
+priority: "P1"
+labels: ["orchestrator", "dispatch", "agents"]
+dependencies: ["06-orchestrator-agent.mdc", "06-orchestrator-plan-daily-run.mdc"]
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Provide tools that send structured work orders to Scraper, Transcriber, and Summarizer based on the plan.
+
+# 5) Context Plan
+
+Beginning:
+
+- `orchestrator_agent/orchestrator_agent.py` (read-only)
+
+End state:
+
+- `orchestrator_agent/tools/dispatch_scraper.py`
+- `orchestrator_agent/tools/dispatch_transcriber.py`
+- `orchestrator_agent/tools/dispatch_summarizer.py`
+- `tests/test_orchestrator_agent.py` updated
+
+# 6) Low-Level Steps
+
+1. Define a common payload schema (dict) with `job_type`, `inputs`, `policy_overrides`.
+2. Implement each dispatch tool to create Firestore jobs or directly message agents per Agency Swarm patterns.
+3. Ensure idempotency by referencing `video_id` and status progression rules.
+
+# 8) Acceptance Criteria
+
+- Each dispatch tool validates inputs and enqueues/initiates work exactly once
+- Structured payloads match schema

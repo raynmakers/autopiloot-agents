@@ -5,6 +5,7 @@ This directory contains Firebase Functions v2 for the Autopiloot project, implem
 ## Overview
 
 Firebase Functions provide cloud-native scheduling and automation for the Autopiloot Agency:
+
 - **Scheduled Functions**: Daily agent execution at 01:00 Europe/Amsterdam
 - **Event-Driven Functions**: Real-time budget monitoring triggered by transcript creation
 - **Auto-scaling**: Serverless execution with automatic concurrency management
@@ -31,11 +32,12 @@ def daily_scraper_execution(event: ScheduledEvent) -> None:
 ```
 
 **Workflow Steps:**
+
 1. Initialize AutopilootAgency with production configuration
 2. Execute ScraperAgent (CEO) discovery workflow
-3. Trigger TranscriberAgent processing pipeline  
+3. Trigger TranscriberAgent processing pipeline
 4. Coordinate SummarizerAgent content analysis
-5. Monitor via AssistantAgent with Slack notifications
+5. Monitor via ObservabilityAgent with Slack notifications
 6. Log execution results to audit_logs collection
 
 ### 2. `monitor_transcription_budget`
@@ -55,10 +57,11 @@ def monitor_transcription_budget(event: firestore_fn.Event[firestore_fn.Document
 ```
 
 **Monitoring Logic:**
+
 1. Extract transcription cost from new transcript document
 2. Update daily cost aggregation in `costs_daily/{YYYY-MM-DD}`
 3. Calculate budget percentage against configured limit ($5 default)
-4. Send Slack alerts at 80% threshold via AssistantAgent tools
+4. Send Slack alerts at 80% threshold via ObservabilityAgent tools
 5. Log budget events to audit_logs for compliance
 
 ## Project Structure
@@ -66,7 +69,7 @@ def monitor_transcription_budget(event: firestore_fn.Event[firestore_fn.Document
 ```
 firebase/functions/
 ├── main.py              # Entry points for all functions
-├── scheduler.py         # Scheduled and event-driven function implementations  
+├── scheduler.py         # Scheduled and event-driven function implementations
 ├── core.py             # Shared utilities and error handling
 ├── requirements.txt    # Python dependencies for Firebase runtime
 └── README.md          # This documentation
@@ -79,6 +82,7 @@ firebase/functions/
 Firebase Functions inherit environment from the parent Autopiloot project:
 
 **Required Environment Variables:**
+
 ```bash
 # Core API Keys
 OPENAI_API_KEY=sk-your-openai-key
@@ -124,7 +128,7 @@ firebase use your-project-id
 
 # Enable required services
 gcloud services enable cloudfunctions.googleapis.com
-gcloud services enable cloudscheduler.googleapis.com  
+gcloud services enable cloudscheduler.googleapis.com
 gcloud services enable firestore.googleapis.com
 ```
 
@@ -204,7 +208,7 @@ curl -X POST "http://localhost:5001/your-project-id/europe-west1/daily_scraper_e
 ### Integration Testing
 
 ```bash
-# Run agency tests locally  
+# Run agency tests locally
 cd ../../  # Navigate to autopiloot root
 python -m unittest tests.test_functions -v
 
@@ -231,6 +235,7 @@ firebase functions:log --only daily_scraper_execution --follow
 ### Google Cloud Console
 
 Monitor function execution in [Google Cloud Console](https://console.cloud.google.com/functions):
+
 - **Metrics**: Invocations, execution time, memory usage, errors
 - **Logs**: Structured logging with severity levels
 - **Alerting**: Custom policies for function failures and budget thresholds
@@ -242,7 +247,7 @@ Functions automatically log execution events to Firestore:
 ```typescript
 audit_logs/{auto_id}:
 ├── actor: "FirebaseFunction"
-├── action: "daily_execution" | "budget_alert" 
+├── action: "daily_execution" | "budget_alert"
 ├── entity: "agency_workflow" | "transcription_budget"
 ├── entity_id: date | video_id
 ├── timestamp: UTC ISO 8601
@@ -254,7 +259,7 @@ audit_logs/{auto_id}:
 Functions send operational alerts to `#ops-autopiloot`:
 
 - ✅ **Daily Execution Success**: Workflow completion summary
-- ⚠️ **Budget Threshold**: 80% transcription budget reached  
+- ⚠️ **Budget Threshold**: 80% transcription budget reached
 - 🚨 **Function Errors**: Execution failures with context
 - 📊 **Weekly Summaries**: Usage and performance metrics
 
@@ -266,14 +271,14 @@ Functions send operational alerts to `#ops-autopiloot`:
 # Scheduled functions: Automatic retry on failure
 @scheduler_fn.on_schedule(
     schedule="0 1 * * *",
-    timezone="Europe/Amsterdam", 
+    timezone="Europe/Amsterdam",
     retry_config=scheduler_fn.RetryConfig(
         retry_count=3,
         max_backoff_duration=300
     )
 )
 
-# Event-driven functions: Dead letter queue for failures  
+# Event-driven functions: Dead letter queue for failures
 @firestore_fn.on_document_written(
     document="transcripts/{video_id}",
     retry_config=firestore_fn.RetryConfig(
@@ -290,7 +295,7 @@ Failed function executions are logged to `jobs_deadletter` collection:
 ```typescript
 jobs_deadletter/{job_id}:
 ├── job_type: "firebase_function"
-├── function_name: "daily_scraper_execution"  
+├── function_name: "daily_scraper_execution"
 ├── error_details: { message, stack_trace }
 ├── retry_count: number
 ├── created_at: timestamp
@@ -309,7 +314,7 @@ except Exception as e:
     # Log error and send alert
     logger.error(f"Agency execution failed: {str(e)}")
     send_error_alert("daily_execution_failed", str(e))
-    
+
     # Don't raise - allow function to complete gracefully
     return {"status": "failed", "error": str(e)}
 ```
@@ -327,7 +332,7 @@ except Exception as e:
     max_instances=1       # Single instance to prevent conflicts
 )
 
-# Event-driven: Lightweight budget monitoring  
+# Event-driven: Lightweight budget monitoring
 @firestore_fn.on_document_written(
     memory=256,           # 256MB for budget calculations
     timeout_sec=180,      # 3 minutes for Slack notifications
@@ -385,7 +390,7 @@ service cloud.firestore {
 ```bash
 # Sensitive variables stored as Firebase config
 firebase functions:config:set openai.api_key="sk-your-key"
-firebase functions:config:set assemblyai.api_key="your-key" 
+firebase functions:config:set assemblyai.api_key="your-key"
 firebase functions:config:set slack.bot_token="xoxb-your-token"
 
 # Access in function code
@@ -398,45 +403,49 @@ const openai_key = functions.config().openai.api_key
 ### Common Issues
 
 1. **Function Deployment Fails**
+
    ```bash
    # Check Python version
    python3 --version  # Must be 3.11+
-   
+
    # Validate requirements.txt
    cd firebase/functions && pip install -r requirements.txt
-   
+
    # Deploy with verbose logging
    firebase deploy --only functions --debug
    ```
 
 2. **Scheduled Function Not Executing**
+
    ```bash
    # Check Cloud Scheduler in GCP Console
    gcloud scheduler jobs list --location=europe-west1
-   
+
    # Verify timezone configuration
    gcloud scheduler jobs describe daily_scraper --location=europe-west1
-   
+
    # Manual trigger for testing
    gcloud scheduler jobs run daily_scraper --location=europe-west1
    ```
 
-3. **Event Function Not Triggering** 
+3. **Event Function Not Triggering**
+
    ```bash
    # Verify Firestore document writes
    # Check function logs for trigger events
    firebase functions:log --only monitor_transcription_budget
-   
+
    # Test with manual document write
    # Use Firebase emulator or admin SDK
    ```
 
 4. **Budget Alerts Not Sending**
+
    ```bash
    # Verify Slack bot token and permissions
    curl -X POST https://slack.com/api/auth.test \
      -H "Authorization: Bearer $SLACK_BOT_TOKEN"
-   
+
    # Check channel membership
    # Bot must be invited to #ops-autopiloot channel
    ```
@@ -477,7 +486,7 @@ def health_check(req: https_fn.Request) -> https_fn.Response:
         # Test critical dependencies
         config = load_app_config()
         db = firestore.Client()
-        
+
         return https_fn.Response(
             json.dumps({"status": "healthy", "timestamp": datetime.utcnow().isoformat()}),
             status=200,
@@ -498,7 +507,7 @@ def health_check(req: https_fn.Request) -> https_fn.Response:
 Monitor function costs and optimize resource usage:
 
 - **Daily Scheduled Function**: ~1 execution/day × 9 minutes × 512MB
-- **Budget Monitor**: ~5-10 executions/day × 3 minutes × 256MB  
+- **Budget Monitor**: ~5-10 executions/day × 3 minutes × 256MB
 - **Estimated Monthly Cost**: $2-5 USD (varies by execution time)
 
 ### Optimization Strategies

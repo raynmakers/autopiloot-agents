@@ -11,6 +11,7 @@ Autopiloot is a production-ready Agency Swarm v1.0.0 multi-agent system for auto
 ## Common Development Commands
 
 ### Testing
+
 ```bash
 # Run all tests (comprehensive test suite)
 python -m unittest discover tests -v
@@ -39,6 +40,7 @@ python config/env_loader.py
 ```
 
 ### Agency Operations
+
 ```bash
 # Run the agency (requires proper .env configuration)
 python agency.py
@@ -51,6 +53,7 @@ firebase emulators:start --only functions,firestore
 ```
 
 ### Development Setup
+
 ```bash
 # Create virtual environment
 python3 -m venv venv
@@ -67,18 +70,21 @@ cp env.template .env
 ## High-Level Architecture
 
 ### Agency Swarm v1.0.0 Framework
+
 - **Inheritance Pattern**: All tools inherit from `agency_swarm.tools.BaseTool` with Pydantic Field validation
 - **Return Convention**: All tool `run()` methods return JSON strings (not Dict objects)
 - **Agent Structure**: Each agent is in `{agent_name}/` directory with `tools/` subdirectory
-- **Communication Flow**: ScraperAgent (CEO) → TranscriberAgent → SummarizerAgent, with AssistantAgent monitoring all
+- **Communication Flow**: ScraperAgent (CEO) → TranscriberAgent → SummarizerAgent, with ObservabilityAgent monitoring all
 
 ### Multi-Layer Configuration System
+
 1. **Environment Variables** (`.env`): API keys, credentials, secrets
 2. **settings.yaml**: Business rules, thresholds, operational parameters
 3. **agency_manifesto.md**: Shared operational standards across all agents
 4. **Agent instructions.md**: Agent-specific workflows and guidelines
 
 ### Firestore as Event Broker
+
 - **Pattern**: All data mutations flow through Firestore exclusively
 - **Collections**: `videos/`, `transcripts/`, `summaries/`, `jobs/transcription/`, `costs_daily/`, `audit_logs/`
 - **Status Progression**: `discovered` → `transcription_queued` → `transcribed` → `summarized`
@@ -86,12 +92,14 @@ cp env.template .env
 - **Audit Trail**: All key actions logged to `audit_logs` collection (TASK-AUDIT-0041)
 
 ### Reliability & Error Handling Architecture
+
 - **Dead Letter Queue**: Failed operations route to `jobs_deadletter` collection after 3 retries
 - **Exponential Backoff**: 60s → 120s → 240s retry delays
 - **Quota Management**: YouTube API (10k units/day), AssemblyAI ($5/day budget)
 - **Checkpoint System**: `lastPublishedAt` persistence for incremental processing
 
 ### Firebase Functions Integration
+
 - **Scheduled**: Daily scraping at 01:00 Europe/Amsterdam via Cloud Scheduler
 - **Event-Driven**: Budget monitoring triggered by Firestore document writes
 - **Deployment**: Manual via Firebase CLI with service account authentication
@@ -100,30 +108,35 @@ cp env.template .env
 ## Critical Implementation Details
 
 ### Tool Development Rules
+
 - **NEVER** include API keys as tool parameters - always use environment variables
 - **ALWAYS** validate required environment variables in tool initialization
 - **ALWAYS** include test block with `if __name__ == "__main__":` in every tool
 - **ALWAYS** use JSON string returns from `run()` methods
 
 ### Agent Communication Patterns
+
 ```python
 # Agency chart defines allowed communication flows
 agency_chart = [
     scraper_agent,  # CEO can communicate with all
     [scraper_agent, transcriber_agent],  # Workflow pipeline
     [transcriber_agent, summarizer_agent],
-    [assistant_agent, scraper_agent],  # Monitoring flows
+    [observability_agent, scraper_agent],  # Monitoring flows
 ]
 ```
 
 ### Business Rule Enforcement
+
 - **Duration Limit**: 70 minutes (4200 seconds) maximum video duration
 - **Daily Limits**: 10 videos per channel, $5 transcription budget
 - **Archive-First**: Google Sheets rows archived before deletion for audit trail
 - **Quota Handling**: Graceful degradation when YouTube/AssemblyAI quotas exhausted
 
 ### Error Response Format
+
 All tools return consistent JSON error structures:
+
 ```python
 {
     "error": "error_type",
@@ -135,11 +148,13 @@ All tools return consistent JSON error structures:
 ## ADR and Documentation Maintenance
 
 ### Keep Updated
+
 - **ADR.mdc**: Add new ADR entries for significant architectural decisions
 - **folder-structure.mdc**: Update when directory structure changes
 - Both files in `.cursor/rules/` are source of truth for architecture
 
 ### ADR Protocol
+
 1. Read entire ADR.mdc file
 2. Calculate next ID (max + 1, zero-padded to 4 digits)
 3. Add entry at END of file with proper anchor
@@ -149,16 +164,19 @@ All tools return consistent JSON error structures:
 ## Testing Strategy
 
 ### Tool Testing
+
 - Each tool has standalone test in `if __name__ == "__main__":` block
 - Integration tests in `tests/` directory using unittest framework
 - Mock external services where appropriate, but prefer real API testing
 
 ### Configuration Testing
+
 - `test_config.py`: YAML loading, validation, nested key access
 - `test_env_loader.py`: Environment variable validation, API key getters
 - Run `python config/env_loader.py` to validate current environment
 
 ### TASK-TRN-0022 Tool Testing
+
 - `test_poll_transcription_job.py`: Tests exponential backoff, timeout handling, status progression
 - `test_store_transcript_to_drive.py`: Tests file upload, metadata enhancement, Drive API integration
 - `test_save_transcript_record.py`: Tests Firestore transactions, status updates, validation
@@ -166,6 +184,7 @@ All tools return consistent JSON error structures:
 ## Firebase Deployment
 
 ### Functions Structure
+
 ```
 firebase/functions/
 ├── main.py          # Entry points
@@ -175,6 +194,7 @@ firebase/functions/
 ```
 
 ### Deployment Commands
+
 ```bash
 # Deploy functions only
 firebase deploy --only functions
@@ -189,21 +209,25 @@ firebase emulators:start
 ## Common Troubleshooting
 
 ### Missing Environment Variables
+
 - Check `.env` file exists and contains all variables from `env.template`
 - Run `python config/env_loader.py` to identify missing variables
 - Ensure Google service account file exists at path specified
 
 ### Tool Import Errors
+
 - Tool class name must match filename exactly
 - Tools must be in `{agent_name}/tools/` directory
 - All tools must inherit from `agency_swarm.tools.BaseTool`
 
 ### Firestore Connection Issues
+
 - Verify `GCP_PROJECT_ID` environment variable is set
 - Check service account has Firestore permissions
 - Ensure `GOOGLE_APPLICATION_CREDENTIALS` points to valid JSON file
 
 ### Quota Exhaustion
+
 - YouTube: Check `QuotaManager` status, wait for daily reset
 - AssemblyAI: Monitor `costs_daily` collection for budget status
 - Implement checkpoint-based resume from `lastPublishedAt`

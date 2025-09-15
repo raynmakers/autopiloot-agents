@@ -160,7 +160,7 @@ class TestAuditLogger(unittest.TestCase):
         
         # Verify audit entry
         set_call_args = mock_doc_ref.set.call_args[0][0]
-        self.assertEqual(set_call_args["actor"], "AssistantAgent")
+        self.assertEqual(set_call_args["actor"], "ObservabilityAgent")
         self.assertEqual(set_call_args["action"], "alert_sent")
         self.assertEqual(set_call_args["entity"], "slack_message")
         self.assertEqual(set_call_args["entity_id"], "1234567890.123")
@@ -191,7 +191,7 @@ class TestAuditLogger(unittest.TestCase):
         
         # Verify audit entry
         set_call_args = mock_doc_ref.set.call_args[0][0]
-        self.assertEqual(set_call_args["actor"], "AssistantAgent")
+        self.assertEqual(set_call_args["actor"], "ObservabilityAgent")
         self.assertEqual(set_call_args["action"], "budget_alert_sent")
         self.assertEqual(set_call_args["entity"], "budget_threshold")
         self.assertEqual(set_call_args["entity_id"], "2025-09-15")

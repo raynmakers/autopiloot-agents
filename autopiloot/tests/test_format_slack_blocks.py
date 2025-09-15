@@ -13,14 +13,14 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from assistant_agent.tools.format_slack_blocks import FormatSlackBlocks
+    from observability_agent.tools.format_slack_blocks import FormatSlackBlocks
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
         os.path.dirname(__file__), 
         '..', 
-        'assistant_agent', 
+        'observability_agent', 
         'tools', 
         'format_slack_blocks.py'
     )

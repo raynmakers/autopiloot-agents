@@ -14,6 +14,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 from env_loader import get_required_env_var
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
+from .format_slack_blocks import FormatSlackBlocks
+from .send_slack_message import SendSlackMessage
 
 
 class SendErrorAlert(BaseTool):
@@ -88,7 +90,7 @@ class SendErrorAlert(BaseTool):
                 
                 # Log error alert to audit trail (TASK-AUDIT-0041)
                 audit_logger.write_audit_log(
-                    actor="AssistantAgent",
+                    actor="ObservabilityAgent",
                     action="error_alert_sent",
                     entity="slack_alert",
                     entity_id=alert_type,
@@ -172,9 +174,6 @@ class SendErrorAlert(BaseTool):
     def _send_slack_alert(self, channel: str, alert_items: Dict[str, Any], severity: str) -> bool:
         """Send alert to Slack using FormatSlackBlocks and SendSlackMessage tools."""
         try:
-            from .format_slack_blocks import FormatSlackBlocks
-            from .send_slack_message import SendSlackMessage
-            
             # Determine alert type based on severity
             alert_type_map = {
                 "LOW": "warning",
@@ -282,3 +281,4 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"Test 3 error: {str(e)}")
+

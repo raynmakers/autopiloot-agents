@@ -7,9 +7,9 @@ This document provides detailed information about each agent in the Autopiloot A
 The Autopiloot Agency consists of 4 specialized agents following the Agency Swarm v1.0.0 framework:
 
 - **ScraperAgent** (CEO) - Content discovery and orchestration
-- **TranscriberAgent** - Audio processing and transcription  
+- **TranscriberAgent** - Audio processing and transcription
 - **SummarizerAgent** - Content analysis and summarization
-- **AssistantAgent** - Operations monitoring and alerting
+- **ObservabilityAgent** - Operations monitoring and alerting
 
 ## Communication Flow
 
@@ -17,10 +17,10 @@ The Autopiloot Agency consists of 4 specialized agents following the Agency Swar
 ScraperAgent (CEO)
     ↓ ↑
     ├── TranscriberAgent
-    │   ↓ ↑  
+    │   ↓ ↑
     │   └── SummarizerAgent
     ↓ ↑
-AssistantAgent (monitoring all)
+ObservabilityAgent (monitoring all)
 ```
 
 ---
@@ -35,20 +35,20 @@ AssistantAgent (monitoring all)
 
 - **YouTube Discovery**: Channel handle resolution and uploads discovery
 - **Google Sheets Processing**: Backfill link extraction and management
-- **Video Validation**: Duration limits, metadata extraction, business rule enforcement  
+- **Video Validation**: Duration limits, metadata extraction, business rule enforcement
 - **Workflow Orchestration**: Transcription job queue management and agent coordination
 
 ### Tools Overview
 
-| Tool | Purpose | Integration |
-|------|---------|-------------|
-| `ResolveChannelHandles.py` | Convert @handles to YouTube channel IDs | YouTube Data API |
-| `ListRecentUploads.py` | Discover recent videos with checkpoint system | YouTube Data API + Firestore |
-| `ReadSheetLinks.py` | Extract YouTube URLs from Google Sheets | Google Sheets API |
-| `ExtractYouTubeFromPage.py` | Parse YouTube links from web pages | BeautifulSoup + HTTP |
-| `SaveVideoMetadata.py` | Store video data with business rule validation | Firestore + Audit Logging |
-| `EnqueueTranscription.py` | Create transcription jobs with duplicate prevention | Firestore Transactions |
-| `RemoveSheetRow.py` | Archive processed rows from Google Sheets | Google Sheets API |
+| Tool                        | Purpose                                             | Integration                  |
+| --------------------------- | --------------------------------------------------- | ---------------------------- |
+| `ResolveChannelHandles.py`  | Convert @handles to YouTube channel IDs             | YouTube Data API             |
+| `ListRecentUploads.py`      | Discover recent videos with checkpoint system       | YouTube Data API + Firestore |
+| `ReadSheetLinks.py`         | Extract YouTube URLs from Google Sheets             | Google Sheets API            |
+| `ExtractYouTubeFromPage.py` | Parse YouTube links from web pages                  | BeautifulSoup + HTTP         |
+| `SaveVideoMetadata.py`      | Store video data with business rule validation      | Firestore + Audit Logging    |
+| `EnqueueTranscription.py`   | Create transcription jobs with duplicate prevention | Firestore Transactions       |
+| `RemoveSheetRow.py`         | Archive processed rows from Google Sheets           | Google Sheets API            |
 
 ### Key Features
 
@@ -62,7 +62,7 @@ AssistantAgent (monitoring all)
 ```yaml
 # settings.yaml
 scraper:
-  handles: ["@AlexHormozi"] 
+  handles: ["@AlexHormozi"]
   daily_limit_per_channel: 10
 ```
 
@@ -77,19 +77,19 @@ scraper:
 ### Primary Functions
 
 - **Audio Extraction**: YouTube video to audio URL resolution
-- **AssemblyAI Integration**: Professional transcription with speaker labels  
+- **AssemblyAI Integration**: Professional transcription with speaker labels
 - **Storage Management**: Dual-format storage (JSON + TXT) to Google Drive
 - **Cost Tracking**: Budget monitoring with real-time cost calculations
 
 ### Tools Overview
 
-| Tool | Purpose | Integration |
-|------|---------|-------------|
-| `get_video_audio_url.py` | Extract audio URLs from YouTube videos | yt-dlp + YouTube API |
-| `submit_assemblyai_job.py` | Submit transcription jobs to AssemblyAI | AssemblyAI SDK |
-| `poll_transcription_job.py` | Monitor job completion with exponential backoff | AssemblyAI SDK + Retry Logic |
-| `store_transcript_to_drive.py` | Save transcripts in dual formats with metadata | Google Drive API |
-| `save_transcript_record.py` | Store metadata and update video status | Firestore + Audit Logging |
+| Tool                           | Purpose                                         | Integration                  |
+| ------------------------------ | ----------------------------------------------- | ---------------------------- |
+| `get_video_audio_url.py`       | Extract audio URLs from YouTube videos          | yt-dlp + YouTube API         |
+| `submit_assemblyai_job.py`     | Submit transcription jobs to AssemblyAI         | AssemblyAI SDK               |
+| `poll_transcription_job.py`    | Monitor job completion with exponential backoff | AssemblyAI SDK + Retry Logic |
+| `store_transcript_to_drive.py` | Save transcripts in dual formats with metadata  | Google Drive API             |
+| `save_transcript_record.py`    | Store metadata and update video status          | Firestore + Audit Logging    |
 
 ### Key Features
 
@@ -106,7 +106,7 @@ scraper:
 
 ---
 
-## 📝 SummarizerAgent  
+## 📝 SummarizerAgent
 
 **Role**: Content analysis and insight generation  
 **Communication**: TranscriberAgent → SummarizerAgent  
@@ -121,26 +121,26 @@ scraper:
 
 ### Tools Overview
 
-| Tool | Purpose | Integration |
-|------|---------|-------------|
-| `GenerateShortSummary.py` | Create actionable business summaries | OpenAI GPT-4.1 + Langfuse |
-| `StoreShortInZep.py` | Save to Zep GraphRAG for semantic search | Zep API |  
-| `StoreShortSummaryToDrive.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API |
-| `SaveSummaryRecord.py` | Basic Firestore summary records | Firestore |
-| `SaveSummaryRecordEnhanced.py` | Enhanced records with Zep references | Firestore + Enhanced Metadata |
-| `UpsertSummaryToZep.py` | Advanced Zep integration with RAG refs | Zep API + Enhanced Metadata |
-| `ProcessSummaryWorkflow.py` | End-to-end orchestration tool | Multi-platform Coordination |
+| Tool                           | Purpose                                     | Integration                   |
+| ------------------------------ | ------------------------------------------- | ----------------------------- |
+| `GenerateShortSummary.py`      | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
+| `StoreShortInZep.py`           | Save to Zep GraphRAG for semantic search    | Zep API                       |
+| `StoreShortSummaryToDrive.py`  | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
+| `SaveSummaryRecord.py`         | Basic Firestore summary records             | Firestore                     |
+| `SaveSummaryRecordEnhanced.py` | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
+| `UpsertSummaryToZep.py`        | Advanced Zep integration with RAG refs      | Zep API + Enhanced Metadata   |
+| `ProcessSummaryWorkflow.py`    | End-to-end orchestration tool               | Multi-platform Coordination   |
 
 ### Key Features
 
 - **Adaptive Chunking**: Model-specific context optimization (GPT-4: 8k, GPT-4.1: 128k)
 - **Coaching Focus**: Prompts optimized for actionable business insights
-- **Observability**: Langfuse tracing with token usage and prompt versioning  
+- **Observability**: Langfuse tracing with token usage and prompt versioning
 - **Reference Integrity**: Complete linking between transcripts, summaries, and RAG docs
 
 ### Configuration
 
-```yaml  
+```yaml
 # settings.yaml
 llm:
   tasks:
@@ -153,7 +153,7 @@ llm:
 
 ---
 
-## 🚨 AssistantAgent
+## 🚨 ObservabilityAgent
 
 **Role**: Operations monitoring and alerting  
 **Communication**: Monitors all agents, sends alerts  
@@ -162,18 +162,18 @@ llm:
 ### Primary Functions
 
 - **Budget Monitoring**: Real-time transcription cost tracking with 80% alerts
-- **Error Alerting**: Structured Slack notifications with throttling policy  
+- **Error Alerting**: Structured Slack notifications with throttling policy
 - **Operational Health**: System monitoring and failure detection
 - **Rich Notifications**: Slack Block Kit formatting for improved readability
 
 ### Tools Overview
 
-| Tool | Purpose | Integration |
-|------|---------|-------------|
-| `format_slack_blocks.py` | Create rich Slack Block Kit notifications | Slack Block Kit API |
-| `send_slack_message.py` | Send formatted messages to configured channels | Slack API |
-| `monitor_transcription_budget.py` | Track daily spending with threshold alerts | Firestore + Slack |
-| `send_error_alert.py` | Error notifications with 1-per-type-per-hour throttling | Firestore + Slack |
+| Tool                              | Purpose                                                 | Integration         |
+| --------------------------------- | ------------------------------------------------------- | ------------------- |
+| `format_slack_blocks.py`          | Create rich Slack Block Kit notifications               | Slack Block Kit API |
+| `send_slack_message.py`           | Send formatted messages to configured channels          | Slack API           |
+| `monitor_transcription_budget.py` | Track daily spending with threshold alerts              | Firestore + Slack   |
+| `send_error_alert.py`             | Error notifications with 1-per-type-per-hour throttling | Firestore + Slack   |
 
 ### Key Features
 
@@ -196,18 +196,21 @@ llm:
 All agent tools follow consistent patterns:
 
 ### Agency Swarm Compliance
+
 - **Inheritance**: `agency_swarm.tools.BaseTool`
 - **Validation**: Pydantic Field validation for all parameters
-- **Return Format**: JSON strings (not Dict objects) 
+- **Return Format**: JSON strings (not Dict objects)
 - **Testing**: Comprehensive test blocks with `if __name__ == "__main__"`
 
 ### Error Handling
+
 - **Graceful Degradation**: Tools continue operation despite failures
 - **Structured Responses**: Consistent JSON error format across all tools
 - **Audit Logging**: TASK-AUDIT-0041 compliance with structured metadata
 - **Timeout Management**: Configurable timeouts for external API calls
 
 ### Integration Patterns
+
 - **Environment Variables**: All secrets via environment configuration
 - **Configuration Loading**: Centralized settings.yaml + env_loader patterns
 - **Firestore Transactions**: Atomic operations for data consistency
@@ -218,12 +221,14 @@ All agent tools follow consistent patterns:
 ## Agent Communication Protocol
 
 ### Message Flow
+
 1. **ScraperAgent** discovers videos and creates transcription jobs
-2. **TranscriberAgent** processes audio and stores transcripts  
+2. **TranscriberAgent** processes audio and stores transcripts
 3. **SummarizerAgent** generates summaries with multi-platform storage
-4. **AssistantAgent** monitors costs and sends alerts throughout
+4. **ObservabilityAgent** monitors costs and sends alerts throughout
 
 ### Status Progression
+
 ```
 discovered → transcription_queued → transcribed → summarized
      ↓              ↓                    ↓            ↓
@@ -231,9 +236,10 @@ discovered → transcription_queued → transcribed → summarized
 ```
 
 ### Event Triggers
+
 - **Firestore Writes**: Status updates trigger next agent in pipeline
-- **Cost Events**: Transcript creation triggers budget monitoring  
-- **Error Events**: Failures trigger AssistantAgent error alerting
+- **Cost Events**: Transcript creation triggers budget monitoring
+- **Error Events**: Failures trigger ObservabilityAgent error alerting
 - **Audit Events**: All key actions logged for compliance and monitoring
 
 ---
@@ -241,24 +247,27 @@ discovered → transcription_queued → transcribed → summarized
 ## Development Guidelines
 
 ### Adding New Tools
+
 1. **Inherit from BaseTool**: Use Agency Swarm v1.0.0 patterns
 2. **Add Validation**: Implement Pydantic Field validation
-3. **Include Testing**: Add comprehensive test block  
+3. **Include Testing**: Add comprehensive test block
 4. **Update Instructions**: Document tool usage in agent instructions.md
 5. **Audit Integration**: Add appropriate audit logging calls
 
 ### Testing Tools
+
 ```bash
 # Run agent-specific tool tests
 python scraper_agent/tools/SaveVideoMetadata.py
-python transcriber_agent/tools/poll_transcription_job.py  
+python transcriber_agent/tools/poll_transcription_job.py
 python summarizer_agent/tools/GenerateShortSummary.py
-python assistant_agent/tools/send_error_alert.py
+python observability_agent/tools/send_error_alert.py
 ```
 
-### Configuration Updates  
+### Configuration Updates
+
 - **settings.yaml**: Runtime configuration changes
-- **env.template**: New environment variables  
+- **env.template**: New environment variables
 - **instructions.md**: Agent workflow updates
 - **ADR updates**: Document architectural decisions
 

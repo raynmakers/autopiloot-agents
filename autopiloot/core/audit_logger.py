@@ -118,7 +118,7 @@ class AuditLogger:
             }
         )
     
-    def log_slack_alert_sent(self, alert_type: str, channel: str, message_ts: str, actor: str = "AssistantAgent") -> bool:
+    def log_slack_alert_sent(self, alert_type: str, channel: str, message_ts: str, actor: str = "ObservabilityAgent") -> bool:
         """Log Slack alert sending event."""
         return self.write_audit_log(
             actor=actor,
@@ -132,7 +132,7 @@ class AuditLogger:
             }
         )
     
-    def log_budget_alert(self, date: str, amount_spent: float, threshold_percentage: float, actor: str = "AssistantAgent") -> bool:
+    def log_budget_alert(self, date: str, amount_spent: float, threshold_percentage: float, actor: str = "ObservabilityAgent") -> bool:
         """Log budget threshold alert event."""
         return self.write_audit_log(
             actor=actor,
