@@ -152,7 +152,7 @@ class TestResolveChannelHandles(unittest.TestCase):
         
         self.assertEqual(channel_id, "UCRetryTest123")
     
-    @patch('ResolveChannelHandles.get_required_var')
+    @patch('ResolveChannelHandles.get_required_env_var')
     @patch('ResolveChannelHandles.build')
     def test_initialize_youtube_client_api_key(self, mock_build, mock_get_var):
         """Test YouTube client initialization with API key."""
@@ -166,7 +166,7 @@ class TestResolveChannelHandles(unittest.TestCase):
         
         self.assertEqual(client, self.mock_youtube_client)
     
-    @patch('ResolveChannelHandles.get_required_var')
+    @patch('ResolveChannelHandles.get_required_env_var')
     def test_initialize_youtube_client_missing_api_key(self, mock_get_var):
         """Test handling of missing API key."""
         mock_get_var.side_effect = RuntimeError("API key not found")

@@ -1,0 +1,27 @@
+---
+description: "Add CI, stabilize tests with mocks, and expand coverage"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-CI-0054"
+title: "Testing & CI — GitHub Actions, mocks, coverage"
+status: "planned"
+priority: "P1"
+labels: ["ci", "testing"]
+dependencies: []
+created: "2025-09-15"
+
+# Objective
+
+Introduce a CI workflow running unit tests; ensure external integrations are mocked by default; add linting/type checks optionally.
+
+# Steps
+
+1. Add `.github/workflows/ci.yaml` to run `python -m unittest discover -v` on push/PR.
+2. Add lint (ruff/flake8) and type-check (mypy/pyright) stages (optional).
+3. Stabilize tests to mock external APIs (Slack, Firestore, AssemblyAI, YouTube).
+
+# Acceptance
+
+- CI passes on clean repo; tests deterministic; docs updated in TESTING.md.

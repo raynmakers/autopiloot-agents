@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_var
+from env_loader import get_required_env_var
 from loader import load_app_config
 
 load_dotenv()
@@ -260,7 +260,7 @@ class RemoveSheetRow(BaseTool):
         """Initialize Google Sheets API service."""
         try:
             # Get service account credentials
-            credentials_path = get_required_var(
+            credentials_path = get_required_env_var(
                 "GOOGLE_APPLICATION_CREDENTIALS", 
                 "Google service account credentials file path"
             )

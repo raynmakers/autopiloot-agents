@@ -1,0 +1,78 @@
+---
+description: "Introduce OrchestratorAgent (CEO), event contracts, and time utils refactor"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-ARCH-0050"
+title: "Architecture & Workflow — Orchestrator CEO and Contracts"
+status: "planned"
+priority: "P0"
+labels: ["architecture", "orchestrator", "contracts"]
+dependencies: []
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Establish OrchestratorAgent as CEO, formalize Firestore event contracts, and centralize time utilities.
+
+# 2) Background / Context
+
+Scraper should not be CEO. We need a neutral orchestrator and stable event schemas across agents.
+
+# 3) Assumptions & Constraints
+
+- Agency Swarm v1.0.0; all tools return JSON strings.
+- Firestore is the event broker; no client access.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- config/settings.yaml (reliability + quotas)
+- agency.py (wiring)
+
+# 5) Context Plan
+
+Beginning (read-only):
+
+- agency.py
+- config/loader.py
+- core/reliability.py
+
+End state (must exist after completion):
+
+- orchestrator_agent/{**init**.py, orchestrator_agent.py, instructions.md}
+- orchestrator_agent/tools/{plan_daily_run.py, dispatch_scraper.py, dispatch_transcriber.py, dispatch_summarizer.py, enforce_policies.py, emit_run_events.py}
+- core/time_utils.py (timezone-aware helpers)
+- docs/contracts.md (Firestore event schemas)
+- agency.py updated with Orchestrator as CEO and flows
+
+# 6) Low-Level Steps (Ordered)
+
+1. Create OrchestratorAgent with instructions and empty tools folder.
+2. Implement tools: plan*daily_run, dispatch*\*, enforce_policies, emit_run_events.
+3. Add `core/time_utils.py`: now(), to_iso8601_z(), parse_iso8601_z(); refactor utcnow usages.
+4. Author docs/contracts.md defining schemas for `videos`, `jobs/*`, `audit_logs`, `jobs_deadletter`.
+5. Update agency.py: Orchestrator CEO and communication flows.
+
+# 7) Types & Interfaces
+
+```python
+class RunEvent(TypedDict):
+    run_id: str
+    planned: int
+    succeeded: int
+    failed: int
+    dlq: int
+    created_at: str
+```
+
+# 8) Acceptance Criteria
+
+- OrchestratorAgent wired as CEO; tools import successfully.
+- All time usages are timezone-aware via `core/time_utils.py`.
+- Event contracts documented; referenced by tools.
+
+# 9) Testing Strategy
+
+- Unit tests for plan/enforce to validate decisions (no external APIs).
+- Smoke import of agency.py to ensure flow wiring.

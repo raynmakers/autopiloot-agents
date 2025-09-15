@@ -9,7 +9,7 @@ import hashlib
 import sys
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from google.cloud import firestore
 from google.oauth2 import service_account
 from agency_swarm.tools import BaseTool
@@ -49,7 +49,8 @@ class SaveTranscriptRecord(BaseTool):
         description="Dictionary with transcription_usd cost for budget tracking"
     )
     
-    @validator('video_id')
+    @field_validator('video_id')
+    @classmethod
     def validate_video_id(cls, v):
         """Validate YouTube video ID format."""
         if not v or len(v.strip()) == 0:
@@ -58,7 +59,8 @@ class SaveTranscriptRecord(BaseTool):
             raise ValueError("video_id seems too long for a valid YouTube ID")
         return v.strip()
     
-    @validator('drive_ids')
+    @field_validator('drive_ids')
+    @classmethod
     def validate_drive_ids(cls, v):
         """Validate drive_ids contains required keys."""
         if not isinstance(v, dict):
@@ -76,7 +78,8 @@ class SaveTranscriptRecord(BaseTool):
         
         return v
     
-    @validator('transcript_digest')
+    @field_validator('transcript_digest')
+    @classmethod
     def validate_transcript_digest(cls, v):
         """Validate transcript digest format."""
         if not v or len(v.strip()) == 0:
@@ -86,7 +89,8 @@ class SaveTranscriptRecord(BaseTool):
             raise ValueError("transcript_digest must be a valid hex string")
         return v.strip()
     
-    @validator('costs')
+    @field_validator('costs')
+    @classmethod
     def validate_costs(cls, v):
         """Validate costs structure and values."""
         if not isinstance(v, dict):
@@ -200,7 +204,48 @@ class SaveTranscriptRecord(BaseTool):
             transaction = db.transaction()
             
             @firestore.transactional
-            def update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data):\n                # Set transcript document\n                transaction.set(transcript_ref, transcript_data)\n                # Update video document\n                transaction.update(video_ref, video_update_data)\n                return True\n            \n            # Prepare video update data\n            video_update_data = {\n                'status': 'transcribed',  # Progress from 'transcription_queued' to 'transcribed'\n                'transcript_doc_ref': f\"transcripts/{self.video_id}\",\n                'transcript_drive_ids': self.drive_ids,\n                'transcript_digest': self.transcript_digest,\n                'costs': firestore.ArrayUnion([{\n                    'type': 'transcription',\n                    'amount_usd': self.costs['transcription_usd'],\n                    'timestamp': current_time_iso,\n                    'provider': 'assemblyai'\n                }]) if 'costs' not in video_data else self.costs,\n                'updated_at': current_time_iso,\n                'processing_completed_at': current_time_iso\n            }\n            \n            # Execute transaction\n            update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data)\n            \n            # Prepare successful response\n            result = {\n                \"transcript_doc_ref\": f\"transcripts/{self.video_id}\",\n                \"video_status\": \"transcribed\",\n                \"video_id\": self.video_id,\n                \"created_at\": current_time_iso,\n                \"drive_ids\": self.drive_ids,\n                \"transcript_digest\": self.transcript_digest,\n                \"costs\": self.costs,\n                \"status_change\": {\n                    \"from\": current_status,\n                    \"to\": \"transcribed\"\n                }\n            }\n            \n            # Log transcript creation to audit trail (TASK-AUDIT-0041)
+            def update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data):
+                # Set transcript document
+                transaction.set(transcript_ref, transcript_data)
+                # Update video document
+                transaction.update(video_ref, video_update_data)
+                return True
+            
+            # Prepare video update data
+            video_update_data = {
+                'status': 'transcribed',  # Progress from 'transcription_queued' to 'transcribed'
+                'transcript_doc_ref': f"transcripts/{self.video_id}",
+                'transcript_drive_ids': self.drive_ids,
+                'transcript_digest': self.transcript_digest,
+                'costs': firestore.ArrayUnion([{
+                    'type': 'transcription',
+                    'amount_usd': self.costs['transcription_usd'],
+                    'timestamp': current_time_iso,
+                    'provider': 'assemblyai'
+                }]) if 'costs' not in video_data else self.costs,
+                'updated_at': current_time_iso,
+                'processing_completed_at': current_time_iso
+            }
+            
+            # Execute transaction
+            update_records(transaction, video_ref, transcript_ref, video_update_data, transcript_data)
+            
+            # Prepare successful response
+            result = {
+                "transcript_doc_ref": f"transcripts/{self.video_id}",
+                "video_status": "transcribed",
+                "video_id": self.video_id,
+                "created_at": current_time_iso,
+                "drive_ids": self.drive_ids,
+                "transcript_digest": self.transcript_digest,
+                "costs": self.costs,
+                "status_change": {
+                    "from": current_status,
+                    "to": "transcribed"
+                }
+            }
+            
+            # Log transcript creation to audit trail (TASK-AUDIT-0041)
             audit_logger.log_transcript_created(
                 video_id=self.video_id,
                 transcript_doc_ref=f"transcripts/{self.video_id}",
@@ -215,7 +260,20 @@ class SaveTranscriptRecord(BaseTool):
                 actor="TranscriberAgent"
             )
             
-            return json.dumps(result, indent=2)\n            \n        except service_account.exceptions.ServiceAccountCredentialsError as e:\n            return json.dumps({\n                \"error\": \"credentials_error\",\n                \"message\": \"Invalid Google service account credentials\",\n                \"details\": str(e)\n            })\n        except Exception as e:\n            return json.dumps({\n                \"error\": \"firestore_error\",\n                \"message\": f\"Failed to save transcript record: {str(e)}\",\n                \"video_id\": self.video_id\n            })
+            return json.dumps(result, indent=2)
+            
+        except service_account.exceptions.ServiceAccountCredentialsError as e:
+            return json.dumps({
+                "error": "credentials_error",
+                "message": "Invalid Google service account credentials",
+                "details": str(e)
+            })
+        except Exception as e:
+            return json.dumps({
+                "error": "firestore_error",
+                "message": f"Failed to save transcript record: {str(e)}",
+                "video_id": self.video_id
+            })
 
 
 if __name__ == "__main__":

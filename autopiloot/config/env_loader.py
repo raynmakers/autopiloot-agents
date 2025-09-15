@@ -57,7 +57,19 @@ def get_required_env_var(name: str, description: str = "") -> str:
     value = os.getenv(name)
     if not value:
         desc_part = f" ({description})" if description else ""
-        raise EnvironmentError(f"Required environment variable {name}{desc_part} is not set")
+        
+        # Provide specific guidance based on variable type
+        guidance = ""
+        if "API_KEY" in name:
+            guidance = f"\n  Hint: Obtain your API key from the service provider and add it to your .env file"
+        elif "PROJECT_ID" in name:
+            guidance = f"\n  Hint: Set this to your Google Cloud Project ID (e.g., my-project-123)"
+        elif "CREDENTIALS" in name:
+            guidance = f"\n  Hint: Set this to the path of your Google service account JSON file"
+        elif "FOLDER_ID" in name:
+            guidance = f"\n  Hint: Create a folder in Google Drive and use its ID from the URL"
+        
+        raise EnvironmentError(f"Required environment variable {name}{desc_part} is not set{guidance}")
     return value
 
 
@@ -127,7 +139,11 @@ def validate_environment() -> Dict[str, str]:
     # If any required variables are missing, raise an error with all missing vars
     if missing_vars:
         error_msg = "Missing required environment variables:\n" + "\n".join(missing_vars)
-        error_msg += f"\n\nPlease copy .env.template to .env and fill in your values."
+        error_msg += f"\n\nTo fix this:"
+        error_msg += f"\n  1. Copy .env.template to .env: cp .env.template .env"
+        error_msg += f"\n  2. Edit .env and fill in your actual values"
+        error_msg += f"\n  3. Restart your application"
+        error_msg += f"\n\nFor detailed setup instructions, see ENVIRONMENT.md"
         raise EnvironmentError(error_msg)
     
     # Set optional variables
@@ -150,9 +166,66 @@ def get_google_credentials_path() -> str:
     creds_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials")
     
     if not Path(creds_path).exists():
-        raise EnvironmentError(f"Google credentials file not found: {creds_path}")
+        raise EnvironmentError(
+            f"Google credentials file not found: {creds_path}\n"
+            f"  Hint: Download your service account key from Google Cloud Console and update the path"
+        )
     
     return creds_path
+
+
+def validate_gcp_project_access() -> str:
+    """
+    Validate GCP project ID and Firestore access.
+    
+    Returns:
+        GCP project ID
+        
+    Raises:
+        EnvironmentError: If project ID is invalid or Firestore access fails
+    """
+    project_id = get_required_env_var("GCP_PROJECT_ID", "Google Cloud Project ID for Firestore access")
+    
+    # Validate project ID format (basic check)
+    if not project_id.replace("-", "").replace("_", "").replace("0", "").replace("1", "").replace("2", "").replace("3", "").replace("4", "").replace("5", "").replace("6", "").replace("7", "").replace("8", "").replace("9", "").isalnum():
+        raise EnvironmentError(
+            f"Invalid GCP project ID format: {project_id}\n"
+            f"  Hint: Project IDs must contain only lowercase letters, numbers, and hyphens"
+        )
+    
+    # Try to validate Firestore access (optional, only if google-cloud-firestore is available)
+    try:
+        from google.cloud import firestore
+        import google.auth.exceptions
+        
+        # Attempt to initialize Firestore client
+        try:
+            db = firestore.Client(project=project_id)
+            # Try a simple operation to validate access
+            # This doesn't actually read data, just validates auth
+            collections = db.collections()
+            # Force evaluation of the generator to check access
+            list(collections)
+        except google.auth.exceptions.DefaultCredentialsError:
+            raise EnvironmentError(
+                f"Google Cloud authentication failed for project {project_id}\n"
+                f"  Hint: Ensure GOOGLE_APPLICATION_CREDENTIALS points to a valid service account key"
+            )
+        except Exception as e:
+            # If we can't access Firestore but credentials are valid, it might be permissions
+            if "permission" in str(e).lower() or "access" in str(e).lower():
+                raise EnvironmentError(
+                    f"Firestore access denied for project {project_id}\n"
+                    f"  Hint: Ensure your service account has Firestore permissions (roles/datastore.user)"
+                )
+            # For other errors, just warn but don't fail
+            print(f"Warning: Could not fully validate Firestore access: {e}")
+    
+    except ImportError:
+        # google-cloud-firestore not installed, skip validation
+        print("Warning: google-cloud-firestore not installed, skipping Firestore access validation")
+    
+    return project_id
 
 
 def get_api_key(service: str) -> str:
@@ -224,6 +297,13 @@ if __name__ == "__main__":
             print(f"  - Google credentials: ✅ {creds_path}")
         except EnvironmentError as e:
             print(f"  - Google credentials: ❌ {e}")
+        
+        # Test GCP project access
+        try:
+            project_id = validate_gcp_project_access()
+            print(f"  - GCP project access: ✅ {project_id}")
+        except EnvironmentError as e:
+            print(f"  - GCP project access: ❌ {e}")
         
         print("\n🎉 Environment configuration is valid!")
         

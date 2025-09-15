@@ -61,6 +61,28 @@ class ReliabilityConfig(TypedDict, total=False):
     quotas: ReliabilityQuotasConfig
 
 
+class OrchestratorParallelismConfig(TypedDict, total=False):
+    max_parallel_jobs: int
+    max_dispatch_batch: int
+
+
+class OrchestratorCoordinationConfig(TypedDict, total=False):
+    run_timeout_minutes: int
+    dlq_escalation_threshold: int
+
+
+class OrchestratorPoliciesConfig(TypedDict, total=False):
+    budget_enforcement: bool
+    quota_enforcement: bool
+    max_retries_per_video: int
+
+
+class OrchestratorConfig(TypedDict, total=False):
+    parallelism: OrchestratorParallelismConfig
+    coordination: OrchestratorCoordinationConfig
+    policies: OrchestratorPoliciesConfig
+
+
 class AppConfig(TypedDict, total=False):
     sheet: str
     scraper: ScraperConfig
@@ -70,6 +92,7 @@ class AppConfig(TypedDict, total=False):
     budgets: BudgetsConfig
     idempotency: Dict[str, Union[int, List[str], str]]
     reliability: ReliabilityConfig
+    orchestrator: OrchestratorConfig
 
 
 class ConfigValidationError(Exception):
@@ -197,6 +220,48 @@ def _validate_config(config: dict) -> None:
                 quota_value = quotas_config[quota_key]
                 if not isinstance(quota_value, int) or quota_value <= 0:
                     raise ConfigValidationError(f"reliability.quotas.{quota_key} must be a positive integer")
+    
+    # Validate orchestrator config
+    orchestrator = config.get("orchestrator", {})
+    if "parallelism" in orchestrator:
+        parallelism_config = orchestrator["parallelism"]
+        
+        if "max_parallel_jobs" in parallelism_config:
+            max_parallel = parallelism_config["max_parallel_jobs"]
+            if not isinstance(max_parallel, int) or max_parallel <= 0:
+                raise ConfigValidationError("orchestrator.parallelism.max_parallel_jobs must be a positive integer")
+        
+        if "max_dispatch_batch" in parallelism_config:
+            max_batch = parallelism_config["max_dispatch_batch"]
+            if not isinstance(max_batch, int) or max_batch <= 0:
+                raise ConfigValidationError("orchestrator.parallelism.max_dispatch_batch must be a positive integer")
+    
+    if "coordination" in orchestrator:
+        coordination_config = orchestrator["coordination"]
+        
+        if "run_timeout_minutes" in coordination_config:
+            timeout = coordination_config["run_timeout_minutes"]
+            if not isinstance(timeout, int) or timeout <= 0:
+                raise ConfigValidationError("orchestrator.coordination.run_timeout_minutes must be a positive integer")
+        
+        if "dlq_escalation_threshold" in coordination_config:
+            threshold = coordination_config["dlq_escalation_threshold"]
+            if not isinstance(threshold, int) or threshold < 0:
+                raise ConfigValidationError("orchestrator.coordination.dlq_escalation_threshold must be a non-negative integer")
+    
+    if "policies" in orchestrator:
+        policies_config = orchestrator["policies"]
+        
+        for policy_key in ["budget_enforcement", "quota_enforcement"]:
+            if policy_key in policies_config:
+                policy_value = policies_config[policy_key]
+                if not isinstance(policy_value, bool):
+                    raise ConfigValidationError(f"orchestrator.policies.{policy_key} must be a boolean")
+        
+        if "max_retries_per_video" in policies_config:
+            max_retries = policies_config["max_retries_per_video"]
+            if not isinstance(max_retries, int) or max_retries < 0:
+                raise ConfigValidationError("orchestrator.policies.max_retries_per_video must be a non-negative integer")
 
 
 def load_app_config(config_path: Optional[str] = None) -> AppConfig:
@@ -357,6 +422,97 @@ def get_assemblyai_daily_limit(config: AppConfig) -> int:
     return config.get("reliability", {}).get("quotas", {}).get("assemblyai_daily_limit", 100)
 
 
+def get_orchestrator_max_parallel_jobs(config: AppConfig) -> int:
+    """
+    Get maximum parallel jobs for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Maximum parallel jobs (default: 5)
+    """
+    return config.get("orchestrator", {}).get("parallelism", {}).get("max_parallel_jobs", 5)
+
+
+def get_orchestrator_max_dispatch_batch(config: AppConfig) -> int:
+    """
+    Get maximum dispatch batch size for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Maximum dispatch batch size (default: 10)
+    """
+    return config.get("orchestrator", {}).get("parallelism", {}).get("max_dispatch_batch", 10)
+
+
+def get_orchestrator_run_timeout_minutes(config: AppConfig) -> int:
+    """
+    Get run timeout in minutes for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Run timeout in minutes (default: 120)
+    """
+    return config.get("orchestrator", {}).get("coordination", {}).get("run_timeout_minutes", 120)
+
+
+def get_orchestrator_dlq_escalation_threshold(config: AppConfig) -> int:
+    """
+    Get DLQ escalation threshold for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        DLQ escalation threshold (default: 5)
+    """
+    return config.get("orchestrator", {}).get("coordination", {}).get("dlq_escalation_threshold", 5)
+
+
+def get_orchestrator_budget_enforcement(config: AppConfig) -> bool:
+    """
+    Get budget enforcement policy for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Budget enforcement enabled (default: True)
+    """
+    return config.get("orchestrator", {}).get("policies", {}).get("budget_enforcement", True)
+
+
+def get_orchestrator_quota_enforcement(config: AppConfig) -> bool:
+    """
+    Get quota enforcement policy for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Quota enforcement enabled (default: True)
+    """
+    return config.get("orchestrator", {}).get("policies", {}).get("quota_enforcement", True)
+
+
+def get_orchestrator_max_retries_per_video(config: AppConfig) -> int:
+    """
+    Get maximum retries per video for orchestrator from config.
+    
+    Args:
+        config: Application configuration
+        
+    Returns:
+        Maximum retries per video (default: 3)
+    """
+    return config.get("orchestrator", {}).get("policies", {}).get("max_retries_per_video", 3)
+
+
 def get_config_value(key_path: str, default=None):
     """
     Get a nested configuration value using dot notation.
@@ -393,3 +549,10 @@ if __name__ == "__main__":
     print(f"Retry base delay: {get_retry_base_delay(config)} seconds")
     print(f"YouTube daily limit: {get_youtube_daily_limit(config)}")
     print(f"AssemblyAI daily limit: {get_assemblyai_daily_limit(config)}")
+    print(f"Orchestrator max parallel jobs: {get_orchestrator_max_parallel_jobs(config)}")
+    print(f"Orchestrator max dispatch batch: {get_orchestrator_max_dispatch_batch(config)}")
+    print(f"Orchestrator run timeout: {get_orchestrator_run_timeout_minutes(config)} minutes")
+    print(f"Orchestrator DLQ escalation threshold: {get_orchestrator_dlq_escalation_threshold(config)}")
+    print(f"Orchestrator budget enforcement: {get_orchestrator_budget_enforcement(config)}")
+    print(f"Orchestrator quota enforcement: {get_orchestrator_quota_enforcement(config)}")
+    print(f"Orchestrator max retries per video: {get_orchestrator_max_retries_per_video(config)}")

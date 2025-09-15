@@ -1,0 +1,27 @@
+---
+description: "Complete configuration coverage; env validation improvements"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-CFG-0052"
+title: "Configuration & Env — reliability, quotas, orchestrator knobs"
+status: "planned"
+priority: "P1"
+labels: ["config", "env"]
+dependencies: []
+created: "2025-09-15"
+
+# Objective
+
+Ensure `settings.yaml` and `env_loader.py` cover reliability.retry, reliability.quotas, sheets, orchestrator parallelism, and Firestore project env.
+
+# Steps
+
+1. Add/getters for orchestrator knobs (max_parallel_jobs, max_dispatch_batch).
+2. Validate `GCP_PROJECT_ID` when Firestore access is used.
+3. Improve error messages in env loader for missing/invalid keys.
+
+# Acceptance
+
+- Config loader returns getters for new knobs; env loader errors are actionable.

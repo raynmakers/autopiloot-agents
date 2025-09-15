@@ -6,7 +6,7 @@ Implements TASK-TRN-0021: Submit transcription with 70-min cap and cost estimati
 import os
 import json
 from typing import Optional, Dict, Any
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
@@ -51,7 +51,8 @@ class SubmitAssemblyAIJob(BaseTool):
         description="Optional language code (e.g., 'en', 'es', 'fr') for better accuracy"
     )
     
-    @validator('duration_sec')
+    @field_validator('duration_sec')
+    @classmethod
     def validate_duration(cls, v):
         """Validate video duration is within 70-minute limit."""
         if v > 4200:
@@ -60,7 +61,8 @@ class SubmitAssemblyAIJob(BaseTool):
             raise ValueError(f"Invalid duration: {v}s. Duration must be positive.")
         return v
     
-    @validator('webhook_url')
+    @field_validator('webhook_url')
+    @classmethod
     def validate_webhook_url(cls, v):
         """Validate webhook URL format if provided."""
         if v and not (v.startswith('http://') or v.startswith('https://')):

@@ -50,3 +50,15 @@ reliability:
   quotas:
     youtube_daily_limit: 10000  # YouTube Data API daily quota
     assemblyai_daily_limit: 100  # AssemblyAI daily transcription limit
+
+orchestrator:
+  parallelism:
+    max_parallel_jobs: 5  # Maximum concurrent jobs across all agents
+    max_dispatch_batch: 10  # Maximum items per batch dispatch
+  coordination:
+    run_timeout_minutes: 120  # Maximum runtime for daily runs
+    dlq_escalation_threshold: 5  # DLQ items before escalation
+  policies:
+    budget_enforcement: true  # Enable budget limit enforcement
+    quota_enforcement: true  # Enable API quota enforcement
+    max_retries_per_video: 3  # Global retry limit per video

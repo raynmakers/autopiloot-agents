@@ -2,7 +2,7 @@ import os
 import json
 import time
 from typing import Dict, Any
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
@@ -36,7 +36,8 @@ class PollTranscriptionJob(BaseTool):
         description="Maximum total polling time in seconds (default 1 hour)"
     )
     
-    @validator('max_attempts')
+    @field_validator('max_attempts')
+    @classmethod
     def validate_max_attempts(cls, v):
         """Validate max attempts is reasonable."""
         if v < 1:
@@ -45,7 +46,8 @@ class PollTranscriptionJob(BaseTool):
             raise ValueError("max_attempts cannot exceed 10 to prevent excessive API calls")
         return v
     
-    @validator('base_delay_sec')
+    @field_validator('base_delay_sec')
+    @classmethod
     def validate_base_delay(cls, v):
         """Validate base delay is reasonable."""
         if v < 10:
@@ -54,7 +56,8 @@ class PollTranscriptionJob(BaseTool):
             raise ValueError("base_delay_sec cannot exceed 300 seconds")
         return v
     
-    @validator('timeout_sec')
+    @field_validator('timeout_sec')
+    @classmethod
     def validate_timeout(cls, v):
         """Validate timeout is reasonable."""
         if v < 300:

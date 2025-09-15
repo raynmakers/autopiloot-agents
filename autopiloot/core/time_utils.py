@@ -315,3 +315,225 @@ def get_business_timezone() -> str:
         str: Business timezone name
     """
     return os.getenv('BUSINESS_TIMEZONE', 'America/New_York')
+
+
+# Backoff and retry utilities
+def calculate_exponential_backoff(
+    attempt: int, 
+    base_delay: int = 60, 
+    max_delay: int = 240, 
+    exponential_base: float = 2.0
+) -> int:
+    """
+    Calculate exponential backoff delay for retry attempts.
+    
+    Args:
+        attempt: Attempt number (1-based)
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay cap in seconds
+        exponential_base: Exponential multiplier
+        
+    Returns:
+        Delay in seconds for this attempt
+        
+    Example:
+        calculate_exponential_backoff(1) -> 60
+        calculate_exponential_backoff(2) -> 120
+        calculate_exponential_backoff(3) -> 240 (capped)
+    """
+    if attempt <= 0:
+        return 0
+    
+    delay = base_delay * (exponential_base ** (attempt - 1))
+    return min(int(delay), max_delay)
+
+
+def calculate_jittered_backoff(
+    attempt: int,
+    base_delay: int = 60,
+    max_delay: int = 240,
+    jitter_factor: float = 0.1
+) -> int:
+    """
+    Calculate exponential backoff with jitter to avoid thundering herd.
+    
+    Args:
+        attempt: Attempt number (1-based)
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay cap in seconds
+        jitter_factor: Jitter factor (0.0 to 1.0)
+        
+    Returns:
+        Delay in seconds with jitter applied
+    """
+    import random
+    
+    base_backoff = calculate_exponential_backoff(attempt, base_delay, max_delay)
+    jitter = base_backoff * jitter_factor * (random.random() - 0.5)
+    
+    jittered_delay = base_backoff + jitter
+    return max(1, min(int(jittered_delay), max_delay))
+
+
+def get_next_retry_time(
+    attempt: int,
+    base_time: datetime = None,
+    base_delay: int = 60,
+    max_delay: int = 240
+) -> datetime:
+    """
+    Get the next retry timestamp using exponential backoff.
+    
+    Args:
+        attempt: Attempt number (1-based)
+        base_time: Base time to calculate from (defaults to now)
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay cap in seconds
+        
+    Returns:
+        Next retry timestamp in UTC
+    """
+    if base_time is None:
+        base_time = now()
+    
+    delay_seconds = calculate_exponential_backoff(attempt, base_delay, max_delay)
+    return add_minutes(base_time, delay_seconds // 60)
+
+
+# Duration formatting utilities
+def format_duration_human(seconds: int) -> str:
+    """
+    Format duration in seconds to human-readable string.
+    
+    Args:
+        seconds: Duration in seconds
+        
+    Returns:
+        Human-readable duration string
+        
+    Example:
+        format_duration_human(90) -> "1m 30s"
+        format_duration_human(3661) -> "1h 1m 1s"
+    """
+    if seconds < 0:
+        return "0s"
+    
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if secs > 0 or not parts:
+        parts.append(f"{secs}s")
+    
+    return " ".join(parts)
+
+
+def parse_duration_string(duration_str: str) -> int:
+    """
+    Parse human-readable duration string to seconds.
+    
+    Args:
+        duration_str: Duration string (e.g., "1h 30m", "90s")
+        
+    Returns:
+        Duration in seconds
+        
+    Raises:
+        ValueError: If duration string is invalid
+    """
+    import re
+    
+    if not duration_str or not isinstance(duration_str, str):
+        raise ValueError("Duration string cannot be empty")
+    
+    # Pattern to match time components
+    pattern = r'(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?'
+    match = re.match(pattern, duration_str.strip())
+    
+    if not match:
+        raise ValueError(f"Invalid duration format: {duration_str}")
+    
+    hours, minutes, seconds = match.groups()
+    
+    total_seconds = 0
+    if hours:
+        total_seconds += int(hours) * 3600
+    if minutes:
+        total_seconds += int(minutes) * 60
+    if seconds:
+        total_seconds += int(seconds)
+    
+    if total_seconds == 0:
+        raise ValueError(f"No valid time components found in: {duration_str}")
+    
+    return total_seconds
+
+
+# Age and elapsed time utilities
+def get_age_in_seconds(timestamp: datetime, reference_time: datetime = None) -> int:
+    """
+    Get age of timestamp in seconds.
+    
+    Args:
+        timestamp: The timestamp to check age of
+        reference_time: Reference time (defaults to now)
+        
+    Returns:
+        Age in seconds
+    """
+    if reference_time is None:
+        reference_time = now()
+    
+    # Ensure both timestamps are timezone-aware
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    if reference_time.tzinfo is None:
+        reference_time = reference_time.replace(tzinfo=timezone.utc)
+    
+    delta = reference_time - timestamp
+    return int(delta.total_seconds())
+
+
+def is_older_than(timestamp: datetime, max_age_seconds: int, reference_time: datetime = None) -> bool:
+    """
+    Check if timestamp is older than specified age.
+    
+    Args:
+        timestamp: The timestamp to check
+        max_age_seconds: Maximum age in seconds
+        reference_time: Reference time (defaults to now)
+        
+    Returns:
+        True if timestamp is older than max_age_seconds
+    """
+    age = get_age_in_seconds(timestamp, reference_time)
+    return age > max_age_seconds
+
+
+def time_until(target_time: datetime, reference_time: datetime = None) -> int:
+    """
+    Get seconds until target time.
+    
+    Args:
+        target_time: Target timestamp
+        reference_time: Reference time (defaults to now)
+        
+    Returns:
+        Seconds until target time (negative if target is in the past)
+    """
+    if reference_time is None:
+        reference_time = now()
+    
+    # Ensure both timestamps are timezone-aware
+    if target_time.tzinfo is None:
+        target_time = target_time.replace(tzinfo=timezone.utc)
+    if reference_time.tzinfo is None:
+        reference_time = reference_time.replace(tzinfo=timezone.utc)
+    
+    delta = target_time - reference_time
+    return int(delta.total_seconds())

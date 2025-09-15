@@ -53,13 +53,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         }
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_create_transcription_job_success(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_create_transcription_job_success(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test successful creation of transcription job."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -128,13 +128,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         mock_batch.commit.assert_called_once()
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_video_not_found(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_video_not_found(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test behavior when video doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -160,13 +160,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertIsNone(data['job_id'])
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_video_already_transcribed(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_video_already_transcribed(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test behavior when video already has transcript."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -209,13 +209,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertEqual(data['video_id'], self.test_video_id)
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_job_already_exists(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_job_already_exists(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test behavior when transcription job already exists."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -267,13 +267,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertEqual(data['existing_status'], 'pending')
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_video_duration_exceeds_limit(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_video_duration_exceeds_limit(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test behavior when video duration exceeds maximum."""
         # Mock configuration with 70-minute limit
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -331,11 +331,11 @@ class TestEnqueueTranscription(unittest.TestCase):
         tool = EnqueueTranscription(video_id="test123")
         self.assertEqual(tool.video_id, "test123")
 
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
-    def test_missing_environment_variables(self, mock_get_required_var):
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
+    def test_missing_environment_variables(self, mock_get_required_env_var):
         """Test behavior when required environment variables are missing."""
         # Mock missing GCP_PROJECT_ID
-        mock_get_required_var.side_effect = Exception("GCP_PROJECT_ID not set")
+        mock_get_required_env_var.side_effect = Exception("GCP_PROJECT_ID not set")
         
         result = self.tool.run()
         
@@ -346,12 +346,12 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertIn('GCP_PROJECT_ID not set', data['error'])
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
-    def test_missing_service_account_file(self, mock_get_required_var, mock_config):
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
+    def test_missing_service_account_file(self, mock_get_required_env_var, mock_config):
         """Test behavior when service account file doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/nonexistent/credentials.json"
         }[var]
@@ -367,13 +367,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertIn('Service account file not found', data['error'])
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_firestore_operation_failure(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_firestore_operation_failure(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test error handling when Firestore operation fails."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -411,13 +411,13 @@ class TestEnqueueTranscription(unittest.TestCase):
                 pass
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_batch_operation_atomicity(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_batch_operation_atomicity(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test that job creation and video status update use atomic batch operation."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -479,13 +479,13 @@ class TestEnqueueTranscription(unittest.TestCase):
         self.assertEqual(data['job_id'], 'test_job_123')
 
     @patch('scraper.tools.EnqueueTranscription.load_app_config')
-    @patch('scraper.tools.EnqueueTranscription.get_required_var')
+    @patch('scraper.tools.EnqueueTranscription.get_required_env_var')
     @patch('scraper.tools.EnqueueTranscription.firestore.Client')
-    def test_job_data_structure(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_job_data_structure(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test that job data includes all required fields from video metadata."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]

@@ -1,0 +1,27 @@
+---
+description: "Refactor imports, DRY utilities, and packaging for reliability"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-CODE-0053"
+title: "Code Quality & Structure — imports, DRY, packages"
+status: "planned"
+priority: "P1"
+labels: ["quality", "structure"]
+dependencies: []
+created: "2025-09-15"
+
+# Objective
+
+Avoid relative import pitfalls, centralize common helpers (slack channel normalization, ISO8601, backoff), and ensure agent folders are proper packages.
+
+# Steps
+
+1. Add `core/slack_utils.py` for channel normalization and shared helpers.
+2. Move backoff/ISO8601 helpers to core utilities and reuse.
+3. Ensure `__init__.py` exists for all agent/core folders; document `python -m` execution.
+
+# Acceptance
+
+- No attempted relative import errors; utilities reused across tools.

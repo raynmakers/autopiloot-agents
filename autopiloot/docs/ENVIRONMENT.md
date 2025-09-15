@@ -29,6 +29,7 @@ This document explains how to configure environment variables for the Autopiloot
 
 ### Google Services
 
+- **`GCP_PROJECT_ID`**: Google Cloud Project ID for Firestore and other GCP services
 - **`GOOGLE_APPLICATION_CREDENTIALS`**: Path to Google service account JSON file
 - **`GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`**: Google Drive folder ID for transcript storage
 - **`GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`**: Google Drive folder ID for summary storage
@@ -80,6 +81,150 @@ This document explains how to configure environment variables for the Autopiloot
 
 1. Visit [Zep Cloud](https://www.getzep.com/)
 2. Sign up and get your API key from the dashboard
+
+## Google Cloud Service Account Setup
+
+### Creating a Service Account
+
+1. **Go to Google Cloud Console**
+   - Visit [Google Cloud Console](https://console.cloud.google.com/)
+   - Select or create a project
+
+2. **Enable Required APIs**
+   ```bash
+   # Enable required Google APIs
+   gcloud services enable firestore.googleapis.com
+   gcloud services enable drive.googleapis.com
+   gcloud services enable sheets.googleapis.com
+   ```
+
+3. **Create Service Account**
+   - Go to **IAM & Admin > Service Accounts**
+   - Click **Create Service Account**
+   - Name: `autopiloot-agency`
+   - Description: `Service account for Autopiloot Agency operations`
+
+4. **Assign Minimal Required Roles**
+   ```
+   - Cloud Datastore User (for Firestore access)
+   - Storage Object Admin (for file uploads, if using Cloud Storage)
+   ```
+
+5. **Create and Download Key**
+   - Click on the created service account
+   - Go to **Keys** tab
+   - Click **Add Key > Create New Key**
+   - Choose **JSON** format
+   - Download and save securely
+
+6. **Set Environment Variable**
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+   ```
+
+### Google Drive Folder Setup
+
+1. **Create Folders**
+   - Create two folders in Google Drive:
+     - `Autopiloot Transcripts`
+     - `Autopiloot Summaries`
+
+2. **Share Folders with Service Account**
+   - Right-click each folder > Share
+   - Add the service account email (e.g., `autopiloot-agency@your-project.iam.gserviceaccount.com`)
+   - Give **Editor** permissions
+
+3. **Get Folder IDs**
+   - Open each folder in Google Drive
+   - Copy the folder ID from the URL: `https://drive.google.com/drive/folders/FOLDER_ID_HERE`
+   - Set in `.env`:
+     ```
+     GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS=your_transcript_folder_id
+     GOOGLE_DRIVE_FOLDER_ID_SUMMARIES=your_summary_folder_id
+     ```
+
+### Firestore Database Setup
+
+1. **Create Firestore Database**
+   - Go to **Firestore > Create Database**
+   - Choose **Native Mode**
+   - Select region (recommend same as your application)
+
+2. **Configure Security Rules** (see FIREBASE_IMPLEMENTATION.md for details)
+   ```javascript
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       // Allow service account access
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
+
+### Security Best Practices
+
+#### Service Account Permissions
+- **Principle of Least Privilege**: Only grant minimum required permissions
+- **Regular Rotation**: Rotate service account keys every 90 days
+- **Monitoring**: Enable audit logging for service account usage
+
+#### Recommended IAM Roles
+```
+# Minimal permissions for Autopiloot Agency
+- roles/datastore.user          # Firestore read/write
+- roles/storage.objectAdmin     # Cloud Storage (if used)
+- roles/drive.file             # Google Drive access to created files only
+```
+
+#### Key Management
+- **Secure Storage**: Store keys in secure credential management systems
+- **Environment Isolation**: Use different service accounts for dev/staging/prod
+- **Access Monitoring**: Regularly review service account usage logs
+
+### Firestore Collection Structure
+
+The service account needs access to these collections:
+```
+/videos/{video_id}                    # Video metadata and processing status
+/transcripts/{video_id}               # Transcript content and metadata
+/summaries/{video_id}                 # Generated summaries
+/jobs/transcription/{job_id}          # Transcription job tracking
+/jobs/summarization/{job_id}          # Summarization job tracking
+/audit_logs/{log_id}                  # Audit trail for compliance
+/jobs_deadletter/{job_id}             # Failed jobs requiring attention
+/alert_throttling/{alert_key}         # Alert throttling state
+/costs_daily/{date}                   # Daily cost tracking
+```
+
+### Troubleshooting Service Account Issues
+
+#### Authentication Errors
+```bash
+# Verify service account key
+gcloud auth activate-service-account --key-file=/path/to/key.json
+
+# Test Firestore access
+python -c "
+from google.cloud import firestore
+db = firestore.Client()
+collections = list(db.collections())
+print(f'✅ Firestore accessible: {len(collections)} collections')
+"
+```
+
+#### Permission Errors
+```bash
+# Check service account permissions
+gcloud projects get-iam-policy YOUR_PROJECT_ID \
+  --filter="bindings.members:serviceAccount:autopiloot-agency@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+```
+
+#### Drive Access Errors
+- Verify folder sharing with service account email
+- Check folder IDs are correct in environment variables
+- Ensure service account has Editor permissions on folders
 
 ## Testing Environment
 

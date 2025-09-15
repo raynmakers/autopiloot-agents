@@ -50,13 +50,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.tool = SaveVideoMetadata(**self.valid_video_data)
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_save_new_video_metadata(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_save_new_video_metadata(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test saving new video metadata to Firestore."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -100,13 +100,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.assertIn('updated_at', call_args)
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_update_existing_video_metadata(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_update_existing_video_metadata(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test updating existing video metadata in Firestore."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -162,13 +162,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.assertIsNone(data['doc_ref'])
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_firestore_operation_failure(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_firestore_operation_failure(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test error handling when Firestore operation fails."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -218,13 +218,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.assertIsNone(tool.channel_id)
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_source_field_validation(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_source_field_validation(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test validation of source field values."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -253,11 +253,11 @@ class TestSaveVideoMetadata(unittest.TestCase):
             self.assertNotIn('error', data_result)
             self.assertEqual(data_result['doc_ref'], f'videos/test_{source}')
 
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
-    def test_missing_environment_variables(self, mock_get_required_var):
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
+    def test_missing_environment_variables(self, mock_get_required_env_var):
         """Test behavior when required environment variables are missing."""
         # Mock missing GCP_PROJECT_ID
-        mock_get_required_var.side_effect = Exception("GCP_PROJECT_ID not set")
+        mock_get_required_env_var.side_effect = Exception("GCP_PROJECT_ID not set")
         
         result = self.tool.run()
         
@@ -268,12 +268,12 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.assertIn('GCP_PROJECT_ID not set', data['error'])
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
-    def test_missing_service_account_file(self, mock_get_required_var, mock_config):
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
+    def test_missing_service_account_file(self, mock_get_required_env_var, mock_config):
         """Test behavior when service account file doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/nonexistent/credentials.json"
         }[var]
@@ -289,13 +289,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
         self.assertIn('Service account file not found', data['error'])
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_video_without_channel_id(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_video_without_channel_id(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test saving video metadata without optional channel_id."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]
@@ -369,13 +369,13 @@ class TestSaveVideoMetadata(unittest.TestCase):
             self.assertEqual(tool.published_at, timestamp)
 
     @patch('scraper.tools.SaveVideoMetadata.load_app_config')
-    @patch('scraper.tools.SaveVideoMetadata.get_required_var')
+    @patch('scraper.tools.SaveVideoMetadata.get_required_env_var')
     @patch('scraper.tools.SaveVideoMetadata.firestore.Client')
-    def test_idempotency_requirement(self, mock_firestore_client, mock_get_required_var, mock_config):
+    def test_idempotency_requirement(self, mock_firestore_client, mock_get_required_env_var, mock_config):
         """Test that re-running with same video_id doesn't create duplicates."""
         # Mock configuration
         mock_config.return_value = {"idempotency": {"max_video_duration_sec": 4200}}
-        mock_get_required_var.side_effect = lambda var, desc: {
+        mock_get_required_env_var.side_effect = lambda var, desc: {
             "GCP_PROJECT_ID": "test-project",
             "GOOGLE_APPLICATION_CREDENTIALS": "/fake/credentials.json"
         }[var]

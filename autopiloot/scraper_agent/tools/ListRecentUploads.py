@@ -19,7 +19,7 @@ from googleapiclient.errors import HttpError
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_var, env_loader
+from env_loader import get_required_env_var, env_loader
 from loader import get_config_value
 from reliability import QuotaManager
 
@@ -348,7 +348,7 @@ class ListRecentUploads(BaseTool):
         """Initialize YouTube Data API client with authentication."""
         try:
             # Get API key (required)
-            api_key = get_required_var("YOUTUBE_API_KEY", "YouTube Data API key")
+            api_key = get_required_env_var("YOUTUBE_API_KEY", "YouTube Data API key")
             
             # Try service account authentication first (if available)
             try:

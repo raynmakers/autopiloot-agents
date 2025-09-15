@@ -45,13 +45,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         )
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_archive_rows_success(self, mock_build, mock_get_required_var, mock_config):
+    def test_archive_rows_success(self, mock_build, mock_get_required_env_var, mock_config):
         """Test successful archival of rows to Archive sheet."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -97,9 +97,9 @@ class TestRemoveSheetRow(unittest.TestCase):
         mock_service.spreadsheets().batchUpdate.assert_called_once()
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_clear_rows_success(self, mock_build, mock_get_required_var, mock_config):
+    def test_clear_rows_success(self, mock_build, mock_get_required_env_var, mock_config):
         """Test successful clearing of row contents."""
         # Create tool in clear mode
         tool = RemoveSheetRow(
@@ -110,7 +110,7 @@ class TestRemoveSheetRow(unittest.TestCase):
         
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -138,13 +138,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertEqual(ranges, expected_ranges)
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_create_archive_sheet_when_missing(self, mock_build, mock_get_required_var, mock_config):
+    def test_create_archive_sheet_when_missing(self, mock_build, mock_get_required_env_var, mock_config):
         """Test creation of Archive sheet when it doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -212,13 +212,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertEqual(data['processed_rows'], 0)
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_source_sheet_not_found(self, mock_build, mock_get_required_var, mock_config):
+    def test_source_sheet_not_found(self, mock_build, mock_get_required_env_var, mock_config):
         """Test behavior when source sheet doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -267,11 +267,11 @@ class TestRemoveSheetRow(unittest.TestCase):
         # that the tool initializes correctly with unsorted data
         self.assertEqual(set(tool.row_indices), {1, 2, 3, 5})
 
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
-    def test_missing_environment_variables(self, mock_get_required_var):
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
+    def test_missing_environment_variables(self, mock_get_required_env_var):
         """Test behavior when required environment variables are missing."""
         # Mock missing credentials
-        mock_get_required_var.side_effect = Exception("GOOGLE_APPLICATION_CREDENTIALS not set")
+        mock_get_required_env_var.side_effect = Exception("GOOGLE_APPLICATION_CREDENTIALS not set")
         
         result = self.tool.run()
         data = json.loads(result)
@@ -280,12 +280,12 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertIn('GOOGLE_APPLICATION_CREDENTIALS not set', data['error'])
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
-    def test_missing_service_account_file(self, mock_get_required_var, mock_config):
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
+    def test_missing_service_account_file(self, mock_get_required_env_var, mock_config):
         """Test behavior when service account file doesn't exist."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/nonexistent/credentials.json"
+        mock_get_required_env_var.return_value = "/nonexistent/credentials.json"
         
         # Mock file doesn't exist
         with patch('os.path.exists', return_value=False):
@@ -298,13 +298,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertIn('Service account file not found', data['error'])
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_api_operation_failure(self, mock_build, mock_get_required_var, mock_config):
+    def test_api_operation_failure(self, mock_build, mock_get_required_env_var, mock_config):
         """Test error handling when Google Sheets API operations fail."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API with failure
         mock_service = MagicMock()
@@ -322,13 +322,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertIn('API failure', data['error'])
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_skip_empty_rows_in_archive(self, mock_build, mock_get_required_var, mock_config):
+    def test_skip_empty_rows_in_archive(self, mock_build, mock_get_required_env_var, mock_config):
         """Test that empty rows are skipped during archival."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -368,13 +368,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertEqual(data['skipped_rows'], 1)    # 1 empty row skipped
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_batch_operations_efficiency(self, mock_build, mock_get_required_var, mock_config):
+    def test_batch_operations_efficiency(self, mock_build, mock_get_required_env_var, mock_config):
         """Test that operations are batched for efficiency."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()
@@ -412,13 +412,13 @@ class TestRemoveSheetRow(unittest.TestCase):
         self.assertEqual(len(requests), 5)  # One request per row deletion
 
     @patch('scraper.tools.RemoveSheetRow.load_app_config')
-    @patch('scraper.tools.RemoveSheetRow.get_required_var')
+    @patch('scraper.tools.RemoveSheetRow.get_required_env_var')
     @patch('scraper.tools.RemoveSheetRow.build')
-    def test_archive_with_timestamps(self, mock_build, mock_get_required_var, mock_config):
+    def test_archive_with_timestamps(self, mock_build, mock_get_required_env_var, mock_config):
         """Test that archived rows include proper timestamps."""
         # Mock configuration
         mock_config.return_value = {"sheet": "test_sheet_id"}
-        mock_get_required_var.return_value = "/fake/credentials.json"
+        mock_get_required_env_var.return_value = "/fake/credentials.json"
         
         # Mock Google Sheets API
         mock_service = MagicMock()

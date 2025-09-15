@@ -1,0 +1,153 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autopiloot"
+version = "1.0.0"
+description = "Multi-agent system for automated YouTube content processing"
+authors = [{name = "Autopiloot Team"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "agency-swarm>=0.2.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "PyYAML>=6.0",
+    "google-cloud-firestore>=2.13.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.20.0",
+    "assemblyai>=0.17.0",
+    "openai>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "types-PyYAML",
+    "types-requests",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "N806",  # variable name should be lowercase
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.per-file-ignores]
+"tests/*.py" = ["N802", "N803"]  # Allow uppercase function names in tests
+"*/tools/*.py" = ["N802"]       # Allow uppercase class names for tools
+
+[tool.ruff.isort]
+known-first-party = ["core", "config", "scraper_agent", "transcriber_agent", "summarizer_agent", "observability_agent", "orchestrator_agent"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Allow gradual typing
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+ignore_missing_imports = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "agency_swarm.*",
+    "assemblyai.*",
+    "google.*",
+    "openai.*",
+    "dotenv.*",
+    "pydantic.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips = ["B101", "B601"]  # Skip assert_used and shell_injection_subprocess (allow in tests)
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "venv/*",
+    ".venv/*",
+    "tests/*",
+    "setup.py",
+    "*/__pycache__/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if False:",
+]

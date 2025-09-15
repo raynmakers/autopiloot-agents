@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_var
+from env_loader import get_required_env_var
 from loader import load_app_config
 from audit_logger import audit_logger
 
@@ -151,13 +151,13 @@ class SaveVideoMetadata(BaseTool):
         """Initialize Firestore client with proper authentication."""
         try:
             # Get required project ID
-            project_id = get_required_var(
+            project_id = get_required_env_var(
                 "GCP_PROJECT_ID", 
                 "Google Cloud Project ID for Firestore"
             )
             
             # Get service account credentials path
-            credentials_path = get_required_var(
+            credentials_path = get_required_env_var(
                 "GOOGLE_APPLICATION_CREDENTIALS", 
                 "Google service account credentials file path"
             )

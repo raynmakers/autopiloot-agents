@@ -7,7 +7,7 @@ import os
 import json
 import hashlib
 from typing import Dict, Any
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 from google.oauth2 import service_account
@@ -41,7 +41,8 @@ class StoreTranscriptToDrive(BaseTool):
         description="Full structured transcript data for JSON file storage"
     )
     
-    @validator('video_id')
+    @field_validator('video_id')
+    @classmethod
     def validate_video_id(cls, v):
         """Validate YouTube video ID format."""
         if not v or len(v.strip()) == 0:
@@ -50,14 +51,16 @@ class StoreTranscriptToDrive(BaseTool):
             raise ValueError("video_id seems too long for a valid YouTube ID")
         return v.strip()
     
-    @validator('transcript_text')
+    @field_validator('transcript_text')
+    @classmethod
     def validate_transcript_text(cls, v):
         """Validate transcript text is not empty."""
         if not v or len(v.strip()) == 0:
             raise ValueError("transcript_text cannot be empty")
         return v
     
-    @validator('transcript_json')
+    @field_validator('transcript_json')
+    @classmethod
     def validate_transcript_json(cls, v):
         """Validate transcript JSON has required fields."""
         if not isinstance(v, dict):

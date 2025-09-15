@@ -24,11 +24,8 @@ class AutopilootAgency(Agency):
     """
     
     def __init__(self):
-        # Define communication flows between agents
-        agency_chart = [
-            # OrchestratorAgent as CEO can communicate with all other agents
-            orchestrator_agent,
-            
+        # Define communication flows between agents (Agency Swarm v1.0.0 format)
+        communication_flows = [
             # CEO to all agents for coordination and policy enforcement
             [orchestrator_agent, scraper_agent],
             [orchestrator_agent, transcriber_agent],
@@ -51,10 +48,10 @@ class AutopilootAgency(Agency):
         ]
         
         super().__init__(
-            agency_chart=agency_chart,
+            # OrchestratorAgent as CEO (entry point)
+            orchestrator_agent,
+            communication_flows=communication_flows,
             shared_instructions="./agency_manifesto.md",
-            max_prompt_tokens=25000,
-            max_completion_tokens=25000,
         )
 
 

@@ -1,0 +1,40 @@
+---
+description: "Align Observability alerts & tests; DLQ trends, stuck jobs, daily summary"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-OBS-0051"
+title: "Observability & Tests — alerts, trends, stuck jobs, summaries"
+status: "planned"
+priority: "P0"
+labels: ["observability", "alerts", "tests"]
+dependencies: []
+created: "2025-09-15"
+
+# 1) High-Level Objective
+
+Fix send_error_alert tests, ensure patch targets; implement DLQ trends, stuck-job scanner, daily summary.
+
+# 5) Context Plan
+
+Beginning (read-only):
+
+- observability_agent/tools/send_error_alert.py
+- tests/test_send_error_alert.py
+
+End state:
+
+- observability_agent/tools/{monitor_dlq_trends.py, stuck_job_scanner.py, report_daily_summary.py}
+- All send_error_alert tests pass
+
+# 6) Low-Level Steps
+
+1. Expose `FormatSlackBlocks` and `SendSlackMessage` at module scope.
+2. Throttling keys use provided `alert_type` from context when present.
+3. Return statuses: SENT, FAILED, THROTTLED, ERROR (JSON strings).
+4. Implement DLQ trends, stuck-job scanner, daily summary with Slack integration.
+
+# 8) Acceptance Criteria
+
+- Tests pass for send_error_alert; new tools return valid JSON and import cleanly.
