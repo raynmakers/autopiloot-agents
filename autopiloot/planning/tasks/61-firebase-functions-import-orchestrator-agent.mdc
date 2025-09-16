@@ -1,0 +1,97 @@
+---
+description: "Update Firebase functions to directly import and use orchestrator_agent"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-FB-0003"
+title: "Import orchestrator_agent directly in Firebase functions"
+status: "completed"
+priority: "P1"
+labels: ["firebase", "orchestrator", "integration"]
+dependencies: []
+created: "2025-09-16"
+completed: "2025-09-16"
+
+# 1) High-Level Objective
+
+Modify Firebase Functions to import and use `orchestrator_agent` directly for scheduling and orchestration.
+
+# 2) Background / Context (Optional but recommended)
+
+Current functions do not directly import the orchestrator agent, limiting orchestration consistency. This task wires the official agent into the functions runtime.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Functions run in the `agents/autopiloot/services/firebase/functions/` package.
+- Constraint: Keep cold-start impact minimal; lazy-init agent where possible.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- agents/autopiloot/orchestrator_agent/orchestrator_agent.py
+- agents/autopiloot/services/firebase/functions/\*.py
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/services/firebase/functions/main.py
+- agents/autopiloot/services/firebase/functions/scheduler.py
+- agents/autopiloot/services/firebase/functions/core.py _(read-only)_
+- agents/autopiloot/orchestrator_agent/orchestrator_agent.py
+
+End state (must exist after completion):
+
+- Functions import `from agents.autopiloot.orchestrator_agent import orchestrator_agent` (or equivalent relative pathing)
+- Lazy initialization pattern to avoid repeated agent creation
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Add import statement for `orchestrator_agent` in `main.py` and `scheduler.py`.
+2. Introduce a lazy-initialized singleton accessor to get the orchestrator agent instance.
+3. Replace existing placeholders to call orchestrator workflows via the agent.
+4. Validate function entry points still match Firebase decorators and expected signatures.
+
+Terminal snippets:
+
+```bash
+# grep current imports
+rg "orchestrator_agent|core.py" agents/autopiloot/services/firebase/functions -n
+
+# run function tests
+python -m unittest agents/autopiloot/services/firebase/functions/test_functions.py -v
+```
+
+# 7) Types & Interfaces (if applicable)
+
+N/A
+
+# 8) Acceptance Criteria
+
+- `main.py` and/or `scheduler.py` import and use `orchestrator_agent` for orchestration.
+- All Firebase functions tests pass locally.
+
+# 9) Testing Strategy
+
+- Use existing function tests; add mocks where needed for agent init calls.
+
+# 10) Notes / Links
+
+- Consider deferring agent creation until function invocation to minimize cold start costs.

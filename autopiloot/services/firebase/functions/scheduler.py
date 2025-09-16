@@ -13,6 +13,7 @@ import logging
 
 # Add autopiloot to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # Initialize Firebase Admin
 initialize_app()
@@ -21,6 +22,26 @@ db = firestore.client()
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Lazy-initialized orchestrator agent singleton
+_orchestrator_agent: Optional[Any] = None
+
+def get_orchestrator_agent():
+    """
+    Get or create the orchestrator agent instance (lazy initialization).
+    This minimizes cold start costs by deferring agent creation until needed.
+    """
+    global _orchestrator_agent
+    if _orchestrator_agent is None:
+        try:
+            from orchestrator_agent.orchestrator_agent import orchestrator_agent
+            _orchestrator_agent = orchestrator_agent
+            logger.info("Orchestrator agent initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import orchestrator agent: {e}")
+            # Fallback to None, functions will use existing logic
+            _orchestrator_agent = None
+    return _orchestrator_agent
 
 
 # ==================================================================================
@@ -37,21 +58,62 @@ logger = logging.getLogger(__name__)
 def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
     """
     Scheduled function to run the Scraper agent daily at 01:00 Europe/Amsterdam.
-    Discovers new YouTube videos from configured channels.
+    Uses orchestrator agent for coordination or falls back to direct agency usage.
     """
     try:
         logger.info(f"Starting daily scraper run at {event.timestamp}")
-        
-        # Import agency here to avoid circular imports
+
+        # Try to use orchestrator agent first
+        orchestrator = get_orchestrator_agent()
+        if orchestrator:
+            try:
+                # Use orchestrator's planning and dispatch tools
+                from orchestrator_agent.tools.plan_daily_run import PlanDailyRun
+                from orchestrator_agent.tools.dispatch_scraper import DispatchScraper
+                from orchestrator_agent.tools.emit_run_events import EmitRunEvents
+
+                # Plan the daily run
+                planner = PlanDailyRun()
+                plan_result = planner.run()
+                logger.info(f"Orchestrator planned daily run: {plan_result}")
+
+                # Emit run start event
+                event_emitter = EmitRunEvents()
+                event_emitter.event_type = "run_started"
+                event_emitter.metadata = {"timestamp": event.timestamp, "plan": plan_result}
+                event_emitter.run()
+
+                # Dispatch to scraper
+                dispatcher = DispatchScraper()
+                dispatch_result = dispatcher.run()
+                logger.info(f"Orchestrator dispatched scraper: {dispatch_result}")
+
+                # Emit run complete event
+                event_emitter.event_type = "run_completed"
+                event_emitter.metadata = {"timestamp": event.timestamp, "result": dispatch_result}
+                event_emitter.run()
+
+                return {
+                    'ok': True,
+                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+                    'method': 'orchestrator_agent',
+                    'plan': plan_result,
+                    'dispatch': dispatch_result
+                }
+
+            except Exception as e:
+                logger.warning(f"Orchestrator agent failed, falling back to direct agency: {e}")
+
+        # Fallback to direct agency usage
         from agency import AutopilootAgency
-        
+
         # Initialize the agency
         agency = AutopilootAgency()
-        
+
         # Get configured channel from settings
         from core.env_loader import get_config_value
         channels = get_config_value("scraper.handles", ["@AlexHormozi"])
-        
+
         results = []
         for channel_handle in channels:
             logger.info(f"Processing channel: {channel_handle}")

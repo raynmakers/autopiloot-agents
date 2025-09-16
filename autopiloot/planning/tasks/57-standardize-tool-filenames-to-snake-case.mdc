@@ -83,10 +83,50 @@ End state (must exist after completion):
      ```
    - Include all remaining PascalCase tool files (target ~9 items).
 
+   Terminal snippets:
+
+   ```bash
+   # 1) List offending tool files (not snake_case); exits 1 if any
+   python3 - <<'PY'
+   import re, os, sys
+   bad=[]
+   for root, _, files in os.walk('agents/autopiloot'):
+    if '/tools/' in root:
+        for f in files:
+            if f.endswith('.py') and not re.fullmatch(r'[a-z0-9_]+\\.py', f):
+                bad.append(os.path.join(root, f))
+   for p in bad: print(p)
+   sys.exit(1 if bad else 0)
+   PY
+
+   # 2) Generate rename mapping JSON from the above output
+   python3 - <<'PY' > agents/autopiloot/planning/rename_map_tools_snake_case.json
+   import re, json, os, sys
+   paths=[p.strip() for p in sys.stdin if p.strip()]
+   def to_snake(name):
+    s=re.sub(r'(.)([A-Z][a-z]+)', r'\\1_\\2', os.path.splitext(name)[0])
+    s=re.sub(r'([a-z0-9])([A-Z])', r'\\1_\\2', s)
+    return s.lower() + '.py'
+   mapping=[]
+   for p in paths:
+    d=os.path.dirname(p)
+    fn=os.path.basename(p)
+    mapping.append({"from": fn, "to": to_snake(fn), "path": d})
+   print(json.dumps(mapping, indent=2))
+   PY
+   ```
+
 2. Rename files using git
 
    - For each mapping entry, run `git mv <path>/<from> <path>/<to>`.
    - Ensure no filename collisions.
+
+   Terminal snippet:
+
+   ```bash
+   jq -r '.[] | "git mv \(.path)/\(.from) \(.path)/\(.to)"' \
+     agents/autopiloot/planning/rename_map_tools_snake_case.json | bash
+   ```
 
 3. Update exports in `tools/__init__.py`
 
@@ -104,6 +144,12 @@ End state (must exist after completion):
 
    - Execute: `python -m unittest discover agents/autopiloot/tests -v`
    - Resolve any import or discovery issues.
+
+   Terminal snippet:
+
+   ```bash
+   python -m unittest discover agents/autopiloot/tests -v
+   ```
 
 6. Documentation update
    - Add a note in `agents/autopiloot/docs/agents_overview.md` and `docs/tasks.md` indicating standardization to snake_case for tool filenames.

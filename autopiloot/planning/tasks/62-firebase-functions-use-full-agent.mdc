@@ -1,0 +1,94 @@
+---
+description: "Replace simplified core.py logic with full orchestrator agent integration in functions"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-FB-0004"
+title: "Migrate Firebase functions to use full agent workflow (deprecate core.py)"
+status: "planned"
+priority: "P1"
+labels: ["firebase", "agent", "migration"]
+dependencies: ["TASK-FB-0003"]
+created: "2025-09-16"
+
+# 1) High-Level Objective
+
+Refactor Firebase functions to call into the full orchestrator agent workflow, removing the simplified `core.py` implementation.
+
+# 2) Background / Context (Optional but recommended)
+
+The simplified `core.py` bypasses agency orchestration, causing drift from production flows. Functions should leverage the same agent orchestration as the rest of the system.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: The orchestrator agent exposes callable entrypoints for scheduled and event-driven flows.
+- Constraint: Maintain compatibility with existing decorators and triggers.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- agents/autopiloot/services/firebase/functions/main.py
+- agents/autopiloot/services/firebase/functions/scheduler.py
+- agents/autopiloot/services/firebase/functions/core.py
+- agents/autopiloot/orchestrator_agent/orchestrator_agent.py
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- The three functions files above
+- The orchestrator agent module
+
+End state (must exist after completion):
+
+- `core.py` logic replaced or thin-wrapped to delegate to orchestrator agent
+- Clear deprecation note or removal of unused code paths
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Identify entrypoints in `core.py` that functions rely on.
+2. Implement delegations from those entrypoints into orchestrator agent flows.
+3. Remove redundant logic from `core.py` or replace with a minimal adapter.
+4. Update imports in `main.py`/`scheduler.py` to use the agent-based paths.
+5. Run tests and ensure no behavior regressions.
+
+Terminal snippets:
+
+```bash
+rg "def .*\(|from .* import .*core|import .*core" agents/autopiloot/services/firebase/functions -n
+python -m unittest agents/autopiloot/services/firebase/functions/test_functions.py -v
+```
+
+# 7) Types & Interfaces (if applicable)
+
+N/A
+
+# 8) Acceptance Criteria
+
+- Functions call into orchestrator agent flows; `core.py` no longer contains business logic.
+- All function tests pass with agent integration.
+
+# 9) Testing Strategy
+
+- Use existing tests; add mocks for agent entrypoints as needed.
+
+# 10) Notes / Links
+
+- Keep cold-start impact in mind; prefer lazy initialization.

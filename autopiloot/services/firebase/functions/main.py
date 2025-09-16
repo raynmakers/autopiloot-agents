@@ -6,10 +6,15 @@ This module contains:
 2. Event-driven function for transcription budget monitoring
 """
 
+import os
+import sys
 from firebase_functions import scheduler_fn, firestore_fn, options
 from firebase_admin import initialize_app, firestore
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
+# Add autopiloot to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # Import core business logic
 from core import create_scraper_job, process_transcription_budget, validate_video_id, validate_transcript_data
@@ -23,6 +28,26 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 TIMEZONE = "Europe/Amsterdam"
+
+# Lazy-initialized orchestrator agent singleton
+_orchestrator_agent: Optional[Any] = None
+
+def get_orchestrator_agent():
+    """
+    Get or create the orchestrator agent instance (lazy initialization).
+    This minimizes cold start costs by deferring agent creation until needed.
+    """
+    global _orchestrator_agent
+    if _orchestrator_agent is None:
+        try:
+            from orchestrator_agent.orchestrator_agent import orchestrator_agent
+            _orchestrator_agent = orchestrator_agent
+            logger.info("Orchestrator agent initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import orchestrator agent: {e}")
+            # Fallback to None, functions will use core.py logic
+            _orchestrator_agent = None
+    return _orchestrator_agent
 
 def _get_firestore_client():
     """Get Firestore client instance."""
@@ -38,11 +63,39 @@ def _get_firestore_client():
 def schedule_scraper_daily(req) -> Dict[str, Any]:
     """
     Scheduled function to trigger daily scraper run at 01:00 Europe/Amsterdam.
-    
-    This function creates a job in the Firestore 'jobs/scraper' collection
-    to trigger the scraper agent to discover new videos.
+
+    This function uses the orchestrator agent to plan and dispatch daily runs,
+    or falls back to creating a job in Firestore if agent is unavailable.
     """
     logger.info("Starting daily scraper schedule trigger")
+
+    # Try to use orchestrator agent first
+    orchestrator = get_orchestrator_agent()
+    if orchestrator:
+        try:
+            # Use orchestrator's plan_daily_run tool
+            from orchestrator_agent.tools.plan_daily_run import PlanDailyRun
+
+            planner = PlanDailyRun()
+            result = planner.run()
+            logger.info(f"Orchestrator planned daily run: {result}")
+
+            # Dispatch to scraper via orchestrator
+            from orchestrator_agent.tools.dispatch_scraper import DispatchScraper
+            dispatcher = DispatchScraper()
+            dispatch_result = dispatcher.run()
+            logger.info(f"Orchestrator dispatched scraper: {dispatch_result}")
+
+            return {
+                "status": "success",
+                "method": "orchestrator_agent",
+                "plan": result,
+                "dispatch": dispatch_result
+            }
+        except Exception as e:
+            logger.warning(f"Orchestrator agent failed, falling back to core logic: {e}")
+
+    # Fallback to core.py logic if orchestrator unavailable
     db = _get_firestore_client()
     return create_scraper_job(db, TIMEZONE)
 

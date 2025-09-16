@@ -1,0 +1,103 @@
+---
+description: "Add dedicated unit/integration tests for all 8 Orchestrator Agent tools"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-ORC-0001"
+title: "Create dedicated tests for all orchestrator_agent tools (8/8)"
+status: "planned"
+priority: "P1"
+labels: ["tests", "orchestrator", "coverage"]
+dependencies: []
+created: "2025-09-16"
+
+# 1) High-Level Objective
+
+Provide one dedicated test file per Orchestrator Agent tool (8 total), ensuring tool behavior, validation, and error paths are covered.
+
+# 2) Background / Context (Optional but recommended)
+
+Currently 0/8 orchestrator tools have dedicated tests. This reduces confidence in planning and dispatch logic across the agency flow.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Tests use Python unittest alongside existing mocks strategy.
+- Constraint: Do not call external services; use mocks/stubs where needed.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- agents/autopiloot/orchestrator_agent/tools/\*
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/orchestrator_agent/tools/**init**.py
+- agents/autopiloot/orchestrator_agent/tools/\*.py
+- agents/autopiloot/tests/test*orchestrator_agent.py *(read-only)\_
+
+End state (must exist after completion):
+
+- agents/autopiloot/tests/orchestrator_tools/test_dispatch_scraper.py
+- agents/autopiloot/tests/orchestrator_tools/test_dispatch_transcriber.py
+- agents/autopiloot/tests/orchestrator_tools/test_dispatch_summarizer.py
+- agents/autopiloot/tests/orchestrator_tools/test_emit_run_events.py
+- agents/autopiloot/tests/orchestrator_tools/test_enforce_policies.py
+- agents/autopiloot/tests/orchestrator_tools/test_handle_dlq.py
+- agents/autopiloot/tests/orchestrator_tools/test_plan_daily_run.py
+- agents/autopiloot/tests/orchestrator_tools/test_query_dlq.py
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create `agents/autopiloot/tests/orchestrator_tools/` package with `__init__.py`.
+2. For each tool listed above, create a dedicated `test_*.py` file.
+   - Cover: happy path, validation errors, and failure handling.
+   - Use mocks for Firestore, Slack, and other external calls.
+3. Ensure consistent fixtures/utilities (reuse existing test helpers if present).
+4. Run the suite and fix any import paths or discovery issues.
+
+Terminal snippets:
+
+```bash
+python -m unittest discover agents/autopiloot/tests -v
+
+# run only orchestrator tools tests
+python -m unittest discover agents/autopiloot/tests/orchestrator_tools -v
+```
+
+# 7) Types & Interfaces (if applicable)
+
+N/A
+
+# 8) Acceptance Criteria
+
+- 8 dedicated test files exist, one per orchestrator tool, under `agents/autopiloot/tests/orchestrator_tools/`.
+- Tests cover success and error scenarios with mocks, no real external calls.
+- Full test suite passes locally.
+
+# 9) Testing Strategy
+
+- Use unittest with mocks for external services.
+- Verify both tool `run()` success paths and error conditions.
+
+# 10) Notes / Links
+
+- Increases confidence in orchestrator planning/dispatch reliability.

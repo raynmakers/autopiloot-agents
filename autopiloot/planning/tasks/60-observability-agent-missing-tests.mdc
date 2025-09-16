@@ -1,0 +1,97 @@
+---
+description: "Add missing dedicated tests for 4 Observability Agent tools (of 10 total)"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-OBS-0002"
+title: "Create missing tests for observability_agent tools (4 files)"
+status: "planned"
+priority: "P1"
+labels: ["tests", "observability", "coverage"]
+dependencies: []
+created: "2025-09-16"
+
+# 1) High-Level Objective
+
+Add the 4 missing dedicated test files for Observability Agent tools so that all 10 tools have coverage.
+
+# 2) Background / Context (Optional but recommended)
+
+Currently only 6/10 tools have dedicated tests. We will add tests for the remaining 4 tools to complete coverage.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Existing tests for observability patterns can be referenced for structure.
+- Constraint: Use mocks; do not hit external Slack/Firestore/YouTube APIs.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- agents/autopiloot/observability_agent/tools/\*
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/observability_agent/tools/**init**.py
+- agents/autopiloot/observability_agent/tools/\*.py
+- agents/autopiloot/tests/test*observability_ops.py *(read-only)\_
+
+End state (must exist after completion):
+
+- agents/autopiloot/tests/observability*tools/test*<tool_name_1>.py
+- agents/autopiloot/tests/observability*tools/test*<tool_name_2>.py
+- agents/autopiloot/tests/observability*tools/test*<tool_name_3>.py
+- agents/autopiloot/tests/observability*tools/test*<tool_name_4>.py
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Identify which 4 tools lack dedicated tests.
+2. Create `agents/autopiloot/tests/observability_tools/` package with `__init__.py` if missing.
+3. Add one `test_*.py` per missing tool covering success, validation errors, and error paths.
+4. Use mocks for Slack SDK, Firestore queries, and time-based logic.
+5. Run test suite and fix any import/discovery issues.
+
+Terminal snippets:
+
+```bash
+python -m unittest discover agents/autopiloot/tests -v
+
+# run only observability tools tests
+python -m unittest discover agents/autopiloot/tests/observability_tools -v
+```
+
+# 7) Types & Interfaces (if applicable)
+
+N/A
+
+# 8) Acceptance Criteria
+
+- 4 new dedicated test files exist for missing tools under `agents/autopiloot/tests/observability_tools/`.
+- Tests use mocks; no real API calls; success and error cases covered.
+- Full test suite passes locally.
+
+# 9) Testing Strategy
+
+- Unittest mocks for external services; table-driven tests for edge cases where helpful.
+
+# 10) Notes / Links
+
+- Ensure alignment with existing `test_observability_ops.py` patterns for consistency.
