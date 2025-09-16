@@ -95,9 +95,15 @@ def schedule_scraper_daily(req) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Orchestrator agent failed, falling back to core logic: {e}")
 
-    # Fallback to core.py logic if orchestrator unavailable
+    # Fallback to delegated core.py logic (which will try agents again)
     db = _get_firestore_client()
-    return create_scraper_job(db, TIMEZONE)
+    result = create_scraper_job(db, TIMEZONE)
+
+    # Add method indicator to show this came through main.py fallback
+    if isinstance(result, dict):
+        result["source"] = "main_py_fallback"
+
+    return result
 
 @firestore_fn.on_document_written(
     document="transcripts/{video_id}",
@@ -129,5 +135,42 @@ def on_transcription_written(event: firestore_fn.Event[firestore_fn.DocumentSnap
         logger.warning(f"Invalid transcript data for video: {video_id}")
         return {"status": "error", "message": "Invalid transcript data"}
     
+    # Try to use observability agent directly
+    orchestrator = get_orchestrator_agent()
+    if orchestrator:
+        try:
+            logger.info("Using observability agent for budget monitoring")
+            from observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
+
+            budget_monitor = MonitorTranscriptionBudget()
+            result = budget_monitor.run()
+
+            # Parse result and add source information
+            if isinstance(result, str):
+                import json
+                try:
+                    result_data = json.loads(result)
+                except json.JSONDecodeError:
+                    result_data = {"status": "success", "raw_result": result}
+            else:
+                result_data = result
+
+            return {
+                "status": "success",
+                "method": "observability_agent_direct",
+                "video_id": video_id,
+                "result": result_data
+            }
+
+        except Exception as e:
+            logger.warning(f"Direct observability agent failed, falling back to core logic: {e}")
+
+    # Fallback to delegated core.py logic (which will try agents again)
     db = _get_firestore_client()
-    return process_transcription_budget(db, video_id, transcript_data)
+    result = process_transcription_budget(db, video_id, transcript_data)
+
+    # Add method indicator
+    if isinstance(result, dict):
+        result["source"] = "main_py_fallback"
+
+    return result

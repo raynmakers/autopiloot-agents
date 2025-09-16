@@ -23,11 +23,12 @@ Follow the steps below when creating new tasks.
 
 id: "TASK-FB-0004"
 title: "Migrate Firebase functions to use full agent workflow (deprecate core.py)"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["firebase", "agent", "migration"]
 dependencies: ["TASK-FB-0003"]
 created: "2025-09-16"
+completed: "2025-09-16"
 
 # 1) High-Level Objective
 
