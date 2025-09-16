@@ -1,0 +1,137 @@
+---
+description: "Standardize all tool filenames to snake_case; remove remaining PascalCase files"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-NAM-0001"
+title: "Standardize tool filenames to snake_case and update imports"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "naming", "code-style"]
+dependencies: []
+created: "2025-09-16"
+
+# 1) High-Level Objective
+
+Ensure every tool module under `agents/autopiloot/**/tools/` uses snake_case filenames to eliminate mixed naming (PascalCase vs snake_case) and prevent import issues.
+
+# 2) Background / Context (Optional but recommended)
+
+Mixed file naming (approx. 9 PascalCase tools vs 27 snake_case) creates code style inconsistency and can break auto-import/discovery and test imports. We will standardize on snake_case for tool filenames across all agents while preserving functionality.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Agency Swarm tool discovery works with snake_case filenames; classes may remain PascalCase if discovery doesn't require filename/classname parity.
+- Constraint: Update all imports, `tools/__init__.py` exports, and tests to match new filenames.
+- Constraint: Use `git mv` to preserve history.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- tasks/58-enforce-snake-case-tool-filenames-ci.mdc (optional follow-up for CI enforcement)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/scraper_agent/tools/**init**.py
+- agents/autopiloot/transcriber_agent/tools/**init**.py
+- agents/autopiloot/summarizer_agent/tools/**init**.py
+- agents/autopiloot/observability_agent/tools/**init**.py
+- agents/autopiloot/orchestrator_agent/tools/**init**.py
+- agents/autopiloot/tests/\* (read-only)
+
+End state (must exist after completion):
+
+- agents/autopiloot/planning/rename_map_tools_snake_case.json
+- All tool files under `agents/autopiloot/**/tools/` renamed to snake_case
+- All imports/exports updated; full test suite passes
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Inventory PascalCase tools
+
+   - Write a small script or command to list non-snake_case files:
+     - Path scope: `agents/autopiloot/**/tools/*.py`
+     - Definition of snake*case: `^[a-z0-9*]+\.py$`
+   - Produce a mapping JSON file at `agents/autopiloot/planning/rename_map_tools_snake_case.json` with entries:
+     ```json
+     [
+       {
+         "from": "GenerateShortSummary.py",
+         "to": "generate_short_summary.py",
+         "path": "agents/autopiloot/summarizer_agent/tools"
+       }
+     ]
+     ```
+   - Include all remaining PascalCase tool files (target ~9 items).
+
+2. Rename files using git
+
+   - For each mapping entry, run `git mv <path>/<from> <path>/<to>`.
+   - Ensure no filename collisions.
+
+3. Update exports in `tools/__init__.py`
+
+   - Replace old import paths with new snake_case module names.
+   - Keep class names as-is unless discovery requires alignment; if required, update class names and all references accordingly.
+
+4. Update all imports across codebase
+
+   - Paths to scan:
+     - `agents/autopiloot/**/` (agents and tools)
+     - `agents/autopiloot/tests/**`
+   - Replace occurrences of old PascalCase module paths with new snake_case module paths.
+
+5. Run tests and fix import errors
+
+   - Execute: `python -m unittest discover agents/autopiloot/tests -v`
+   - Resolve any import or discovery issues.
+
+6. Documentation update
+   - Add a note in `agents/autopiloot/docs/agents_overview.md` and `docs/tasks.md` indicating standardization to snake_case for tool filenames.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import TypedDict
+
+class RenameEntry(TypedDict):
+    from_: str  # original filename (e.g., "GenerateShortSummary.py")
+    to: str     # new filename (e.g., "generate_short_summary.py")
+    path: str   # directory path containing the file
+```
+
+# 8) Acceptance Criteria
+
+- Zero PascalCase `.py` files remain under `agents/autopiloot/**/tools/` (all snake_case).
+- `agents/autopiloot/planning/rename_map_tools_snake_case.json` committed with final mapping.
+- All imports and `tools/__init__.py` exports updated; no import errors.
+- `python -m unittest discover agents/autopiloot/tests -v` passes fully.
+
+# 9) Testing Strategy
+
+- Run full test suite to catch import/discovery issues.
+- Add a quick check script (or CI step in follow-up task) to assert no non-snake_case filenames under tools/.
+
+# 10) Notes / Links
+
+- Impact: Resolves code style inconsistency and prevents import issues due to mixed casing.
+- Follow-up: add CI enforcement in TASK-NAM-0002.

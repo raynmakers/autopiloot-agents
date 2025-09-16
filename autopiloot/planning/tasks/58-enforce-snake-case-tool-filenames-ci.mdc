@@ -1,0 +1,103 @@
+---
+description: "Add CI check to enforce snake_case filenames for all tool modules"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-NAM-0002"
+title: "Enforce snake_case tool filenames via CI script and pre-commit"
+status: "planned"
+priority: "P2"
+labels: ["ci", "lint", "naming"]
+dependencies: ["TASK-NAM-0001"]
+created: "2025-09-16"
+
+# 1) High-Level Objective
+
+Prevent regressions by enforcing snake_case filenames for all tool modules under `agents/autopiloot/**/tools/` in CI and optionally via pre-commit.
+
+# 2) Background / Context (Optional but recommended)
+
+After standardizing existing files, we need automated checks to ensure future contributions don't reintroduce PascalCase tool files.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: GitHub Actions is configured (see TASK-54). We'll add an extra step to the existing workflow.
+- Constraint: No external dependencies beyond Python stdlib and `bash` for the check script.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- tasks/57-standardize-tool-filenames-to-snake-case.mdc (must be completed first)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- .github/workflows/ci.yml _(read-only)_
+- agents/autopiloot/\*_/tools/_
+
+End state (must exist after completion):
+
+- agents/autopiloot/scripts/check_tool_filenames_snake_case.sh
+- .github/workflows/ci.yml updated to run the script
+- Optional: .pre-commit-config.yaml hook configured
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create enforcement script
+
+   - File: `agents/autopiloot/scripts/check_tool_filenames_snake_case.sh`
+   - Behavior:
+     - Find all `.py` files under `agents/autopiloot/**/tools/`.
+     - Fail if any filename does not match regex `^[a-z0-9_]+\.py$`.
+     - Print offending file paths and a remediation hint.
+
+2. Make script executable
+
+   - Command: `chmod +x agents/autopiloot/scripts/check_tool_filenames_snake_case.sh`
+
+3. Wire into CI
+
+   - Edit `.github/workflows/ci.yml` to add a step before tests:
+     - name: "Check tool filenames are snake_case"
+     - run: `bash agents/autopiloot/scripts/check_tool_filenames_snake_case.sh`
+
+4. (Optional) Pre-commit hook
+   - Add `.pre-commit-config.yaml` with a local hook running the script on changed files.
+   - Document installation instructions in `agents/autopiloot/docs/quick_overview.md`.
+
+# 7) Types & Interfaces (if applicable)
+
+N/A
+
+# 8) Acceptance Criteria
+
+- CI fails with clear output when a non-snake_case filename is introduced under tools/.
+- Script returns exit code 0 when all filenames comply.
+- Optional pre-commit hook configured and documented.
+
+# 9) Testing Strategy
+
+- Introduce a temporary PascalCase test file locally to verify the script fails, then remove it.
+- Validate CI run shows the new step executing before unit tests.
+
+# 10) Notes / Links
+
+- Impact: Prevents regressions causing import/discovery issues.
