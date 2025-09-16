@@ -20,7 +20,7 @@ from env_loader import get_required_env_var, get_optional_env_var
 from .generate_short_summary import GenerateShortSummary
 from .store_short_in_zep import StoreShortInZep
 from .store_short_summary_to_drive import StoreShortSummaryToDrive
-from .SaveSummaryRecordEnhanced import SaveSummaryRecordEnhanced
+from .save_summary_record_enhanced import SaveSummaryRecordEnhanced
 
 
 class ProcessSummaryWorkflow(BaseTool):

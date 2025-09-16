@@ -15,16 +15,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'tools'))
 
 try:
-    from scraper.tools.EnqueueTranscription import EnqueueTranscription
+    from scraper.tools.enqueue_transcription import EnqueueTranscription
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
-        os.path.dirname(__file__), 
-        '..', 
-        'scraper', 
-        'tools', 
-        'EnqueueTranscription.py'
+        os.path.dirname(__file__),
+        '..',
+        'scraper',
+        'tools',
+        'enqueue_transcription.py'
     )
     spec = importlib.util.spec_from_file_location("EnqueueTranscription", tool_path)
     module = importlib.util.module_from_spec(spec)

@@ -15,7 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'tools'))
 
 try:
-    from scraper.tools.RemoveSheetRow import RemoveSheetRow
+    from scraper.tools.remove_sheet_row import RemoveSheetRow
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util

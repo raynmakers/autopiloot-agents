@@ -15,19 +15,34 @@ autopiloot/
 ├── requirements.txt              # Production dependencies with agency-swarm>=0.7.2
 ├── env.template                  # Complete environment variables reference
 │
-├── scraper_agent/               # ScraperAgent (CEO) - Content Discovery & Orchestration
+├── orchestrator_agent/          # OrchestratorAgent (CEO) - End-to-End Pipeline Orchestration
 │   ├── __init__.py              # Package initialization with agent export
-│   ├── scraper_agent.py         # Agent definition with ModelSettings and CEO configuration
-│   ├── instructions.md          # Discovery workflows and channel management
-│   └── tools/                   # 7 production-ready discovery tools
+│   ├── orchestrator_agent.py    # Agent definition with CEO configuration
+│   ├── instructions.md          # Pipeline orchestration and policy enforcement
+│   └── tools/                   # 8 orchestration tools
 │       ├── __init__.py
-│       ├── ResolveChannelHandles.py     # Batch YouTube handle → channel ID resolution
-│       ├── ListRecentUploads.py         # Uploads playlist discovery with checkpoints
-│       ├── ReadSheetLinks.py            # Google Sheets URL extraction (single column)
-│       ├── ExtractYouTubeFromPage.py    # Web page YouTube URL discovery
-│       ├── SaveVideoMetadata.py         # Firestore video storage with audit logging
-│       ├── EnqueueTranscription.py      # Transcription job queue with duplicate prevention
-│       └── RemoveSheetRow.py            # Sheet cleanup with archive-first approach
+│       ├── dispatch_scraper.py          # ScraperAgent workflow dispatch
+│       ├── dispatch_transcriber.py      # TranscriberAgent workflow dispatch
+│       ├── dispatch_summarizer.py       # SummarizerAgent workflow dispatch
+│       ├── emit_run_events.py           # Firestore run event logging
+│       ├── enforce_policies.py          # Business rule and quota enforcement
+│       ├── handle_dlq.py                # Dead letter queue processing
+│       ├── plan_daily_run.py            # Daily execution planning
+│       └── query_dlq.py                 # DLQ status and trend analysis
+│
+├── scraper_agent/               # ScraperAgent - Content Discovery & Metadata Management
+│   ├── __init__.py              # Package initialization with agent export
+│   ├── scraper_agent.py         # Agent definition with discovery workflows
+│   ├── instructions.md          # Discovery workflows and channel management
+│   └── tools/                   # 7 production-ready discovery tools (all snake_case)
+│       ├── __init__.py
+│       ├── resolve_channel_handles.py   # Batch YouTube handle → channel ID resolution
+│       ├── list_recent_uploads.py       # Uploads playlist discovery with checkpoints
+│       ├── read_sheet_links.py          # Google Sheets URL extraction (single column)
+│       ├── extract_youtube_from_page.py # Web page YouTube URL discovery
+│       ├── save_video_metadata.py       # Firestore video storage with audit logging
+│       ├── enqueue_transcription.py     # Transcription job queue with duplicate prevention
+│       └── remove_sheet_row.py          # Sheet cleanup with archive-first approach
 │
 ├── transcriber_agent/           # TranscriberAgent - AssemblyAI Processing Pipeline
 │   ├── __init__.py
@@ -45,16 +60,14 @@ autopiloot/
 │   ├── __init__.py
 │   ├── summarizer_agent.py      # Agent definition for coaching-focused summaries
 │   ├── instructions.md          # LLM integration and content analysis guidelines
-│   └── tools/                   # 8 comprehensive summarization and storage tools
+│   └── tools/                   # 6 comprehensive summarization and storage tools (all snake_case)
 │       ├── __init__.py
-│       ├── GenerateShortSummary.py      # GPT-4.1 coaching summaries with adaptive chunking
-│       ├── StoreShortInZep.py          # Basic Zep GraphRAG storage
-│       ├── StoreShortSummaryToDrive.py # Dual-format Drive storage (JSON + Markdown)
-│       ├── SaveSummaryRecord.py        # Basic Firestore reference linking
-│       ├── SaveSummaryRecordEnhanced.py # Enhanced Firestore with Zep/RAG references
-│       ├── UpsertSummaryToZep.py       # Advanced Zep integration with full metadata
-│       ├── ProcessSummaryWorkflow.py   # End-to-end workflow orchestration
-│       └── generate_short_summary.py   # Legacy - maintained for compatibility
+│       ├── generate_short_summary.py   # GPT-4.1 coaching summaries with adaptive chunking
+│       ├── store_short_in_zep.py       # Basic Zep GraphRAG storage
+│       ├── store_short_summary_to_drive.py # Dual-format Drive storage (JSON + Markdown)
+│       ├── save_summary_record.py      # Basic Firestore reference linking
+│       ├── save_summary_record_enhanced.py # Enhanced Firestore with Zep/RAG references
+│       └── process_summary_workflow.py # End-to-end workflow orchestration
 │
 ├── observability_agent/         # ObservabilityAgent - Comprehensive Operations Monitoring
 │   ├── __init__.py
@@ -115,7 +128,19 @@ autopiloot/
 │   ├── test_reliability.py      # Error handling and retry logic tests (22 cases)
 │   ├── test_sheets.py           # Google Sheets integration tests (18 cases)
 │   │
-│   ├── # Scraper Agent Tests
+│   ├── # Orchestrator Agent Tests (TASK-ORC-0001) - 8/8 tools, 91 test methods
+│   ├── orchestrator_tools/
+│   │   ├── __init__.py
+│   │   ├── test_dispatch_scraper.py
+│   │   ├── test_dispatch_transcriber.py
+│   │   ├── test_dispatch_summarizer.py
+│   │   ├── test_emit_run_events.py
+│   │   ├── test_enforce_policies.py
+│   │   ├── test_handle_dlq.py
+│   │   ├── test_plan_daily_run.py
+│   │   └── test_query_dlq.py
+│   │
+│   ├── # Scraper Agent Tests (all snake_case)
 │   ├── test_resolve_channel_handles.py
 │   ├── test_list_recent_uploads.py
 │   ├── test_read_sheet_links.py
@@ -142,20 +167,28 @@ autopiloot/
 │   ├── test_llm_observability.py       # TASK-LLM-0007: LLM configuration (10 cases)
 │   ├── test_prompt_version_firestore.py # TASK-LLM-0007: Prompt versioning (6 cases)
 │   │
-│   ├── # Observability Agent Tests (TASK-AST-0040, TASK-OBS-0040/0041)
-│   ├── test_format_slack_blocks.py      # Slack Block Kit formatting (12 cases)
-│   ├── test_send_slack_message.py       # Slack API integration (10 cases)
-│   ├── test_monitor_transcription_budget.py # Budget monitoring (12 cases)
-│   ├── test_send_error_alert.py         # Error alerting and throttling (11 cases)
-│   └── test_observability_ops.py        # Comprehensive ops suite (6 tools, 100% coverage)
+│   ├── # Observability Agent Tests (TASK-OBS-0002) - 10/10 tools, complete coverage
+│   ├── observability_tools/
+│   │   ├── __init__.py
+│   │   ├── test_format_slack_blocks.py    # Slack Block Kit formatting (12 cases)
+│   │   ├── test_send_slack_message.py     # Slack API integration (10 cases)
+│   │   ├── test_monitor_transcription_budget.py # Budget monitoring (12 cases)
+│   │   ├── test_send_error_alert.py       # Error alerting and throttling (11 cases)
+│   │   ├── test_monitor_quota_state.py    # Quota tracking and alerting
+│   │   ├── test_monitor_dlq_trends.py     # Dead letter queue analysis
+│   │   ├── test_stuck_job_scanner.py      # Stale job detection
+│   │   ├── test_report_daily_summary.py   # Daily operational reporting
+│   │   ├── test_llm_observability_metrics.py # LLM usage and cost tracking
+│   │   └── test_alert_engine.py           # Centralized alert management
+│   └── test_observability_ops.py          # Legacy comprehensive ops suite
 │
 ├── planning/                    # Project Requirements and Task Documentation
 │   ├── prd.mdc                  # Product Requirements Document
-│   ├── tasks/                   # Active task specifications
-│   │   ├── 50-architecture-orchestrator-suite.mdc
-│   │   ├── 51-observability-alerts-tests.mdc
-│   │   └── 52-configuration-env.mdc
-│   └── archive/                 # Completed task specifications (30 archived)
+│   ├── tasks.md                 # Project completion status (42/42 tasks complete)
+│   ├── rename_map_tools_snake_case.json # Tool renaming documentation (TASK-57)
+│   ├── tasks/                   # Active task specifications (now empty - all archived)
+│   │   └── __init__.py          # Package initialization
+│   └── archive/                 # Completed task specifications (42 archived)
 │       ├── readme.md            # Archive overview and task completion status
 │       ├── 00-config-yaml.mdc   # Configuration system
 │       ├── 00-env-config.mdc    # Environment variables
@@ -191,11 +224,11 @@ autopiloot/
 ## Production Architecture Principles
 
 ### 1. Agency Swarm v1.0.0 Full Compliance
-- **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings
-- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (31 production tools)
+- **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings (5 production agents)
+- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (41 production tools, all snake_case)
 - **Validation**: Comprehensive Pydantic Field validation throughout
 - **Returns**: JSON string responses from all tool `run()` methods
-- **Communication**: Proper agency_chart definition with CEO pattern
+- **Communication**: Proper agency_chart definition with OrchestratorAgent CEO pattern
 
 ### 2. Event-Driven Broker Architecture
 - **Firestore**: Primary data store and event broker for real-time coordination

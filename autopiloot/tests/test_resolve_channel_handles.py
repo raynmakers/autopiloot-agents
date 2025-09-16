@@ -16,7 +16,7 @@ sys.path.append(os.path.join(project_root, 'core'))
 sys.path.append(os.path.join(project_root, 'config'))
 
 try:
-    from ResolveChannelHandles import ResolveChannelHandles
+    from resolve_channel_handles import ResolveChannelHandles
     TOOL_AVAILABLE = True
 except ImportError:
     TOOL_AVAILABLE = False

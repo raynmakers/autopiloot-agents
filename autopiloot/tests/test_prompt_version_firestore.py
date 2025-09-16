@@ -15,7 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
     from summarizer_agent.tools.SaveSummaryRecord import SaveSummaryRecord
-    from summarizer_agent.tools.SaveSummaryRecordEnhanced import SaveSummaryRecordEnhanced
+    from summarizer_agent.tools.save_summary_record_enhanced import SaveSummaryRecordEnhanced
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
@@ -39,7 +39,7 @@ except ImportError:
         '..', 
         'summarizer_agent', 
         'tools', 
-        'SaveSummaryRecordEnhanced.py'
+        'save_summary_record_enhanced.py'
     )
     spec_enhanced = importlib.util.spec_from_file_location("SaveSummaryRecordEnhanced", tool_path_enhanced)
     module_enhanced = importlib.util.module_from_spec(spec_enhanced)
@@ -139,7 +139,7 @@ class TestPromptVersionFirestore(unittest.TestCase):
         
         print("✅ Basic SaveSummaryRecord includes prompt_version in Firestore")
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_enhanced_summary_record_includes_prompt_version(self, mock_firestore):
         """Test that enhanced SaveSummaryRecordEnhanced includes prompt_version in Firestore."""
         # Mock Firestore client and documents

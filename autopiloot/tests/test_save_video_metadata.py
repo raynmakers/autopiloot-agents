@@ -15,16 +15,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'tools'))
 
 try:
-    from scraper.tools.SaveVideoMetadata import SaveVideoMetadata
+    from scraper.tools.save_video_metadata import SaveVideoMetadata
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
-        os.path.dirname(__file__), 
-        '..', 
-        'scraper', 
-        'tools', 
-        'SaveVideoMetadata.py'
+        os.path.dirname(__file__),
+        '..',
+        'scraper',
+        'tools',
+        'save_video_metadata.py'
     )
     spec = importlib.util.spec_from_file_location("SaveVideoMetadata", tool_path)
     module = importlib.util.module_from_spec(spec)

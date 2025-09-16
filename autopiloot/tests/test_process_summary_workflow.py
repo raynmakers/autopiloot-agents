@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from summarizer_agent.tools.ProcessSummaryWorkflow import ProcessSummaryWorkflow
+    from summarizer_agent.tools.process_summary_workflow import ProcessSummaryWorkflow
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
@@ -22,7 +22,7 @@ except ImportError:
         '..', 
         'summarizer_agent', 
         'tools', 
-        'ProcessSummaryWorkflow.py'
+        'process_summary_workflow.py'
     )
     spec = importlib.util.spec_from_file_location("ProcessSummaryWorkflow", tool_path)
     module = importlib.util.module_from_spec(spec)
@@ -240,7 +240,7 @@ class TestProcessSummaryWorkflow(unittest.TestCase):
         self.assertIsNotNone(transcript_ref)
         self.assertEqual(transcript_ref["ref"], "transcripts/test_video_123")
 
-    @patch('summarizer_agent.tools.ProcessSummaryWorkflow.get_required_env_var')
+    @patch('summarizer_agent.tools.process_summary_workflow.get_required_env_var')
     def test_validate_workflow_requirements(self, mock_get_required):
         """Test workflow requirements validation."""
         # Mock missing environment variable

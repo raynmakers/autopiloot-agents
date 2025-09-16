@@ -14,16 +14,16 @@ import requests
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from scraper_agent.tools.ReadSheetLinks import ReadSheetLinks
+    from scraper_agent.tools.read_sheet_links import ReadSheetLinks
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
     tool_path = os.path.join(
-        os.path.dirname(__file__), 
-        '..', 
-        'scraper_agent', 
-        'tools', 
-        'ReadSheetLinks.py'
+        os.path.dirname(__file__),
+        '..',
+        'scraper_agent',
+        'tools',
+        'read_sheet_links.py'
     )
     spec = importlib.util.spec_from_file_location("ReadSheetLinks", tool_path)
     module = importlib.util.module_from_spec(spec)

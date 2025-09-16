@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0030 | [Tool Filename Standardization to Snake Case](#adr-0030)    | 2025-09-16 | Accepted | —          | —             |
 | 0029 | [Security Architecture and Service Account Management](#adr-0029) | 2025-09-15 | Accepted | —          | —             |
 | 0028 | [Documentation Standardization and Roadmap Implementation](#adr-0028) | 2025-09-15 | Accepted | —          | —             |
 | 0027 | [Comprehensive Testing Infrastructure and CI/CD Implementation](#adr-0027) | 2025-09-15 | Accepted | —          | —             |
@@ -2169,5 +2170,69 @@ Implemented comprehensive security architecture with Google Cloud service accoun
 - Environment isolation strategy implemented with separate accounts for dev/staging/production
 - Audit logging configuration verified with Cloud Audit Logs enablement and monitoring setup
 - Security review checklist created for credential handling and API usage patterns
+
+## ADR-0030 — Tool Filename Standardization to Snake Case
+
+<a id="adr-0030"></a>
+**Date**: 2025-09-16
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot Agency codebase contained mixed naming conventions for tool files, with 9 tools using PascalCase filenames (e.g., `EnqueueTranscription.py`, `SaveVideoMetadata.py`) and 32 tools already using snake_case (e.g., `get_video_audio_url.py`, `send_error_alert.py`). This inconsistency created several issues:
+
+- **Import confusion**: Mixed case patterns made it harder to predict import paths
+- **Code style inconsistency**: Violated Python naming conventions (PEP 8 recommends snake_case for modules)
+- **Discovery issues**: Some tools might be harder to locate due to naming patterns
+- **Maintenance overhead**: Developers had to remember which naming convention each tool used
+
+Agency Swarm v1.0.0 framework works with both naming patterns, but standardizing on snake_case aligns with Python best practices and improves codebase consistency.
+
+### Decision
+
+**Standardize all tool filenames to snake_case across the entire Autopiloot Agency codebase:**
+
+1. **Rename all PascalCase tool files** to snake_case equivalents using `git mv` to preserve history
+2. **Update all imports and references** across the codebase to use new snake_case module names
+3. **Maintain class names in PascalCase** as per Agency Swarm requirements (class names remain unchanged)
+4. **Update all `tools/__init__.py` exports** to reflect new module names
+5. **Update all test files** that import these tools
+6. **Create comprehensive mapping documentation** for reference and potential rollback
+
+**Specific transformations applied:**
+- `EnqueueTranscription.py` → `enqueue_transcription.py`
+- `ExtractYouTubeFromPage.py` → `extract_youtube_from_page.py`
+- `ListRecentUploads.py` → `list_recent_uploads.py`
+- `ReadSheetLinks.py` → `read_sheet_links.py`
+- `RemoveSheetRow.py` → `remove_sheet_row.py`
+- `ResolveChannelHandles.py` → `resolve_channel_handles.py`
+- `SaveVideoMetadata.py` → `save_video_metadata.py`
+- `ProcessSummaryWorkflow.py` → `process_summary_workflow.py`
+- `SaveSummaryRecordEnhanced.py` → `save_summary_record_enhanced.py`
+
+### Consequences
+
+**Positive:**
+- **Consistent Python naming**: All 41 tool files now follow PEP 8 snake_case convention
+- **Improved predictability**: Developers can reliably predict import paths
+- **Better IDE support**: Autocomplete and navigation work more consistently
+- **Cleaner codebase**: Unified style across all agents and tools
+- **Documentation clarity**: File listings in documentation are now consistent
+- **Import safety**: No more confusion between PascalCase and snake_case imports
+
+**Implementation details:**
+- Preserved git history using `git mv` for all renamed files
+- Generated comprehensive mapping file at `planning/rename_map_tools_snake_case.json`
+- Updated 15+ test files with corrected import statements
+- Verified all imports work correctly with `python -m unittest discover tests -v`
+- Updated all `tools/__init__.py` files across 5 agent directories
+- Maintained Agency Swarm v1.0.0 compatibility (class names unchanged)
+
+**Maintenance:**
+- Future tools must follow snake_case filename convention
+- CI enforcement can be added to prevent regression to mixed naming
+- Documentation automatically reflects consistent naming patterns
+- Tool discovery scripts work with predictable naming scheme
 
 ---

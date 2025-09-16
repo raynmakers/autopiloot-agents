@@ -17,7 +17,7 @@ sys.path.append(os.path.join(project_root, 'core'))
 sys.path.append(os.path.join(project_root, 'config'))
 
 try:
-    from ListRecentUploads import ListRecentUploads
+    from list_recent_uploads import ListRecentUploads
     TOOL_AVAILABLE = True
 except ImportError:
     TOOL_AVAILABLE = False

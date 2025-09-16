@@ -23,11 +23,12 @@ Follow the steps below when creating new tasks.
 
 id: "TASK-NAM-0001"
 title: "Standardize tool filenames to snake_case and update imports"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["refactor", "naming", "code-style"]
 dependencies: []
 created: "2025-09-16"
+completed: "2025-09-16"
 
 # 1) High-Level Objective
 

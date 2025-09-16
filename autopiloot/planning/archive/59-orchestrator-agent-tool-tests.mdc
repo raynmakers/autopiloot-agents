@@ -23,11 +23,12 @@ Follow the steps below when creating new tasks.
 
 id: "TASK-ORC-0001"
 title: "Create dedicated tests for all orchestrator_agent tools (8/8)"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["tests", "orchestrator", "coverage"]
 dependencies: []
 created: "2025-09-16"
+completed: "2025-09-16"
 
 # 1) High-Level Objective
 

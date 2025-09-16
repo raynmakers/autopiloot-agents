@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from summarizer_agent.tools.SaveSummaryRecordEnhanced import SaveSummaryRecordEnhanced
+    from summarizer_agent.tools.save_summary_record_enhanced import SaveSummaryRecordEnhanced
 except ImportError:
     # Alternative import path if direct import fails
     import importlib.util
@@ -23,7 +23,7 @@ except ImportError:
         '..', 
         'summarizer_agent', 
         'tools', 
-        'SaveSummaryRecordEnhanced.py'
+        'save_summary_record_enhanced.py'
     )
     spec = importlib.util.spec_from_file_location("SaveSummaryRecordEnhanced", tool_path)
     module = importlib.util.module_from_spec(spec)
@@ -75,7 +75,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
             video_metadata=self.test_video_metadata
         )
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_successful_enhanced_summary_record_creation(self, mock_firestore):
         """Test successful enhanced summary record creation with Zep references."""
         # Mock Firestore client
@@ -159,7 +159,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertEqual(video_update["zep_collection"], "autopiloot_guidelines")
         self.assertEqual(len(video_update["rag_refs"]), 2)
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_missing_required_references(self, mock_firestore):
         """Test handling when required Zep references are missing."""
         # Create tool with missing zep_doc_id
@@ -182,7 +182,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertIn("zep_doc_id is required", data["error"])
         self.assertIsNone(data["summary_doc_ref"])
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_missing_transcript_doc_ref(self, mock_firestore):
         """Test handling when transcript_doc_ref is missing."""
         # Create tool with missing transcript_doc_ref
@@ -205,7 +205,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertIn("transcript_doc_ref is required", data["error"])
         self.assertIsNone(data["summary_doc_ref"])
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_transcript_document_not_exists(self, mock_firestore):
         """Test handling when referenced transcript document doesn't exist."""
         # Mock Firestore client
@@ -227,7 +227,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertIn("Transcript document transcripts/test_video_123 does not exist", data["error"])
         self.assertIsNone(data["summary_doc_ref"])
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_video_document_not_exists(self, mock_firestore):
         """Test handling when video document doesn't exist."""
         # Mock Firestore client
@@ -271,7 +271,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertIn("Video document test_video_123 does not exist", data["error"])
         self.assertIsNone(data["summary_doc_ref"])
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_firestore_operation_failure(self, mock_firestore):
         """Test handling of Firestore operation failures."""
         # Mock Firestore client
@@ -318,7 +318,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         self.assertIn("Firestore write failed", data["error"])
         self.assertIsNone(data["summary_doc_ref"])
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_video_status_warning(self, mock_firestore):
         """Test warning when video has unexpected status."""
         # Mock Firestore client
@@ -401,7 +401,7 @@ class TestSaveSummaryRecordEnhanced(unittest.TestCase):
         # Should handle empty rag_refs gracefully
         self.assertEqual(len(tool.refs["rag_refs"]), 0)
 
-    @patch('summarizer_agent.tools.SaveSummaryRecordEnhanced.firestore.Client')
+    @patch('summarizer_agent.tools.save_summary_record_enhanced.firestore.Client')
     def test_timestamp_format(self, mock_firestore):
         """Test that timestamps are created in correct UTC ISO format."""
         # Mock Firestore client
