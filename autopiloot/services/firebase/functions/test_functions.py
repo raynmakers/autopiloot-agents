@@ -19,6 +19,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 from main import schedule_scraper_daily, on_transcription_written, get_orchestrator_agent
 from core import create_scraper_job, process_transcription_budget
 
+# Import scheduler functions
+try:
+    from scheduler import daily_digest_delivery, get_observability_agent
+    SCHEDULER_AVAILABLE = True
+except ImportError:
+    SCHEDULER_AVAILABLE = False
+    print("Warning: scheduler module not available for testing")
+
 def test_schedule_scraper_daily_orchestrator_success():
     """Test scheduled scraper function with successful orchestrator agent integration."""
     print("Testing schedule_scraper_daily with orchestrator agent success...")
@@ -390,7 +398,12 @@ def main():
 
         # Infrastructure tests
         test_agent_lazy_initialization,
-        test_slack_integration
+        test_slack_integration,
+
+        # Daily digest tests (TASK-DIG-0063)
+        test_daily_digest_delivery_success,
+        test_daily_digest_delivery_error_handling,
+        test_daily_digest_integration
     ]
 
     passed = 0
@@ -421,6 +434,201 @@ def main():
     else:
         print(f"\n⚠️  {failed} TEST(S) FAILED - please review orchestrator agent integration.")
         return 1
+
+
+def test_daily_digest_delivery_success():
+    """Test daily digest delivery function with successful generation."""
+    if not SCHEDULER_AVAILABLE:
+        print("❌ Daily digest test skipped - scheduler module not available")
+        return False
+
+    print("Testing daily_digest_delivery function...")
+
+    # Mock event
+    mock_event = Mock()
+    mock_event.id = "test_digest_event_123"
+
+    # Mock observability agent and tools
+    mock_observability = MagicMock()
+    mock_digest_tool = MagicMock()
+    mock_slack_tool = MagicMock()
+
+    # Mock digest generation result
+    digest_result = {
+        "date": "2025-09-15",
+        "timezone": "Europe/Amsterdam",
+        "metrics": {
+            "videos_discovered": 3,
+            "videos_transcribed": 2,
+            "summaries_generated": 1,
+            "total_cost_usd": 2.50,
+            "dlq_entries": 0
+        },
+        "slack_blocks": [
+            {"type": "header", "text": {"type": "plain_text", "text": "🌅 Daily Autopiloot Digest - 2025-09-15"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*📊 Processing Summary*"}}
+        ]
+    }
+
+    mock_digest_tool.run.return_value = json.dumps(digest_result)
+    mock_slack_tool.run.return_value = json.dumps({"status": "sent", "ts": "1234567890.123"})
+
+    with patch('scheduler.get_observability_agent', return_value=None), \
+         patch('scheduler.GenerateDailyDigest', return_value=mock_digest_tool), \
+         patch('scheduler.SendSlackMessage', return_value=mock_slack_tool), \
+         patch('scheduler.db') as mock_db, \
+         patch('scheduler.datetime') as mock_datetime, \
+         patch('scheduler.pytz') as mock_pytz:
+
+        # Mock timezone handling
+        mock_ams_tz = Mock()
+        mock_now_ams = Mock()
+        mock_yesterday_ams = Mock()
+        mock_yesterday_ams.strftime.return_value = "2025-09-15"
+
+        mock_pytz.timezone.return_value = mock_ams_tz
+        mock_datetime.now.return_value = mock_now_ams
+        mock_now_ams.__sub__.return_value = mock_yesterday_ams
+
+        # Mock Firestore audit logging
+        mock_audit_ref = Mock()
+        mock_db.collection.return_value.document.return_value = mock_audit_ref
+
+        # Call the function
+        result = daily_digest_delivery(mock_event)
+
+        # Verify result
+        assert result["ok"] is True
+        assert result["date"] == "2025-09-15"
+        assert result["timezone"] == "Europe/Amsterdam"
+        assert "execution_time" in result
+
+        # Verify tool calls
+        mock_digest_tool.run.assert_called_once()
+        mock_slack_tool.run.assert_called_once()
+
+        # Verify audit logging
+        mock_audit_ref.set.assert_called()
+
+        print("✅ Daily digest delivery test passed")
+        return True
+
+
+def test_daily_digest_delivery_error_handling():
+    """Test daily digest delivery error handling."""
+    if not SCHEDULER_AVAILABLE:
+        print("❌ Daily digest error test skipped - scheduler module not available")
+        return False
+
+    print("Testing daily_digest_delivery error handling...")
+
+    # Mock event
+    mock_event = Mock()
+    mock_event.id = "test_digest_error_event"
+
+    # Mock digest tool that raises exception
+    mock_digest_tool = MagicMock()
+    mock_digest_tool.run.side_effect = Exception("Firestore connection failed")
+
+    # Mock error alert tool
+    mock_error_tool = MagicMock()
+    mock_error_tool.run.return_value = json.dumps({"status": "alert_sent"})
+
+    with patch('scheduler.get_observability_agent', return_value=None), \
+         patch('scheduler.GenerateDailyDigest', return_value=mock_digest_tool), \
+         patch('scheduler.SendErrorAlert', return_value=mock_error_tool), \
+         patch('scheduler.db') as mock_db, \
+         patch('scheduler.datetime') as mock_datetime, \
+         patch('scheduler.pytz') as mock_pytz:
+
+        # Mock timezone handling
+        mock_ams_tz = Mock()
+        mock_now_ams = Mock()
+        mock_yesterday_ams = Mock()
+        mock_yesterday_ams.strftime.return_value = "2025-09-15"
+
+        mock_pytz.timezone.return_value = mock_ams_tz
+        mock_datetime.now.return_value = mock_now_ams
+        mock_now_ams.__sub__.return_value = mock_yesterday_ams
+
+        # Mock Firestore audit logging
+        mock_audit_ref = Mock()
+        mock_db.collection.return_value.document.return_value = mock_audit_ref
+
+        # Call the function (should handle error gracefully)
+        result = daily_digest_delivery(mock_event)
+
+        # Verify error result
+        assert result["ok"] is False
+        assert "error" in result
+        assert "Firestore connection failed" in result["error"]
+
+        # Verify error alert was sent
+        mock_error_tool.run.assert_called_once()
+
+        # Verify error audit logging
+        mock_audit_ref.set.assert_called()
+
+        print("✅ Daily digest error handling test passed")
+        return True
+
+
+def test_daily_digest_integration():
+    """Test complete daily digest integration workflow."""
+    if not SCHEDULER_AVAILABLE:
+        print("❌ Daily digest integration test skipped - scheduler module not available")
+        return False
+
+    print("Testing complete daily digest integration...")
+
+    # Create a more realistic integration test
+    mock_event = Mock()
+
+    # Test with both agent success and tool fallback paths
+    test_scenarios = [
+        {"agent_available": True, "agent_success": True},
+        {"agent_available": True, "agent_success": False},  # Agent fails, fallback to tools
+        {"agent_available": False, "agent_success": False}   # No agent, direct tools
+    ]
+
+    for i, scenario in enumerate(test_scenarios):
+        print(f"  Scenario {i+1}: Agent={scenario['agent_available']}, Success={scenario['agent_success']}")
+
+        mock_agent = MagicMock() if scenario['agent_available'] else None
+        if scenario['agent_available'] and not scenario['agent_success']:
+            mock_agent.run.side_effect = Exception("Agent workflow failed")
+
+        # Mock tools for fallback
+        mock_digest_tool = MagicMock()
+        mock_digest_tool.run.return_value = json.dumps({
+            "date": "2025-09-15",
+            "slack_blocks": [{"type": "header"}]
+        })
+
+        mock_slack_tool = MagicMock()
+        mock_slack_tool.run.return_value = json.dumps({"status": "sent"})
+
+        with patch('scheduler.get_observability_agent', return_value=mock_agent), \
+             patch('scheduler.GenerateDailyDigest', return_value=mock_digest_tool), \
+             patch('scheduler.SendSlackMessage', return_value=mock_slack_tool), \
+             patch('scheduler.db'), \
+             patch('scheduler.datetime') as mock_datetime, \
+             patch('scheduler.pytz'):
+
+            # Mock time
+            mock_yesterday = Mock()
+            mock_yesterday.strftime.return_value = "2025-09-15"
+            mock_datetime.now.return_value.__sub__.return_value = mock_yesterday
+
+            # Call function
+            result = daily_digest_delivery(mock_event)
+
+            # All scenarios should succeed (with fallback if needed)
+            assert result["ok"] is True
+            print(f"    ✅ Scenario {i+1} passed")
+
+    print("✅ Daily digest integration test passed")
+    return True
 
 if __name__ == "__main__":
     sys.exit(main())

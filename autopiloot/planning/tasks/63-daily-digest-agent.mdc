@@ -1,0 +1,262 @@
+---
+description: "Implement daily digest functionality to send 07:00 operational summaries via Slack"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DIG-0063"
+title: "Daily Digest Implementation for 07:00 Operational Summaries"
+status: "completed"
+priority: "P2"
+labels: ["observability", "slack", "digest", "scheduling"]
+dependencies: []
+created: "2025-09-16"
+completed: "2025-09-16"
+
+# 1) High-Level Objective
+
+Implement the daily digest functionality specified in the PRD (line 370) to send comprehensive operational summaries to Slack at 07:00 Europe/Amsterdam, providing visibility into overnight processing results and system health.
+
+# 2) Background / Context (Optional but recommended)
+
+The PRD specifies: "Assistant daily Slack digest at 07:00 and budget alerts at 80% of $5/day." Currently, the system has budget alerting but lacks the daily digest feature. This creates a gap in operational visibility for stakeholders who need a morning summary of:
+
+- Videos processed overnight (01:00 scraper run results)
+- Transcription job status and costs
+- Summary generation results
+- Any errors or issues requiring attention
+- System health metrics
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Use existing ObservabilityAgent with new `generate_daily_digest.py` tool
+- CONSTRAINT: Must integrate with existing Firebase Functions scheduling architecture
+- CONSTRAINT: Leverage existing Slack infrastructure (format_slack_blocks.py, send_slack_message.py)
+- CONSTRAINT: Use Europe/Amsterdam timezone for 07:00 delivery (6 hours after 01:00 scraper)
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- observability_agent/tools/format_slack_blocks.py (existing)
+- observability_agent/tools/send_slack_message.py (existing)
+- services/firebase/functions/scheduler.py (existing, needs extension)
+- config/settings.yaml (existing, may need digest configuration)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- observability_agent/tools/__init__.py
+- observability_agent/tools/format_slack_blocks.py (read-only)
+- observability_agent/tools/send_slack_message.py (read-only)
+- observability_agent/tools/report_daily_summary.py (read-only - similar functionality)
+- services/firebase/functions/scheduler.py (read-only)
+- config/settings.yaml (read-only)
+
+End state (must exist after completion):
+
+- observability_agent/tools/generate_daily_digest.py
+- services/firebase/functions/scheduler.py (updated with 07:00 function)
+- tests/observability_tools/test_generate_daily_digest.py
+- Updated observability_agent/tools/__init__.py exports
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Create `generate_daily_digest.py` tool**
+
+   - Location: `observability_agent/tools/generate_daily_digest.py`
+   - Inherit from `agency_swarm.tools.BaseTool`
+   - Parameters:
+     ```python
+     date: str = Field(..., description="Date for digest in YYYY-MM-DD format")
+     timezone: str = Field(default="Europe/Amsterdam", description="Timezone for date calculations")
+     ```
+   - Core functionality:
+     - Query yesterday's processing results from Firestore
+     - Aggregate video discovery, transcription, and summarization metrics
+     - Calculate total costs and budget utilization
+     - Identify any failed jobs or DLQ entries
+     - Format comprehensive summary with key metrics and links
+   - Return format: JSON string with digest content
+
+2. **Implement digest data aggregation logic**
+
+   - Query Firestore collections for yesterday's data:
+     ```python
+     # Videos discovered and processed
+     videos_query = db.collection('videos').where('created_at', '>=', yesterday_start).where('created_at', '<', today_start)
+
+     # Transcription costs and status
+     costs_query = db.collection('costs_daily').document(yesterday_date)
+
+     # Summary generation results
+     summaries_query = db.collection('summaries').where('created_at', '>=', yesterday_start).where('created_at', '<', today_start)
+
+     # Error monitoring
+     dlq_query = db.collection('jobs_deadletter').where('created_at', '>=', yesterday_start).where('created_at', '<', today_start)
+     ```
+
+3. **Create digest content structure**
+
+   - Rich Slack Block Kit formatting with sections:
+     ```python
+     DigestContent = {
+         "header": "🌅 Daily Autopiloot Digest - {date}",
+         "sections": [
+             {
+                 "title": "📊 Processing Summary",
+                 "metrics": {
+                     "videos_discovered": int,
+                     "videos_transcribed": int,
+                     "summaries_generated": int,
+                     "total_cost_usd": float
+                 }
+             },
+             {
+                 "title": "💰 Budget & Costs",
+                 "details": ["Daily transcription spend: $X.XX / $5.00 (X%)", "Quota usage: X units"]
+             },
+             {
+                 "title": "⚠️ Issues & Alerts",
+                 "errors": ["DLQ entries: X", "Failed jobs: X"]
+             },
+             {
+                 "title": "🔗 Quick Links",
+                 "links": ["Drive folders", "Recent summaries", "System status"]
+             }
+         ]
+     }
+     ```
+
+4. **Add Firebase Function for 07:00 scheduling**
+
+   - File: `services/firebase/functions/scheduler.py`
+   - Add new scheduled function:
+     ```python
+     @scheduler_fn.on_schedule(
+         schedule="0 7 * * *",  # 07:00 daily
+         timezone="Europe/Amsterdam",
+         memory=256,
+         timeout_sec=180
+     )
+     def daily_digest_delivery(event: ScheduledEvent) -> None:
+         """Send daily operational digest at 07:00 Europe/Amsterdam."""
+     ```
+   - Function logic:
+     - Initialize ObservabilityAgent
+     - Calculate yesterday's date in Europe/Amsterdam timezone
+     - Call `generate_daily_digest.run(date=yesterday)`
+     - Send formatted digest to configured Slack channel
+     - Log execution results to audit_logs
+
+5. **Update configuration support**
+
+   - File: `config/settings.yaml` (if needed)
+   - Add digest configuration:
+     ```yaml
+     notifications:
+       slack:
+         channel: "ops-autopiloot"
+         digest:
+           enabled: true
+           time: "07:00"
+           timezone: "Europe/Amsterdam"
+           include_links: true
+     ```
+
+6. **Update ObservabilityAgent exports**
+
+   - File: `observability_agent/tools/__init__.py`
+   - Add: `from .generate_daily_digest import GenerateDailyDigest`
+   - Update __all__ list
+
+7. **Create comprehensive tests**
+
+   - File: `tests/observability_tools/test_generate_daily_digest.py`
+   - Test cases:
+     - Happy path: successful digest generation with sample data
+     - Empty day: no videos processed, minimal digest
+     - High activity: multiple videos, budget threshold reached
+     - Error conditions: DLQ entries present, cost overruns
+     - Date handling: timezone conversions, edge cases
+     - Slack formatting: block structure validation
+   - Use mocks for Firestore queries and Slack API calls
+
+8. **Integration testing with Firebase Functions**
+
+   - File: `services/firebase/functions/test_functions.py`
+   - Add test for `daily_digest_delivery` function
+   - Mock agent initialization and digest generation
+   - Verify audit logging and error handling
+
+Terminal snippets:
+
+```bash
+# Test individual tool
+python observability_agent/tools/generate_daily_digest.py
+
+# Run digest-specific tests
+python -m unittest tests.observability_tools.test_generate_daily_digest -v
+
+# Test Firebase Functions integration
+python -m unittest services.firebase.functions.test_functions.TestDailyDigest -v
+
+# Full test suite
+python -m unittest discover tests -v
+```
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import TypedDict, Optional, List
+from datetime import datetime
+
+class DigestMetrics(TypedDict):
+    videos_discovered: int
+    videos_transcribed: int
+    summaries_generated: int
+    total_cost_usd: float
+    budget_percentage: float
+    dlq_entries: int
+    failed_jobs: int
+
+class DigestSection(TypedDict):
+    title: str
+    content: List[str]
+    type: str  # "metrics" | "list" | "links"
+
+class DailyDigestContent(TypedDict):
+    date: str
+    timezone: str
+    metrics: DigestMetrics
+    sections: List[DigestSection]
+    summary_text: str
+    slack_blocks: List[dict]
+```
+
+# 8) Acceptance Criteria
+
+- `observability_agent/tools/generate_daily_digest.py` exists and inherits from BaseTool
+- Tool generates comprehensive digest with metrics, costs, errors, and links
+- Firebase Function `daily_digest_delivery` scheduled for 07:00 Europe/Amsterdam
+- Digest delivered to configured Slack channel with rich Block Kit formatting
+- `tests/observability_tools/test_generate_daily_digest.py` exists with 8+ test cases
+- All existing tests continue to pass
+- Tool includes test block for standalone execution
+- Integration with existing observability infrastructure (format_slack_blocks, send_slack_message)
+
+# 9) Testing Strategy
+
+- Unit tests for digest data aggregation and formatting logic
+- Integration tests with mocked Firestore queries and real data structures
+- Firebase Functions testing with scheduled trigger simulation
+- Slack formatting validation with Block Kit compliance
+- Timezone handling verification for Europe/Amsterdam calculations
+- Error handling tests for missing data and API failures
+
+# 10) Notes / Links
+
+- PRD reference: Line 370 "Assistant daily Slack digest at 07:00"
+- Builds on existing observability tools for consistency
+- 6-hour gap between 01:00 scraper and 07:00 digest allows complete processing
+- Consider including links to Drive folders and recent summaries for quick access
+- Rich formatting will improve stakeholder visibility into system health

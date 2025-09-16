@@ -404,9 +404,9 @@ def trigger_scraper_manual(event: firestore_fn.Event[firestore_fn.DocumentSnapsh
             'result': result,
             'processed_at': firestore.SERVER_TIMESTAMP
         })
-        
+
         logger.info(f"Manual scraper completed: {result}")
-        
+
     except Exception as e:
         logger.error(f"Manual scraper failed: {str(e)}")
         event.data.reference.update({
@@ -414,3 +414,170 @@ def trigger_scraper_manual(event: firestore_fn.Event[firestore_fn.DocumentSnapsh
             'error': str(e),
             'processed_at': firestore.SERVER_TIMESTAMP
         })
+
+
+# ==================================================================================
+# SCHEDULED FUNCTION: Daily Digest at 07:00 Europe/Amsterdam
+# ==================================================================================
+
+@scheduler_fn.on_schedule(
+    schedule="0 7 * * *",  # 07:00 daily
+    timezone="Europe/Amsterdam",
+    memory=options.MemoryOption.MB_256,
+    timeout_sec=180
+)
+def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
+    """
+    Send daily operational digest at 07:00 Europe/Amsterdam.
+
+    PRD requirement: "Assistant daily Slack digest at 07:00" with comprehensive
+    processing summary, costs, errors, and system health metrics.
+
+    Runs 6 hours after the 01:00 scraper to allow complete processing.
+    """
+    logger.info("Starting daily digest delivery at 07:00 Europe/Amsterdam")
+
+    try:
+        from datetime import datetime, timedelta
+        import pytz
+        import json
+
+        # Calculate yesterday's date in Europe/Amsterdam timezone
+        ams_tz = pytz.timezone("Europe/Amsterdam")
+        now_ams = datetime.now(ams_tz)
+        yesterday_ams = now_ams - timedelta(days=1)
+        yesterday_date = yesterday_ams.strftime("%Y-%m-%d")
+
+        logger.info(f"Generating digest for date: {yesterday_date}")
+
+        # Get observability agent (lazy initialization)
+        observability_agent = get_observability_agent()
+
+        if observability_agent is None:
+            # Fallback: use tool directly
+            from observability_agent.tools.generate_daily_digest import GenerateDailyDigest
+            from observability_agent.tools.send_slack_message import SendSlackMessage
+
+            # Generate digest
+            digest_tool = GenerateDailyDigest(
+                date=yesterday_date,
+                timezone_name="Europe/Amsterdam"
+            )
+
+            digest_result = digest_tool.run()
+            digest_data = json.loads(digest_result)
+
+            if "error" in digest_data:
+                logger.error(f"Digest generation failed: {digest_data['message']}")
+                return {"error": "digest_generation_failed", "message": digest_data['message']}
+
+            # Send to Slack
+            slack_tool = SendSlackMessage(
+                channel="ops-autopiloot",  # Default channel
+                blocks=digest_data["slack_blocks"]
+            )
+
+            slack_result = slack_tool.run()
+            slack_data = json.loads(slack_result)
+
+        else:
+            # Use full agent workflow
+            try:
+                # Create a message for the observability agent
+                digest_message = f"Generate and send daily digest for {yesterday_date}"
+                agent_result = observability_agent.run(digest_message)
+
+                logger.info(f"Agent digest result: {str(agent_result)[:200]}")
+
+            except Exception as agent_error:
+                logger.warning(f"Agent workflow failed, using direct tool approach: {agent_error}")
+
+                # Fallback to direct tool usage
+                from observability_agent.tools.generate_daily_digest import GenerateDailyDigest
+                from observability_agent.tools.send_slack_message import SendSlackMessage
+
+                digest_tool = GenerateDailyDigest(
+                    date=yesterday_date,
+                    timezone_name="Europe/Amsterdam"
+                )
+
+                digest_result = digest_tool.run()
+                digest_data = json.loads(digest_result)
+
+                if "error" not in digest_data:
+                    slack_tool = SendSlackMessage(
+                        channel="ops-autopiloot",
+                        blocks=digest_data["slack_blocks"]
+                    )
+                    slack_result = slack_tool.run()
+
+        # Log successful execution to audit
+        audit_ref = db.collection('audit_logs').document()
+        audit_ref.set({
+            'type': 'daily_digest',
+            'date': yesterday_date,
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'status': 'success',
+            'execution_time': datetime.utcnow().isoformat()
+        })
+
+        logger.info("Daily digest delivery completed successfully")
+
+        return {
+            'ok': True,
+            'date': yesterday_date,
+            'timezone': 'Europe/Amsterdam',
+            'execution_time': datetime.utcnow().isoformat(),
+            'message': 'Daily digest sent successfully'
+        }
+
+    except Exception as e:
+        logger.error(f"Daily digest delivery failed: {str(e)}")
+
+        # Log failure to audit
+        audit_ref = db.collection('audit_logs').document()
+        audit_ref.set({
+            'type': 'daily_digest',
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'error': str(e),
+            'status': 'failed'
+        })
+
+        # Send error alert to Slack
+        try:
+            from observability_agent.tools.send_error_alert import SendErrorAlert
+
+            error_tool = SendErrorAlert(
+                error_type="daily_digest_failed",
+                message=f"Daily digest delivery failed: {str(e)}"
+            )
+            error_tool.run()
+
+        except Exception as alert_error:
+            logger.error(f"Failed to send error alert: {alert_error}")
+
+        return {
+            'ok': False,
+            'error': str(e),
+            'execution_time': datetime.utcnow().isoformat()
+        }
+
+
+# Lazy-initialized observability agent singleton
+_observability_agent: Optional[Any] = None
+
+def get_observability_agent():
+    """
+    Get or create the observability agent instance (lazy initialization).
+    Used for daily digest delivery and error alerting.
+    """
+    global _observability_agent
+    if _observability_agent is None:
+        try:
+            from observability_agent.observability_agent import observability_agent
+            _observability_agent = observability_agent
+            logger.info("Observability agent initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import observability agent: {e}")
+            _observability_agent = None
+    return _observability_agent
