@@ -72,11 +72,79 @@ End-to-end automation of content research, transcription, and summarization with
 
 **Role**: Operations monitoring and alerting
 
+- **Daily Digest**: Automated 07:00 Europe/Amsterdam Slack digest with processing summary, costs, errors, and system health
 - Real-time budget monitoring with 80% threshold alerts
 - Slack notifications with 1-per-type-per-hour throttling
 - Error alerting and operational health monitoring
 - Rich Slack Block Kit formatting for notifications
-- **10 tools**: alert_engine, format_slack_blocks, llm_observability_metrics, monitor_dlq_trends, monitor_quota_state, monitor_transcription_budget, report_daily_summary, send_error_alert, send_slack_message, stuck_job_scanner
+- **11 tools**: alert_engine, format_slack_blocks, generate_daily_digest, llm_observability_metrics, monitor_dlq_trends, monitor_quota_state, monitor_transcription_budget, report_daily_summary, send_error_alert, send_slack_message, stuck_job_scanner
+
+## 📅 Daily Digest
+
+The system provides automated daily operational summaries delivered to Slack every morning at **07:00 Europe/Amsterdam** timezone.
+
+### Features
+
+- **📊 Processing Summary**: Videos discovered, transcribed, and summarized with source breakdown
+- **💰 Cost Analysis**: Daily transcription spend vs. budget with percentage usage
+- **⚠️ Error Monitoring**: Dead letter queue alerts and system health indicators
+- **🔗 Quick Links**: Direct access to Google Drive folders and system resources
+- **🎯 Performance Metrics**: Success rates, processing times, and operational KPIs
+
+### Sample Output
+
+The digest appears in Slack with rich formatting and actionable insights:
+
+```
+🌅 Daily Digest | 2025-09-15
+
+📊 Processing Summary
+• Videos Discovered: 8 (6 scrape, 2 sheet)
+• Videos Transcribed: 7
+• Videos Summarized: 6
+• Success Rate: 87.5%
+
+💰 Daily Costs
+• Transcription: $3.45 / $5.00 (69%)
+• Status: 🟢 Within budget
+
+⚠️ Issues & Alerts
+• 1 video in dead letter queue
+• No critical errors detected
+
+🔗 Resources
+📁 Transcripts | 📁 Summaries | 📊 Firestore Console
+```
+
+### Configuration
+
+Configure digest behavior in `config/settings.yaml`:
+
+```yaml
+notifications:
+  slack:
+    digest:
+      enabled: true                    # Enable/disable digest
+      time: "07:00"                   # Delivery time (fixed at deployment)
+      timezone: "Europe/Amsterdam"    # Timezone for date calculations
+      channel: "ops-autopiloot"       # Target Slack channel
+      sections:                       # Customize digest sections
+        - "summary"
+        - "budgets"
+        - "issues"
+        - "links"
+```
+
+**Note**: The delivery time (07:00) and timezone are fixed at Firebase Functions deployment time. Runtime configuration allows customizing the target channel, content sections, and timezone for date calculations.
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Digest not delivered | Check Firebase Functions logs, verify SLACK_BOT_TOKEN |
+| Wrong channel | Update `notifications.slack.digest.channel` in settings.yaml |
+| Missing data | Verify Firestore permissions and collection structure |
+| Timezone issues | Ensure `notifications.slack.digest.timezone` is valid IANA timezone |
 
 ## Project Structure
 

@@ -6,6 +6,7 @@ Tools for analyzing LinkedIn corpus and generating strategic insights
 from .fetch_corpus_from_zep import FetchCorpusFromZep
 from .compute_engagement_signals import ComputeEngagementSignals
 from .extract_keywords_and_phrases import ExtractKeywordsAndPhrases
+from .cluster_topics_embeddings import ClusterTopicsEmbeddings
 from .classify_post_types import ClassifyPostTypes
 from .analyze_tone_of_voice import AnalyzeToneOfVoice
 from .mine_trigger_phrases import MineTriggerPhrases
@@ -17,6 +18,7 @@ __all__ = [
     'FetchCorpusFromZep',
     'ComputeEngagementSignals',
     'ExtractKeywordsAndPhrases',
+    'ClusterTopicsEmbeddings',
     'ClassifyPostTypes',
     'AnalyzeToneOfVoice',
     'MineTriggerPhrases',

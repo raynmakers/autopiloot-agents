@@ -1,0 +1,54 @@
+---
+description: "Update docs to include 07:00 daily digest behavior, configuration, and channels"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DOC-0070"
+title: "Docs: Daily digest (07:00 Europe/Amsterdam) configuration and usage"
+status: "planned"
+priority: "P3"
+labels: ["docs", "observability", "slack"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Document the daily digest schedule, configuration, Slack channel, and troubleshooting.
+
+# 2) Background / Context
+
+New digest functionality must be visible to operators.
+
+# 3) Assumptions & Constraints
+
+- Update `agents/autopiloot/README.md` and `agents/FIREBASE_SETUP_MANUAL.md`.
+
+# 4) Dependencies
+
+- README.md
+- FIREBASE_SETUP_MANUAL.md
+- config/settings.yaml
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/README.md
+- agents/FIREBASE_SETUP_MANUAL.md
+
+End state:
+
+- README section describing digest, config keys, and Slack channel
+- Manual includes scheduler setup and verification steps
+
+# 6) Low-Level Steps
+
+1. Add README section: purpose, schedule, sample Slack output, config keys.
+2. Update manual with deployment notes and testing guidance.
+3. Link to observability tools and troubleshooting tips.
+
+# 7) Acceptance Criteria
+
+- Docs clearly explain digest behavior and configuration
+- PR reviewers can validate configuration without code diving

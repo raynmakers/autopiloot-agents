@@ -1,0 +1,47 @@
+---
+description: "Normalize/dedupe LinkedIn content and compute stats"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0074"
+title: "LinkedIn: normalize, dedupe, and compute statistics"
+status: "planned"
+priority: "P1"
+labels: ["linkedin", "processing", "stats"]
+dependencies: ["TASK-LI-0072", "TASK-LI-0073"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement tools: `normalize_linkedin_content`, `deduplicate_entities`, `compute_linkedin_stats`.
+
+# 2) Background / Context
+
+Standard schema enables Zep upsert and Strategy analysis.
+
+# 3) Assumptions & Constraints
+
+- Post/comment natural keys via URN/ID.
+
+# 4) Dependencies
+
+- linkedin_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- linkedin_agent/tools/normalize_linkedin_content.py
+- linkedin_agent/tools/deduplicate_entities.py
+- linkedin_agent/tools/compute_linkedin_stats.py
+
+# 6) Low-Level Steps
+
+1. Implement normalization mapping and metrics fields.
+2. Implement dedupe via set/hash of key tuple.
+3. Implement stats: totals, top by reactions/comments/views, histograms.
+
+# 7) Acceptance Criteria
+
+- JSON string outputs with validated fields and counts.

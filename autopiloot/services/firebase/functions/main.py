@@ -6,18 +6,16 @@ This module contains:
 2. Event-driven function for transcription budget monitoring
 """
 
-import os
-import sys
 from firebase_functions import scheduler_fn, firestore_fn, options
 from firebase_admin import initialize_app, firestore
 import logging
 from typing import Dict, Any, Optional
 
-# Add autopiloot to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-
 # Import core business logic
-from core import create_scraper_job, process_transcription_budget, validate_video_id, validate_transcript_data
+from agents.autopiloot.services.firebase.functions.core import create_scraper_job, process_transcription_budget, validate_video_id, validate_transcript_data
+
+# Import shared agent helpers
+from .agent_helpers import get_orchestrator_agent
 
 # Initialize Firebase Admin SDK
 initialize_app()
@@ -28,26 +26,6 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 TIMEZONE = "Europe/Amsterdam"
-
-# Lazy-initialized orchestrator agent singleton
-_orchestrator_agent: Optional[Any] = None
-
-def get_orchestrator_agent():
-    """
-    Get or create the orchestrator agent instance (lazy initialization).
-    This minimizes cold start costs by deferring agent creation until needed.
-    """
-    global _orchestrator_agent
-    if _orchestrator_agent is None:
-        try:
-            from orchestrator_agent.orchestrator_agent import orchestrator_agent
-            _orchestrator_agent = orchestrator_agent
-            logger.info("Orchestrator agent initialized successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import orchestrator agent: {e}")
-            # Fallback to None, functions will use core.py logic
-            _orchestrator_agent = None
-    return _orchestrator_agent
 
 def _get_firestore_client():
     """Get Firestore client instance."""
@@ -74,14 +52,14 @@ def schedule_scraper_daily(req) -> Dict[str, Any]:
     if orchestrator:
         try:
             # Use orchestrator's plan_daily_run tool
-            from orchestrator_agent.tools.plan_daily_run import PlanDailyRun
+            from agents.autopiloot.orchestrator_agent.tools.plan_daily_run import PlanDailyRun
 
             planner = PlanDailyRun()
             result = planner.run()
             logger.info(f"Orchestrator planned daily run: {result}")
 
             # Dispatch to scraper via orchestrator
-            from orchestrator_agent.tools.dispatch_scraper import DispatchScraper
+            from agents.autopiloot.orchestrator_agent.tools.dispatch_scraper import DispatchScraper
             dispatcher = DispatchScraper()
             dispatch_result = dispatcher.run()
             logger.info(f"Orchestrator dispatched scraper: {dispatch_result}")
@@ -140,7 +118,7 @@ def on_transcription_written(event: firestore_fn.Event[firestore_fn.DocumentSnap
     if orchestrator:
         try:
             logger.info("Using observability agent for budget monitoring")
-            from observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
+            from agents.autopiloot.observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
 
             budget_monitor = MonitorTranscriptionBudget()
             result = budget_monitor.run()

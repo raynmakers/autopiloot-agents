@@ -1,0 +1,80 @@
+---
+description: "Create shared helper for lazy agent initialization in Firebase Functions"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-FUNC-0065"
+title: "Extract shared lazy-init helpers for agents in Firebase Functions"
+status: "planned"
+priority: "P2"
+labels: ["firebase", "refactor", "reusability"]
+dependencies: ["TASK-FUNC-0064"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Create a single helper module to provide `get_orchestrator_agent()` and `get_observability_agent()` used by functions, removing duplication and drift.
+
+# 2) Background / Context
+
+`scheduler.py` currently defines both getters inline. Consolidate to avoid divergence.
+
+# 3) Assumptions & Constraints
+
+- Place helper within `agents/autopiloot/services/firebase/functions/` as `agent_helpers.py`.
+- Avoid heavy imports at module load; keep lazy.
+
+# 4) Dependencies
+
+- agents/autopiloot/services/firebase/functions/scheduler.py
+- agents/autopiloot/services/firebase/functions/main.py
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- functions/scheduler.py
+- functions/main.py
+
+End state (must exist after completion):
+
+- functions/agent_helpers.py with both getters
+- scheduler.py and main.py import helpers and remove local duplicates
+
+# 6) Low-Level Steps
+
+1. Create `agent_helpers.py` exporting `get_orchestrator_agent`, `get_observability_agent`.
+2. Replace usages in `scheduler.py`/`main.py` to import from helpers.
+3. Ensure consistent logging and None fallbacks.
+4. Run tests.
+
+Terminal snippet:
+
+```bash
+python -m unittest agents/autopiloot/services/firebase/functions/test_functions.py -v
+rg "def get_.*agent\(" agents/autopiloot/services/firebase/functions -n
+```
+
+# 7) Acceptance Criteria
+
+- No duplicated agent getter implementations
+- All functions import from `agent_helpers.py`
+- Tests pass

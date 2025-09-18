@@ -8,38 +8,25 @@ full orchestrator agent integration. Functions should use the agent directly.
 
 import logging
 import json
-import os
-import sys
+import requests
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
-# Add path for orchestrator imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+# Import configuration helpers
+from agents.autopiloot.config.env_loader import get_required_env_var
+from agents.autopiloot.config.loader import get_config_value
+
+# Import shared agent helpers
+from .agent_helpers import get_orchestrator_agent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Lazy-initialized orchestrator agent
-_orchestrator_agent: Optional[Any] = None
-
-def get_orchestrator_agent():
-    """Get or create orchestrator agent instance (lazy initialization)."""
-    global _orchestrator_agent
-    if _orchestrator_agent is None:
-        try:
-            from orchestrator_agent.orchestrator_agent import orchestrator_agent
-            _orchestrator_agent = orchestrator_agent
-            logger.info("Orchestrator agent initialized in core.py adapter")
-        except ImportError as e:
-            logger.error(f"Failed to import orchestrator agent in core.py: {e}")
-            _orchestrator_agent = None
-    return _orchestrator_agent
-
-# Configuration
-TIMEZONE = "Europe/Amsterdam"
-BUDGET_THRESHOLD = 0.8  # 80% of daily budget
-SLACK_CHANNEL = "ops-autopiloot"
+# Default configuration (overridden by settings.yaml)
+DEFAULT_TIMEZONE = "Europe/Amsterdam"
+DEFAULT_BUDGET_THRESHOLD = 0.8  # 80% of daily budget
+DEFAULT_SLACK_CHANNEL = "ops-autopiloot"
 
 
 def _send_slack_alert_simple(message: str, context: Dict[str, Any] = None) -> bool:
@@ -55,8 +42,8 @@ def _send_slack_alert_simple(message: str, context: Dict[str, Any] = None) -> bo
     """
     try:
         # Use observability agent's Slack tools if available
-        from observability_agent.tools.send_slack_message import SendSlackMessage
-        from observability_agent.tools.format_slack_blocks import FormatSlackBlocks
+        from agents.autopiloot.observability_agent.tools.send_slack_message import SendSlackMessage
+        from agents.autopiloot.observability_agent.tools.format_slack_blocks import FormatSlackBlocks
 
         formatter = FormatSlackBlocks()
         formatter.title = "Firebase Function Alert"
@@ -67,7 +54,7 @@ def _send_slack_alert_simple(message: str, context: Dict[str, Any] = None) -> bo
         blocks_result = formatter.run()
 
         sender = SendSlackMessage()
-        sender.channel = SLACK_CHANNEL
+        sender.channel = get_config_value("notifications.slack.channel", DEFAULT_SLACK_CHANNEL)
         if isinstance(blocks_result, str):
             import json
             try:
@@ -100,14 +87,16 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
     Returns:
         bool: True if successful, False otherwise
     """
-    slack_token = os.getenv("SLACK_BOT_TOKEN")
-    if not slack_token:
-        logger.warning("SLACK_BOT_TOKEN not configured, skipping Slack alert")
+    try:
+        slack_token = get_required_env_var("SLACK_BOT_TOKEN", "Slack Bot Token for API access")
+    except Exception as e:
+        logger.warning(f"SLACK_BOT_TOKEN not configured: {e}, skipping Slack alert")
         return False
     
     try:
+        slack_channel = get_config_value("notifications.slack.channel", DEFAULT_SLACK_CHANNEL)
         payload = {
-            "channel": f"#{SLACK_CHANNEL}",
+            "channel": f"#{slack_channel}",
             "text": message,
             "blocks": [
                 {
@@ -157,7 +146,7 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
         logger.error(f"Failed to send Slack alert: {e}")
         return False
 
-def create_scraper_job(firestore_client, timezone_name: str = TIMEZONE) -> Dict[str, Any]:
+def create_scraper_job(firestore_client, timezone_name: str = None) -> Dict[str, Any]:
     """
     Create a scraper job via orchestrator agent (DEPRECATED - use agent directly).
 
@@ -166,11 +155,14 @@ def create_scraper_job(firestore_client, timezone_name: str = TIMEZONE) -> Dict[
 
     Args:
         firestore_client: Firestore client instance
-        timezone_name: Timezone for the job
+        timezone_name: Timezone for the job (defaults to config value)
 
     Returns:
         Dict containing job creation result
     """
+    if timezone_name is None:
+        timezone_name = get_config_value("notifications.slack.digest.timezone", DEFAULT_TIMEZONE)
+
     # Try orchestrator agent first
     orchestrator = get_orchestrator_agent()
     if orchestrator:
@@ -178,20 +170,20 @@ def create_scraper_job(firestore_client, timezone_name: str = TIMEZONE) -> Dict[
             logger.info("Delegating scraper job creation to orchestrator agent")
 
             # Use orchestrator's planning tool
-            from orchestrator_agent.tools.plan_daily_run import PlanDailyRun
+            from agents.autopiloot.orchestrator_agent.tools.plan_daily_run import PlanDailyRun
             planner = PlanDailyRun()
             plan_result = planner.run()
             logger.info(f"Orchestrator planned daily run: {plan_result}")
 
             # Emit run start event
-            from orchestrator_agent.tools.emit_run_events import EmitRunEvents
+            from agents.autopiloot.orchestrator_agent.tools.emit_run_events import EmitRunEvents
             event_emitter = EmitRunEvents()
             event_emitter.event_type = "run_started"
             event_emitter.metadata = {"timezone": timezone_name, "source": "scheduled_function"}
             event_emitter.run()
 
             # Use orchestrator's dispatch tool
-            from orchestrator_agent.tools.dispatch_scraper import DispatchScraper
+            from agents.autopiloot.orchestrator_agent.tools.dispatch_scraper import DispatchScraper
             dispatcher = DispatchScraper()
             dispatch_result = dispatcher.run()
             logger.info(f"Orchestrator dispatched scraper: {dispatch_result}")
@@ -275,7 +267,7 @@ def process_transcription_budget(
         logger.info("Delegating budget monitoring to observability agent")
 
         # Use observability agent's budget monitoring tool
-        from observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
+        from agents.autopiloot.observability_agent.tools.monitor_transcription_budget import MonitorTranscriptionBudget
 
         budget_monitor = MonitorTranscriptionBudget()
         result = budget_monitor.run()
@@ -338,11 +330,12 @@ def process_transcription_budget(
         
         # Check if budget threshold exceeded
         budget_usage_pct = (total_daily_cost / daily_budget) * 100
-        
+        budget_threshold = get_config_value("budgets.alert_threshold", DEFAULT_BUDGET_THRESHOLD)
+
         logger.info(f"Daily budget usage: ${total_daily_cost:.2f}/{daily_budget:.2f} ({budget_usage_pct:.1f}%)")
-        
+
         alert_sent = False
-        if budget_usage_pct >= (BUDGET_THRESHOLD * 100):
+        if budget_usage_pct >= (budget_threshold * 100):
             # Check if alert already sent today
             daily_costs_doc = daily_costs_ref.get()
             daily_costs_data = daily_costs_doc.to_dict() if daily_costs_doc.exists else {}
@@ -354,14 +347,14 @@ def process_transcription_budget(
                 alert_success = _send_slack_alert_simple(
                     f"⚠️ Daily transcription budget threshold reached (fallback)!\n"
                     f"Current usage: ${total_daily_cost:.2f} / ${daily_budget:.2f} ({budget_usage_pct:.1f}%)\n"
-                    f"Threshold: {BUDGET_THRESHOLD * 100:.0f}%\n"
+                    f"Threshold: {budget_threshold * 100:.0f}%\n"
                     f"Transcripts processed today: {transcript_count}",
                     {
                         "date": today,
                         "total_cost": total_daily_cost,
                         "budget": daily_budget,
                         "usage_pct": budget_usage_pct,
-                        "threshold_pct": BUDGET_THRESHOLD * 100,
+                        "threshold_pct": budget_threshold * 100,
                         "transcript_count": transcript_count,
                         "latest_video_id": video_id,
                         "method": "fallback"

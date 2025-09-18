@@ -1,0 +1,46 @@
+---
+description: "Implement get_post_reactions and get_user_comment_activity tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0073"
+title: "LinkedIn: implement reactions and user comment activity"
+status: "planned"
+priority: "P1"
+labels: ["linkedin", "tools", "metrics"]
+dependencies: ["TASK-LI-0071"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Add tools to fetch post reactions and comments authored by the user on others’ posts.
+
+# 2) Background / Context
+
+Completes metrics and activity coverage needed for strategy.
+
+# 3) Assumptions & Constraints
+
+- Respect API limits; batch requests.
+
+# 4) Dependencies
+
+- linkedin_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- linkedin_agent/tools/get_post_reactions.py
+- linkedin_agent/tools/get_user_comment_activity.py
+
+# 6) Low-Level Steps
+
+1. Implement reactions API client; aggregate breakdown and totals.
+2. Implement user comment activity with pagination.
+3. Return JSON strings with normalized schema.
+
+# 7) Acceptance Criteria
+
+- Tools handle pagination, errors; return usable metrics for strategy.

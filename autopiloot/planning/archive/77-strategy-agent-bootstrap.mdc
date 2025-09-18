@@ -1,0 +1,47 @@
+---
+description: "Create Strategy Agent folder, instructions, and tools package"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-STR-0077"
+title: "Bootstrap Strategy Agent (structure)"
+status: "planned"
+priority: "P1"
+labels: ["agent", "strategy", "setup"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Create `strategy_agent/` with boilerplate and tools package.
+
+# 2) Background / Context
+
+Consumes LinkedIn corpus to generate playbook and briefs.
+
+# 3) Assumptions & Constraints
+
+- Tools inherit BaseTool; JSON string outputs; snake_case filenames.
+
+# 4) Dependencies
+
+- planning/prd.mdc (Strategy Agent section)
+
+# 5) Context Plan
+
+End state:
+
+- strategy_agent/**init**.py
+- strategy_agent/strategy_agent.py
+- strategy_agent/instructions.md
+- strategy_agent/tools/**init**.py
+
+# 6) Low-Level Steps
+
+1. Create folder and files; configure ModelSettings.
+2. Import agent in `agency.py` flows appropriately.
+
+# 7) Acceptance Criteria
+
+- Imports succeed; agent registered.

@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var
+from env_loader import get_required_env_var, get_config_value
 from loader import load_app_config
 from audit_logger import audit_logger
 
@@ -175,8 +175,8 @@ class GenerateDailyDigest(BaseTool):
                 daily_total = cost_data.get("transcription_usd_total", 0.0)
                 metrics["cost_details"] = cost_data
 
-                # Calculate budget percentage (default $5/day)
-                daily_budget = 5.0  # Can be made configurable
+                # Calculate budget percentage (configurable via settings)
+                daily_budget = get_config_value("budgets.transcription_daily_usd", 5.0)
                 if daily_budget > 0:
                     metrics["budget_percentage"] = (daily_total / daily_budget) * 100
 
@@ -262,6 +262,12 @@ class GenerateDailyDigest(BaseTool):
 
     def _format_slack_blocks(self, content: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Format digest content as Slack Block Kit blocks."""
+        # Get configured sections from settings
+        enabled_sections = get_config_value(
+            "notifications.slack.digest.sections",
+            ["summary", "budgets", "issues", "links"]
+        )
+
         blocks = []
 
         # Header
@@ -274,40 +280,43 @@ class GenerateDailyDigest(BaseTool):
         })
 
         # Processing Summary Section
-        processing = content["processing_summary"]
-        blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*📊 Processing Summary*\n"
-                       f"Pipeline Flow: `{processing['flow']}`\n"
-                       f"Completion Rate: *{processing['completion_rate']}*"
-            }
-        })
+        if "summary" in enabled_sections:
+            processing = content["processing_summary"]
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*📊 Processing Summary*\n"
+                           f"Pipeline Flow: `{processing['flow']}`\n"
+                           f"Completion Rate: *{processing['completion_rate']}*"
+                }
+            })
 
         # Budget Status Section
-        budget = content["budget_status"]
-        blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*💰 Budget Status* {budget['emoji']}\n"
-                       f"Daily Spend: *{budget['spent']}* / {budget['limit']} ({budget['percentage']})\n"
-                       f"Status: *{budget['status']}*"
-            }
-        })
+        if "budgets" in enabled_sections:
+            budget = content["budget_status"]
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*💰 Budget Status* {budget['emoji']}\n"
+                           f"Daily Spend: *{budget['spent']}* / {budget['limit']} ({budget['percentage']})\n"
+                           f"Status: *{budget['status']}*"
+                }
+            })
 
         # Issues & Health Section
-        issues = content["issues"]
-        blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*⚠️ Issues & Health*\n"
-                       f"Errors: {issues['summary']}\n"
-                       f"DLQ Entries: {issues['dlq_count']}"
-            }
-        })
+        if "issues" in enabled_sections:
+            issues = content["issues"]
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*⚠️ Issues & Health*\n"
+                           f"Errors: {issues['summary']}\n"
+                           f"DLQ Entries: {issues['dlq_count']}"
+                }
+            })
 
         # Top Videos (if any)
         if content["top_videos"]:
@@ -324,17 +333,18 @@ class GenerateDailyDigest(BaseTool):
             })
 
         # Quick Links Section
-        links = content["links"]
-        blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*🔗 Quick Links*\n"
-                       f"<{links['transcripts']}|📄 Transcripts> | "
-                       f"<{links['summaries']}|📝 Summaries> | "
-                       f"<{links['firestore']}|🔥 Firestore>"
-            }
-        })
+        if "links" in enabled_sections:
+            links = content["links"]
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*🔗 Quick Links*\n"
+                           f"<{links['transcripts']}|📄 Transcripts> | "
+                           f"<{links['summaries']}|📝 Summaries> | "
+                           f"<{links['firestore']}|🔥 Firestore>"
+                }
+            })
 
         # Footer with timestamp
         blocks.append({

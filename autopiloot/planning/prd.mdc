@@ -1,417 +1,232 @@
-# Autopiloot
+---
+# Autopiloot — PRD v2 (Additive Agents Only)
+
+- **Agency Name:** Autopiloot
+- **Version:** v2 Draft (additive changes only)
+- **Date:** <YYYY-MM-DD>
+- **Owner:** <your name>
+- **Baseline Reference:** `planning/archive/01-initial-foundation-prd.mdc` (v1 baseline; unchanged)
 
 ---
 
-- **Purpose:** Agents to scrape and transform expert content into practical guidelines for writing new content and sales messaging — automating discovery, high-quality transcription (full transcript as "long"), and actionable short summaries.
-- **Target Users/Market:** Entrepreneurs creating content primarily for LinkedIn (initial focus) with at least 6-figure revenue.
-- **Value Proposition:** Cut the waste in content creation, transcription, summarization, and follow-up analysis — end-to-end automation with searchable knowledge and internal alerting.
-- **Maturity:** MVP (non-production). Keep infrastructure minimal; configure required env vars before running.
-- **Base Path:** All files and folders will be created under `agents/`.
-- **Communication Flows:**
-  - **Between Agents:**
-    - Scheduling: Europe/Amsterdam timezone (CET/CEST).
-    - Idempotency: Dedupe by YouTube video ID; skip if already stored in Firestore.
-    - Backfill: Past 12 months only. Additionally, a human-maintained Google Sheet contains page links; all links present must be backfilled the same day and removed from the sheet after success.
-    - Shared context keys (Firestore + context): `video_id`, `video_url`, `title`, `published_at`, `channel_id`, `duration_sec`, `source` ("scrape"|"sheet"), `transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`, `summary_short_doc_ref`, `summary_short_drive_id`, `zep_doc_id`, `costs.transcription_usd`, `status`.
-    - Example Flow:
-      - **Agent A (Scraper) -> Agent B (Transcriber):** Trigger daily at 01:00 Europe/Amsterdam and on-demand for Google Sheet links. Provide list of new `video_id` + metadata. Expected outcome: Agent B enqueues transcription jobs for videos not previously processed, respecting max duration.
-      - **Agent B (Transcriber) -> Agent C (Summarizer):** When `transcript_doc_ref` is ready, send event with transcript metadata. Expected outcome: Agent C produces a short actionable summary (for coaching) that is explicitly linked to the full transcript ("long").
-      - **Agent C (Summarizer) -> Agent D (Assistant):** Summarizer writes per-video short summary records. Agent D monitors budget usage and errors and may send internal Slack alerts; no end-user daily digest in MVP.
-  - **Agent to User Communication:**
-    - Entry-point agent: None for end-user (digest disabled). Internal operations via **Agent D (Assistant)** for alerts only.
-    - Channels: Slack for internal alerts (budget/error), Google Drive for artifacts. Slack workspace and channel will be configured later.
-    - Approval gates: None (fully automated) for MVP; budget threshold alerts sent to Slack.
+## Purpose (Delta Only)
+
+Add new agents to extend the Autopiloot agency. The existing four agents and their tools, data model, schedules, and flows from v1 remain unchanged unless explicitly modified here.
 
 ---
 
-## Scheduling
+## Communication Flows (New/Modified Only)
 
-- Orchestrator: Firebase Functions v2 Scheduled Functions (uses Cloud Scheduler).
-- Jobs:
-  - Scraper daily: cron `0 1 * * *`, `timeZone: "Europe/Amsterdam"`.
-  - Assistant budget check: event-driven post-transcription write; optional hourly cron `0 * * * *` if needed.
-- DST: Handled by Cloud Scheduler with supplied timezone.
-
----
-
-## Agent A — Scraper Agent
-
-### **Role within the Agency**
-
-Discover new videos from `@AlexHormozi` and ingest human-provided links from a Google Sheet (ID from `settings.yaml -> sheet`, single-column A:A of YouTube links). Ensure deduplication, maintain backfill (last 12 months), and enqueue transcription jobs for new items.
-
-### Tools
-
-- **ResolveChannelHandle**
-
-  - **Description**: Resolve YouTube handle `@AlexHormozi` to channel ID.
-  - **Inputs**:
-    - `channel_handle` (string) - e.g., `@AlexHormozi`
-  - **Validation**:
-    - Non-empty handle; retries on API failure.
-  - **Core Functions:** Resolve via YouTube Data API v3; fallback to public channel page parsing if needed.
-  - **APIs**: YouTube Data API v3 (`google-api-python-client`)
-  - **Output**: JSON `{ channel_id }`
-
-- **ListRecentUploads**
-
-  - **Description**: List uploads within a time window (default: last 24h for daily run; up to last 12 months for backfill batches).
-  - **Inputs**:
-    - `channel_id` (string) - target channel
-    - `since_utc` (string) - ISO8601 UTC start time (e.g., 2025-01-27T00:00:00Z)
-    - `until_utc` (string) - ISO8601 UTC end time (e.g., 2025-01-28T00:00:00Z)
-    - `page_size` (int) - default 50
-  - **Validation**:
-    - Rate limits honored; handles pagination.
-  - **Core Functions:** Query YouTube search/list + videos API for metadata and durations.
-  - **APIs**: YouTube Data API v3
-  - **Output**: JSON array of `{ video_id, url, title, published_at, duration_sec }`
-
-- **ReadSheetLinks**
-
-  - **Description**: Read a Google Sheet containing page links; extract any YouTube video URLs contained in those pages.
-  - **Inputs**:
-    - `sheet_id` (string) - Google Sheet ID (placeholder)
-    - `range_a1` (string) - A1 range to read
-  - **Validation**:
-    - Skip empty rows; validate URLs.
-  - **Core Functions:** Read rows via Sheets API; for each URL, fetch page and extract YouTube links (oEmbed/OpenGraph/regex).
-  - **APIs**: Google Sheets API, `requests`
-  - **Output**: JSON array of `{ source_page_url, video_url }`
-
-- **ExtractYouTubeFromPage**
-
-  - **Description**: Given a page URL, extract embedded YouTube video URLs.
-  - **Inputs**:
-    - `page_url` (string)
-  - **Validation**:
-    - Only valid YouTube hosts; dedupe results.
-  - **Core Functions:** Fetch HTML; parse for oEmbed/yt links.
-  - **APIs**: `requests`, `beautifulsoup4`
-  - **Output**: JSON array of `{ video_url }`
-
-- **SaveVideoMetadata**
-
-  - **Description**: Upsert video metadata into Firestore and mark status.
-  - **Inputs**:
-    - `video` (JSON) - `{ video_id, url, title, published_at, duration_sec, source }`
-  - **Validation**:
-    - Enforce dedupe by `video_id`.
-  - **Core Functions:** Upsert into `videos/{video_id}`; set `status: discovered`.
-  - **APIs**: Firestore Admin SDK
-  - **Output**: JSON `{ doc_ref }`
-
-- **EnqueueTranscription**
-
-  - **Description**: Create a job/event for transcription for each new video.
-  - **Inputs**:
-    - `video_id` (string)
-  - **Validation**:
-    - Only if not already transcribed and duration <= 70 minutes.
-  - **Core Functions:** Write event to `jobs/transcription` collection with references.
-  - **APIs**: Firestore Admin SDK
-  - **Output**: JSON `{ job_id }`
-
-- **RemoveSheetRow**
-  - **Description**: Remove successfully backfilled links from the Google Sheet.
-  - **Inputs**:
-    - `sheet_id` (string)
-    - `row_indices` (array<int>)
-  - **Validation**:
-    - Only rows that were processed.
-  - **Core Functions:** Batch update to clear/delete rows.
-  - **APIs**: Google Sheets API
-  - **Output**: string (result message)
+- Between Agents (new flows only):
+  - <New Agent X> -> <Existing/New Agent Y>: <trigger and expected outcome>
+- Agent ↔ User (changes only):
+  - Channels: <Slack/Other> (if new)
+  - Cadence: <if any new communications>
 
 ---
 
-## Agent B — Transcriber Agent
+## New Agents and Tools
 
-### **Role within the Agency**
+> Define only agents that are new in v2. Use one section per agent.
 
-Transcribe videos discovered by Scraper using AssemblyAI. Enforce max video length of 70 minutes. Store full transcript ("long") to Google Drive and Firestore.
+### New Agent 1 — LinkedIn Agent
 
-### Tools
+- Role: Discover and ingest a user’s LinkedIn content footprint: fetch posts (historical up to 1000) and daily deltas, gather comments on those posts, and collect comments made by the user on other people’s posts. Normalize and upsert all items into Zep under a per-user group for GraphRAG queries.
+- Integration: Writes to Zep (new group/collection per LinkedIn user), optional audit records in Firestore; exposes artifacts to Summarizer and Observability for downstream analysis and reporting.
+- Reference: RapidAPI Fresh LinkedIn Scraper (see docs: `https://docs.saleleads.ai/api-reference/user-additional-data/get-user-experiences`).
+- Tools (snake_case, BaseTool, JSON string outputs):
+  - get_user_posts
+    - Description: Fetch a user’s posts with pagination; supports historical backfill up to last 1000 items and daily incremental fetch.
+    - Inputs: `urn` (str, required), `page` (int, default 1), `page_size` (int, default per API), `max_items` (int, default 1000), `since_iso` (str, optional)
+    - Validation: `urn` required; enforce `max_items` cap; retry/backoff on 429/5xx.
+    - Core Functions: Call RapidAPI endpoint(s) to list posts, collate pages until limits reached; dedupe by post URN/ID; normalize fields.
+    - APIs: RapidAPI Fresh LinkedIn Scraper (GET endpoints for user posts).
+    - Output: JSON `{ items: [...], total, has_more }`
+  - get_post_comments
+    - Description: For a batch of post IDs, fetch comments (paginated) and normalize.
+    - Inputs: `post_ids` (List[str], required), `page` (int, default 1)
+    - Validation: Non-empty list; batch sizes <= API constraints.
+    - Core Functions: Iterate posts; fetch comments; dedupe and normalize; handle pagination.
+    - APIs: RapidAPI endpoints for post comments.
+    - Output: JSON `{ comments: [...], counts: {post_id: n} }`
+  - get_post_reactions
+    - Description: Fetch reactions/engagement metrics for a batch of post IDs (likes, celebrates, etc.).
+    - Inputs: `post_ids` (List[str], required)
+    - Validation: Batch within API limits; retry/backoff on 429/5xx.
+    - Core Functions: Call RapidAPI reactions endpoint; aggregate counts per reaction type.
+    - APIs: RapidAPI endpoint for post reactions.
+    - Output: JSON `{ reactions: {post_id: { total: int, breakdown: {...} }}, missing: [...] }`
+  - get_user_comment_activity
+    - Description: Fetch comments authored by the user on other people’s posts.
+    - Inputs: `urn` (str, required), `page` (int, default 1), `max_items` (int, default 1000)
+    - Validation: `urn` required; cap `max_items`; backoff on rate limits.
+    - Core Functions: Query user comments; extract referenced post metadata when available; normalize.
+    - APIs: RapidAPI endpoints for user comments.
+    - Output: JSON `{ comments_authored: [...], total }`
+  - normalize_linkedin_content
+    - Description: Transform raw LinkedIn payloads into stable internal schema (post, comment, author, timestamps, links, media, metrics).
+    - Inputs: `raw_items` (JSON), `entity_type` ("post"|"comment")
+    - Validation: Required fields present; drop/flag malformed.
+    - Core Functions: Map fields; attach computed keys (e.g., `source: linkedin`, `urn`, `external_url`); include metrics such as `reaction_count`, `comment_count`, `view_count` when available.
+    - APIs: None.
+    - Output: JSON `{ normalized: [...] }`
+  - compute_linkedin_stats
+    - Description: Compute statistics across fetched posts/comments, including top posts by reactions, comments, and views; summary totals and time buckets.
+    - Inputs: `posts` (JSON list), `comments` (JSON list), `reactions` (JSON), `top_n` (int, default 10)
+    - Validation: Inputs non-empty; sanitize missing metrics.
+    - Core Functions: Aggregate totals; sort to find top N by `reaction_count`, `comment_count`, and `view_count`; produce per-day histograms.
+    - APIs: None.
+    - Output: JSON `{ totals: {...}, top: { by_reactions: [...], by_comments: [...], by_views: [...] }, histograms: {...} }`
+  - upsert_to_zep_group
+    - Description: Upsert posts and comments into a Zep group dedicated to the LinkedIn user for GraphRAG.
+    - Inputs: `group_id` (str, required), `items` (JSON list), `metadata` (JSON)
+    - Validation: Zep credentials present; group exists or create-on-write; idempotent by `urn`.
+    - Core Functions: Create/find group `linkedin_<username_or_hash>`; upsert documents with metadata (urn, author, type, timestamps, links, metrics like reaction_count/comment_count/view_count); optionally attach a stats summary document per run.
+    - APIs: Zep SDK/API
+    - Output: JSON `{ upserted: n, skipped: n, group_id }`
+  - save_ingestion_record
+    - Description: Write an audit record of the ingestion run (counts, durations, errors) to Firestore.
+    - Inputs: `urn` (str), `stats` (JSON), `started_at` (str), `ended_at` (str)
+    - Validation: ISO timestamps; stats presence.
+    - Core Functions: Upsert `linkedin_ingestions/{urn}/{date}` doc with metrics.
+    - APIs: Firestore Admin SDK
+    - Output: string status
+  - deduplicate_entities
+    - Description: Deduplicate posts/comments by natural keys (URN/ID + timestamp) prior to storage.
+    - Inputs: `items` (JSON), `key_fields` (List[str])
+    - Validation: Key fields exist.
+    - Core Functions: Hash/set-based dedupe; emit duplicates count.
+    - APIs: None
+    - Output: JSON `{ unique: [...], duplicates: n }`
 
-- **GetVideoAudioUrl**
+### New Agent 2 — Strategy Agent
 
-  - **Description**: Resolve direct audio URL or use the YouTube page URL for remote transcription.
-  - **Inputs**:
-    - `video_url` (string)
-  - **Validation**:
-    - Ensure availability; handle age-restricted/unavailable cases.
-  - **Core Functions:** Prefer AssemblyAI remote URL support; fallback to `yt_dlp` to fetch audio.
-  - **APIs**: AssemblyAI SDK, `yt_dlp`
-  - **Output**: JSON `{ remote_url | local_path }`
+- Role: Perform deep research over the LinkedIn corpus to determine what works: identify high-engagement topics, exact phrases that trigger responses, audience language patterns, and synthesis into actionable content strategy to amplify future content.
+- Integration: Consumes the LinkedIn Agent’s Zep group (`linkedin_<username_or_hash>`) and statistics; outputs a Strategy Playbook stored in Firestore/Drive and optional Zep documents for retrieval; may notify via Slack.
+- Tools (snake_case, BaseTool, JSON string outputs):
+  - fetch_corpus_from_zep
+    - Description: Retrieve posts/comments (and optional stats docs) for a specific LinkedIn Zep group.
+    - Inputs: `group_id` (str, required), `filters` (JSON, optional), `limit` (int, default 2000)
+    - Validation: Group must exist; sensible limit caps.
+    - Core Functions: Query Zep; return documents with text + metadata (urn, reaction_count, comment_count, view_count, timestamps, author, type).
+    - APIs: Zep SDK/API
+    - Output: JSON `{ items: [...], total }`
+  - compute_engagement_signals
+    - Description: Compute normalized engagement signals per item (e.g., reactions, comments, views; optionally reaction rates if impressions available).
+    - Inputs: `items` (JSON), `weights` (JSON, optional), `min_engagement_threshold` (float, default 0)
+    - Validation: Missing metrics handled; numeric conversions; thresholding.
+    - Core Functions: Produce `engagement_score` per item and summary aggregates.
+    - APIs: None
+    - Output: JSON `{ items: [...], aggregates: {...} }`
+  - extract_keywords_and_phrases
+    - Description: Extract salient n-grams/keyphrases and entities correlated with engagement.
+    - Inputs: `items` (JSON), `top_n` (int, default 50)
+    - Validation: Text length, language checks.
+    - Core Functions: NLP keyphrase extraction + TF-IDF/YAKE variants; rank by correlation with `engagement_score`.
+    - APIs: None
+    - Output: JSON `{ keywords: [...], phrases: [...], entities: [...] }`
+  - classify_post_types
+    - Description: Classify each post into a post type taxonomy (e.g., personal story, how-to, listicle, opinion, case study, announcement, CTA/promo, question/poll).
+    - Inputs: `items` (JSON), `taxonomy` (List[str], optional), `model` (str, optional)
+    - Validation: Minimum text length; handle links-only posts.
+    - Core Functions: LLM-assisted or heuristics+embeddings classification; output per-item `post_type` with confidence; aggregate distribution.
+    - APIs: OpenAI (or compatible) or local classifier
+    - Output: JSON `{ items: [{id, post_type, confidence}], distribution: {type: count} }`
+  - analyze_tone_of_voice
+    - Description: Detect tone/style for each post (e.g., authoritative, conversational, inspirational, contrarian, humorous, urgent) and aggregate patterns.
+    - Inputs: `items` (JSON), `labels` (List[str], optional), `model` (str, optional)
+    - Validation: Language detection; minimum length checks.
+    - Core Functions: LLM-assisted tone detection or zero-shot classifier; add per-item `tone_labels` with scores; compute overall tone distribution and co-occurrence with engagement.
+    - APIs: OpenAI (or compatible) or local zero-shot classifier
+    - Output: JSON `{ items: [{id, tones: [{label, score}]}], distribution: {label: count}, correlations: {...} }`
+  - cluster_topics_embeddings
+    - Description: Topic clustering using embeddings (e.g., sentence-transformers via Zep or local) with labeling.
+    - Inputs: `items` (JSON), `num_clusters` (int, optional), `min_cluster_size` (int, optional)
+    - Validation: Enough items; parameters sane.
+    - Core Functions: Embed texts; cluster; compute cluster-level engagement; auto-label with top terms.
+    - APIs: Zep embeddings or local model
+    - Output: JSON `{ clusters: [{id, label, items:[...], engagement: {...}}], embeddings_meta: {...} }`
+  - mine_trigger_phrases
+    - Description: Identify “trigger” phrases statistically associated with high engagement (e.g., log-odds with informative Dirichlet prior).
+    - Inputs: `items` (JSON), `top_n` (int, default 50)
+    - Validation: Minimum positives; text normalization.
+    - Core Functions: Build high vs low engagement cohorts; compute association scores per phrase; return ranked triggers and anti-triggers.
+    - APIs: None
+    - Output: JSON `{ triggers: [...], anti_triggers: [...], method: "log_odds" }`
+  - synthesize_strategy_playbook
+    - Description: Synthesize findings into an actionable Strategy Playbook: winning topics, trigger phrases, audience vocabulary, formats, hooks, call-to-action patterns.
+    - Inputs: `keywords` (JSON), `topics` (JSON), `triggers` (JSON), `post_types` (JSON), `tones` (JSON), `examples` (JSON), `constraints` (JSON, optional)
+    - Validation: Required sections present.
+    - Core Functions: LLM-assisted synthesis using `llm.tasks.strategy_playbook` settings; produce structured Markdown/JSON.
+    - APIs: OpenAI (or compatible)
+    - Output: JSON `{ playbook_md, playbook_json, prompt_id, token_usage }`
+  - generate_content_briefs
+    - Description: Produce content briefs/templates based on the playbook (angles, hooks, outline, keywords) for amplification.
+    - Inputs: `playbook_json` (JSON), `count` (int, default 5)
+    - Validation: Non-empty playbook.
+    - Core Functions: LLM-assisted brief generation; ensure diversity across topics/triggers.
+    - APIs: OpenAI (or compatible)
+    - Output: JSON `{ briefs: [...], prompt_id, token_usage }`
+  - save_strategy_artifacts
+    - Description: Persist Strategy Playbook and briefs to Drive (Markdown/JSON) and Firestore (`strategy_reports/{urn}/{date}`), and optionally Zep document for retrieval.
+    - Inputs: `urn` (str), `playbook_md` (str), `playbook_json` (JSON), `briefs` (JSON)
+    - Validation: Required fields; service accounts present.
+    - Core Functions: Upload to Drive; write Firestore doc with references; upsert Zep doc tagged `strategy`.
+    - APIs: Google Drive, Firestore, Zep
+    - Output: JSON `{ drive_ids: {...}, report_doc_ref, zep_doc_id }`
 
-- **SubmitAssemblyAIJob**
+### New Agent 3 — <optional>
 
-  - **Description**: Submit transcription job (with speaker diarization off by default) and receive job ID; optional webhook callback.
-  - **Inputs**:
-    - `remote_url` (string)
-    - `metadata` (JSON) - `{ video_id, duration_sec }`
-    - `webhook_url` (string, optional)
-  - **Validation**:
-    - Reject if `duration_sec > 4200` (70 min).
-  - **Core Functions:** Submit job (include `webhook_url` if present); store job record; estimate cost.
-  - **APIs**: AssemblyAI SDK
-  - **Output**: JSON `{ job_id, estimated_cost_usd }`
-
-- **PollTranscriptionJob**
-
-  - **Description**: Webhook (primary) or polling (fallback) until completion.
-  - **Inputs**:
-    - `job_id` (string)
-  - **Validation**:
-    - Timeout and retries (3 attempts, exponential backoff).
-  - **Core Functions:** Handle webhook POST (verify secret) or poll; retrieve transcript text + JSON.
-  - **APIs**: AssemblyAI SDK
-  - **Output**: JSON `{ transcript_text, transcript_json }`
-
-- **StoreTranscriptToDrive**
-
-  - **Description**: Save transcript `.txt` and `.json` to Drive folder.
-  - **Inputs**:
-    - `video_id` (string)
-    - `transcript_text` (string)
-    - `transcript_json` (JSON)
-  - **Validation**:
-    - Use configured folder ID placeholder.
-  - **Core Functions:** Upload; return file IDs.
-  - **APIs**: Google Drive API
-  - **Output**: JSON `{ drive_id_txt, drive_id_json }`
-
-- **SaveTranscriptRecord**
-  - **Description**: Store transcript metadata and references in Firestore, including costs.
-  - **Inputs**:
-    - `video_id` (string)
-    - `drive_ids` (JSON)
-    - `transcript_digest` (string)
-    - `costs` (JSON) - `{ transcription_usd }`
-  - **Validation**:
-    - Ensure `videos/{video_id}` exists.
-  - **Core Functions:** Create `transcripts/{video_id}` doc; set status transitions.
-  - **APIs**: Firestore Admin SDK
-  - **Output**: JSON `{ transcript_doc_ref }`
-
----
-
-## Agent C — Summarizer Agent (formerly Distiller)
-
-### **Role within the Agency**
-
-Produce a short actionable summary per transcript for coaching contexts, stored in Zep (GraphRAG), explicitly linked to the full transcript produced by Agent B. Store references in Firestore and Drive.
-
-### Tools
-
-- **GenerateShortSummary**
-
-  - **Description**: Create concise, actionable bullet summary tailored for coaching use.
-  - **Inputs**:
-    - `transcript_doc_ref` (string)
-    - `title` (string)
-  - **Validation**:
-    - Adaptive chunking; robust to long transcripts.
-  - **Core Functions:** Load model/temperature/prompt from `settings.yaml -> llm` (with per-task overrides); LLM prompt; extract key concepts and actionables; record `prompt_id` and `token_usage`.
-  - **APIs**: OpenAI SDK (or compatible), Langfuse tracing
-  - **Output**: JSON `{ bullets: [string], key_concepts: [string], prompt_id: string, token_usage: {input_tokens, output_tokens} }`
-
-- **StoreShortInZep**
-
-  - **Description**: Persist short summary in Zep GraphRAG for later coaching retrieval.
-  - **Inputs**:
-    - `video_id` (string)
-    - `short_summary` (JSON)
-  - **Validation**:
-    - Zep credentials present.
-  - **Core Functions:** Upsert into Zep index/collection.
-  - **APIs**: Zep SDK/API
-  - **Output**: JSON `{ zep_doc_id }`
-
-- **StoreShortSummaryToDrive**
-
-  - **Description**: Save the short summary to Drive.
-  - **Inputs**:
-    - `video_id` (string)
-    - `short_summary` (JSON)
-  - **Validation**:
-    - Use configured folder IDs.
-  - **Core Functions:** Upload JSON/Markdown; return ID.
-  - **APIs**: Google Drive API
-  - **Output**: JSON `{ short_drive_id }`
-
-- **SaveSummaryRecord**
-  - **Description**: Persist summary references and linkage to the full transcript and RAG docs.
-  - **Inputs**:
-    - `video_id` (string)
-    - `refs` (JSON) - `{ zep_doc_id, short_drive_id, transcript_doc_ref, transcript_drive_id_txt, transcript_drive_id_json, prompt_id, token_usage, rag_refs }`
-  - **Validation**:
-    - Ensure transcript exists.
-  - **Core Functions:** Create `summaries/{video_id}` doc with refs to Zep, Drive, and transcript.
-  - **APIs**: Firestore Admin SDK
-  - **Output**: JSON `{ summary_doc_ref }`
-
----
-
-## Agent D — Observability Agent
-
-### **Role within the Agency**
-
-Monitor budgets for transcription cost and operational errors. Send internal Slack alerts when thresholds are met (e.g., 80% of $5/day) or jobs fail.
-
-### Tools
-
-- **FormatSlackBlocks**
-
-  - **Description**: Convert updates into Slack Block Kit with bullets.
-  - **Inputs**:
-    - `items` (JSON)
-  - **Validation**:
-    - Block size limits
-  - **Core Functions:** Build sections/dividers; include links to Drive/Zep.
-  - **APIs**: None (formatting)
-  - **Output**: JSON `{ blocks: [...] }`
-
-- **SendSlackMessage**
-
-  - **Description**: Post an alert message to Slack channel.
-  - **Inputs**:
-    - `channel` (string)
-    - `blocks` (JSON)
-  - **Validation**:
-    - Token present
-  - **Core Functions:** Call Slack chat.postMessage
-  - **APIs**: Slack SDK/Web API
-  - **Output**: JSON `{ ts, channel }`
-
-- **MonitorTranscriptionBudget**
-
-  - **Description**: Track estimated daily transcription spend; alert at 80% of configured daily budget.
-  - **Inputs**:
-    - `date` (string)
-  - **Validation**:
-    - None
-  - **Core Functions:** Sum `costs.transcription_usd` in Firestore; compare against threshold from `settings.yaml -> budgets.transcription_daily_usd`; post Slack alert to `notifications.slack.channel` if exceeded.
-  - **APIs**: Firestore Admin SDK, Slack
-  - **Output**: string (status)
-
-- **SendErrorAlert**
-  - **Description**: Send error alerts to Slack on failures.
-  - **Inputs**:
-    - `message` (string)
-    - `context` (JSON)
-  - **Validation**:
-    - None
-  - **Core Functions:** Format blocks; post to Slack.
-  - **APIs**: Slack SDK/Web API
-  - **Output**: string (status)
+- Role:
+- Integration:
+- Tools:
 
 ---
 
-## Operational & Constraints
+## Configuration (Delta Only)
 
-- **Persistence/State:** Firestore as primary data store and event broker. Collections: `videos`, `transcripts`, `summaries`, `jobs/*`, `costs_daily`, `audit_logs`.
-- **Security/Compliance:** No PII expected. Secrets in `.env` or Google service account JSON only. Audit trail in `audit_logs` for key actions (created transcript, posted Slack message, cost alert).
-  - Google OAuth scopes minimal: Drive file create/read (specific folders), Sheets read/write (one sheet).
-- **Performance/Cost Constraints:**
-  - Transcription budget: configurable via `settings.yaml -> budgets.transcription_daily_usd`; Slack alert at 80% usage.
-  - Rate limits: YouTube API respectful polling (daily at 01:00) and batched backfill; AssemblyAI polling with exponential backoff.
-  - Timeouts/Retries: 3 retries with exponential backoff on network/API.
-- **Observability:** Langfuse for LLM tracing/metrics; optional Datadog for infra metrics. Minimal structured logging; Slack error alerts. MVP-level only.
+- Environment Variables: <new envs only>
+- `settings.yaml` keys: <new/updated keys>
 
 ---
 
-## Idempotency & Naming
+## Data & Storage (Delta Only)
 
-- Idempotency key: `video_id` across `videos`, `transcripts`, `summaries`, and `jobs/transcription`.
-- Drive filenames: `<video_id>_<yyyy-mm-dd>_<type>.{txt,json,md}`.
-
----
-
-## Reliability & Quotas
-
-- **YouTube Quota Strategy:**
-
-  - Use uploads playlist (`playlistItems.list`) and batch `videos.list` for durations.
-  - Persist `lastPublishedAt` to avoid re-fetching older pages.
-  - If quota exhausted: back off and resume next day; optional RSS feed for discovery only.
-
-- **Firestore Indexes:**
-
-  - Composite index: `videos(status asc, published_at desc)`.
-  - Composite index: `summaries(created_at desc)`.
-
-- **Dead-Letter Queue:**
-  - Collection: `jobs_deadletter/{auto_id}` with fields `{ job_type, video_id, reason, retry_count, last_error_at }`.
+- Firestore (new/updated): <collections/doc fields added>
+- Google Drive (new folders/naming): <if any>
+- Zep (new collections/metadata): <if any>
 
 ---
 
-## Success Criteria & Tests
+## Scheduling & Triggers (Delta Only)
 
-- **KPIs / Acceptance Criteria:**
-  - Discover new YouTube videos daily (within the 01:00 run).
-  - Transcription accuracy: 100% target (AssemblyAI output).
-  - Short summaries produced and stored (Zep + Drive) for each processed video.
-  - Google Sheet links backfilled same day and removed from the sheet.
-- **Key Scenarios / E2E Test Cases:**
-  1. New video on YouTube → transcribed → short summary created (linked to transcript) → artifacts stored; internal alerts on failures.
-  2. Two new videos and one updated video → all processed appropriately → artifacts stored; no duplicate processing.
-  3. New page link with embedded video in the Google Sheet → extracted → transcribed → summarized → sheet row archived/removed.
+- New cron schedules: <e.g., 07:00 daily digest>
+- New Firestore triggers: <path and conditions>
 
 ---
 
-## Phasing
+## Reliability & Observability (Delta Only)
 
-- **Must-have for v1 (MVP):**
-  - Daily scrape at 01:00 (Europe/Amsterdam), dedupe, backfill from last 12 months.
-  - AssemblyAI transcription with 70-minute max duration enforcement.
-  - Short summary stored in Zep; "long" equals full transcript from Transcriber; linkage maintained.
-  - Store artifacts in Firestore and Google Drive (folder placeholders ok).
-  - Assistant daily Slack digest at 07:00 and budget alerts at 80% of $5/day.
-  - Google Sheet ingestion and same-day backfill with sheet row removal.
-- **Nice-to-have later:**
-  - Multi-channel support beyond `@AlexHormozi`.
-  - Advanced analytics, per-video performance, richer coaching prompts.
-  - Human approval gates for specific steps if desired.
-  - Enhanced observability with Datadog or Arize Phoenix.
+- New budgets/thresholds: <if any>
+- New alerts: <channels/throttling>
+- Audit logging additions: <events/fields>
 
 ---
 
-## Tooling, APIs, and Environment Variables
+## Acceptance Criteria (For New Agents)
 
-- **YouTube Access:** Yes — use YouTube Data API v3 to list channel uploads and fetch video metadata/duration. Fallback: public RSS `feeds/videos.xml` if API quota issues arise.
-- **AssemblyAI:** For transcription. Env: `ASSEMBLYAI_API_KEY`.
-- **Slack:** For notifications. Env: `SLACK_BOT_TOKEN` (and `SLACK_SIGNING_SECRET` if needed).
-- **Google Drive & Sheets:** Service account credentials via `GOOGLE_APPLICATION_CREDENTIALS`. Envs: `GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS`, `GOOGLE_DRIVE_FOLDER_ID_SUMMARIES`. Sheet ID is read from `settings.yaml -> sheet`.
-- **Firestore:** Use the same Google credentials as Drive/Sheets.
-- **Zep (GraphRAG):** Env: `ZEP_API_KEY`, `ZEP_COLLECTION` (use `autopiloot_guidelines`). Store metadata `{ video_id, title, published_at, channel_id, transcript_doc_ref, tags[] }`.
-- **LLM Provider:** OpenAI (or compatible). Env: `OPENAI_API_KEY`. Model/temperature and per-task overrides loaded from `settings.yaml -> llm`.
-- **Langfuse:** Env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`.
-- **General:** `TIMEZONE=Europe/Amsterdam`.
+- <Agent X> instantiated with instructions.md and tools wired.
+- All new tools inherit `agency_swarm.tools.BaseTool` and return JSON strings.
+- Tests: one dedicated test file per new tool + one agent-level test.
+- CI passes; lint and naming rules (snake_case) respected.
+- Documentation updated (README sections for new agents).
 
 ---
 
-## Data Model (Firestore)
+## Open Questions
 
-- `videos/{video_id}`:
-  - `url`, `title`, `published_at`, `channel_id`, `duration_sec`, `source`, `status` (discovered|transcribed|summarized), `created_at`, `updated_at`
-- `transcripts/{video_id}`:
-  - `transcript_drive_ids` (`txt`, `json`), `digest`, `created_at`, `costs.transcription_usd`
-- `summaries/{video_id}`:
-  - `short` (`zep_doc_id`, `drive_id`, `prompt_id`, `token_usage`), `linkage` (`transcript_doc_ref`, `transcript_drive_id_txt`, `transcript_drive_id_json`), `rag_refs` (array), `created_at`
-- `jobs/transcription/*`:
-  - `video_id`, `submitted_at`, `status`, `retries`
-- `costs_daily/{YYYY-MM-DD}`:
-  - `transcription_usd_total`, `alerts_sent`
-- `audit_logs/{auto_id}`:
-  - `actor`, `action`, `entity`, `entity_id`, `timestamp`, `details`
-
----
-
-## Notes
-
-- All references to "distillation" are renamed to "summary"; "long" now refers to the full transcript, not a long-form summary.
-- Channel: `@AlexHormozi` (resolved to channel ID at runtime).
-- Scheduling (infra-level) assumed; agents are triggered accordingly.
-- Base path enforced: `agents/autopiloot/...`.
-- All timestamps stored in UTC as ISO 8601 strings with `Z` suffix (e.g., `2025-01-27T13:45:00Z`). Any local time inputs must be converted to UTC before persistence.
+- Which new agent(s) to add (name, role)?
+- For each new agent: list tools (4–16), inputs/outputs, and external APIs.
+- Any new schedules/triggers or Slack communications?
+- Any new Firestore/Drive/Zep artifacts?
+- KPIs for the new agents (what success looks like)?

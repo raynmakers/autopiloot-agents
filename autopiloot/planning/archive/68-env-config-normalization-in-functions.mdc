@@ -1,0 +1,53 @@
+---
+description: "Normalize Firebase Functions config/env access via env_loader/get_config_value"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-FUNC-0068"
+title: "Normalize env/config access in functions"
+status: "planned"
+priority: "P2"
+labels: ["firebase", "config", "refactor"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Replace direct env reads with `config/env_loader.py` and `config/loader.py` helpers across functions.
+
+# 2) Background / Context
+
+Consistent configuration access reduces drift and improves testability.
+
+# 3) Assumptions & Constraints
+
+- Only use `get_required_var`, `get_config_value`, etc.; no `os.getenv` in functions logic.
+
+# 4) Dependencies
+
+- services/firebase/functions/\*.py
+- config/env_loader.py
+- config/loader.py
+
+# 5) Context Plan
+
+Beginning:
+
+- services/firebase/functions/main.py
+- services/firebase/functions/scheduler.py
+
+End state:
+
+- Functions use centralized helpers exclusively
+
+# 6) Low-Level Steps
+
+1. Audit for `os.getenv` usage and replace with env_loader getters.
+2. Centralize default values in settings.yaml where sensible.
+3. Update tests accordingly.
+
+# 7) Acceptance Criteria
+
+- No direct `os.getenv` in functions
+- Tests pass

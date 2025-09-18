@@ -1,0 +1,55 @@
+---
+description: "Create LinkedIn Agent folder, instructions, tools package, and config keys"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0071"
+title: "Bootstrap LinkedIn Agent (structure + config)"
+status: "planned"
+priority: "P1"
+labels: ["agent", "linkedin", "setup"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Create `linkedin_agent/` with `__init__.py`, `linkedin_agent.py`, `instructions.md`, and `tools/` package. Add new config keys for RapidAPI and Zep group naming.
+
+# 2) Background / Context
+
+Per PRD v2, LinkedIn Agent ingests posts/comments/reactions and stores to Zep.
+
+# 3) Assumptions & Constraints
+
+- Tools inherit `agency_swarm.tools.BaseTool` and return JSON strings.
+- Snake_case filenames.
+
+# 4) Dependencies
+
+- planning/prd.mdc (LinkedIn Agent section)
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/agency.py _(read-only)_
+- agents/autopiloot/config/settings.yaml _(read-only)_
+
+End state:
+
+- agents/autopiloot/linkedin_agent/**init**.py
+- agents/autopiloot/linkedin_agent/linkedin_agent.py
+- agents/autopiloot/linkedin_agent/instructions.md
+- agents/autopiloot/linkedin_agent/tools/**init**.py
+
+# 6) Low-Level Steps
+
+1. Create `linkedin_agent/` folder and boilerplate.
+2. Define ModelSettings similar to other agents.
+3. Add config keys in settings.yaml (RapidAPI host/key via env, zep group prefix).
+4. Import agent in `agency.py` (no flows yet).
+
+# 7) Acceptance Criteria
+
+- Module imports without errors; agent discoverable.

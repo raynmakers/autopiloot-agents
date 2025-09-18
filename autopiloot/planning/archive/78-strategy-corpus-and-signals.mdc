@@ -1,0 +1,45 @@
+---
+description: "Fetch LinkedIn corpus from Zep and compute engagement signals"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-STR-0078"
+title: "Strategy: corpus retrieval + engagement signals"
+status: "planned"
+priority: "P1"
+labels: ["strategy", "zep", "metrics"]
+dependencies: ["TASK-LI-0075", "TASK-STR-0077"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement `fetch_corpus_from_zep` and `compute_engagement_signals` tools.
+
+# 2) Background / Context
+
+Signals drive topic/phrase discovery and synthesis.
+
+# 3) Assumptions & Constraints
+
+- Use metrics attached to docs (reactions/comments/views).
+
+# 4) Dependencies
+
+- strategy_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- strategy_agent/tools/fetch_corpus_from_zep.py
+- strategy_agent/tools/compute_engagement_signals.py
+
+# 6) Low-Level Steps
+
+1. Implement Zep queries for group and filters.
+2. Implement weighted engagement score per item; aggregates.
+
+# 7) Acceptance Criteria
+
+- Tools return JSON strings with items and aggregates.

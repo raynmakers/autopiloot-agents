@@ -1,0 +1,46 @@
+---
+description: "Add daily scheduler for LinkedIn Agent and implement tests"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0076"
+title: "LinkedIn: scheduler + tests"
+status: "planned"
+priority: "P1"
+labels: ["linkedin", "scheduler", "tests"]
+dependencies: ["TASK-LI-0071", "TASK-LI-0072", "TASK-LI-0073", "TASK-LI-0074", "TASK-LI-0075"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Schedule daily LinkedIn ingestion and add tests for tools and flow.
+
+# 2) Background / Context
+
+Daily check for new posts; backfill runs capped.
+
+# 3) Assumptions & Constraints
+
+- Use Firebase Functions scheduler at 06:00 Europe/Amsterdam (configurable).
+
+# 4) Dependencies
+
+- services/firebase/functions/scheduler.py
+- tests/
+
+# 5) Context Plan
+
+End state:
+
+- Scheduled function calling LinkedIn Agent workflow.
+- tests/linkedin_tools/\* with unit tests for each tool.
+
+# 6) Low-Level Steps
+
+1. Add scheduled function; lazy-init LinkedIn Agent.
+2. Create test files per tool; mock RapidAPI and Zep/Firestore.
+
+# 7) Acceptance Criteria
+
+- Scheduler runs; tests pass locally.

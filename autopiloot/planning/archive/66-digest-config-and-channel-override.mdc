@@ -1,0 +1,68 @@
+---
+description: "Add digest config to settings.yaml and ensure Slack channel/time overrides are honored"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DIG-0066"
+title: "Digest configuration (enabled/time/timezone/channel/sections) + usage"
+status: "planned"
+priority: "P1"
+labels: ["observability", "config", "slack"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Add `digest` configuration to `config/settings.yaml` and update code to respect overrides for time, timezone, channel, and sections.
+
+# 2) Background / Context
+
+Daily digest runs at 07:00 Europe/Amsterdam by default but should be configurable.
+
+# 3) Assumptions & Constraints
+
+- Use `config/loader.py`/`get_config_value` for reads; no direct env.
+
+# 4) Dependencies
+
+- config/settings.yaml
+- observability_agent/tools/generate_daily_digest.py
+- services/firebase/functions/scheduler.py
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- config/settings.yaml
+- observability_agent/tools/generate_daily_digest.py
+- services/firebase/functions/scheduler.py
+
+End state (must exist after completion):
+
+- New YAML keys under `notifications.slack.digest`
+- Digest tool reads channel/sections from config
+- Scheduler uses time/timezone from config when present
+
+# 6) Low-Level Steps
+
+1. Extend `config/settings.yaml` with:
+   ```yaml
+   notifications:
+     slack:
+       channel: "ops-autopiloot"
+       digest:
+         enabled: true
+         time: "07:00"
+         timezone: "Europe/Amsterdam"
+         channel: "ops-autopiloot"
+         sections: ["summary", "budgets", "issues", "links"]
+   ```
+2. In `generate_daily_digest.py`, resolve channel and sections via `get_config_value`.
+3. In `scheduler.py`, resolve time/timezone; fallback to defaults.
+4. Add unit tests for config override behavior.
+
+# 7) Acceptance Criteria
+
+- Changing YAML values affects digest time/channel without code edits
+- Tests cover default and override cases

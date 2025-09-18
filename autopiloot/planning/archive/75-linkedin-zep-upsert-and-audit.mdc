@@ -1,0 +1,46 @@
+---
+description: "Upsert normalized LinkedIn content to Zep group and write Firestore audit"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0075"
+title: "LinkedIn: Zep upsert + Firestore audit record"
+status: "planned"
+priority: "P1"
+labels: ["linkedin", "zep", "firestore"]
+dependencies: ["TASK-LI-0074"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement `upsert_to_zep_group` and `save_ingestion_record` tools.
+
+# 2) Background / Context
+
+Zep GraphRAG storage and audit logging for runs.
+
+# 3) Assumptions & Constraints
+
+- Group naming `linkedin_<username_or_hash>`.
+- Idempotent upserts by URN.
+
+# 4) Dependencies
+
+- linkedin_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- linkedin_agent/tools/upsert_to_zep_group.py
+- linkedin_agent/tools/save_ingestion_record.py
+
+# 6) Low-Level Steps
+
+1. Implement group create/find; batch upsert docs with metadata+metrics.
+2. Implement audit record write with counts, durations, errors, date.
+
+# 7) Acceptance Criteria
+
+- Returns JSON with upserted/skipped and group_id; audit doc created.

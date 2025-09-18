@@ -1,0 +1,90 @@
+---
+description: "Standardize Firebase Functions imports to package-absolute; remove sys.path hacks"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-FUNC-0064"
+title: "Standardize imports in Firebase Functions and remove sys.path edits"
+status: "planned"
+priority: "P1"
+labels: ["firebase", "imports", "refactor"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Use package-absolute imports (e.g., `agents.autopiloot.orchestrator_agent...`) across all Firebase Functions modules and remove ad-hoc `sys.path` manipulations.
+
+# 2) Background / Context
+
+Current `scheduler.py` adds to `sys.path` and mixes import styles, increasing fragility and masking packaging issues.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Functions execute with project root in PYTHONPATH or packaged as a module.
+- Constraint: Keep runtime compatible with Firebase Functions Python environment.
+
+# 4) Dependencies
+
+- agents/autopiloot/services/firebase/functions/\*
+- agents/autopiloot/orchestrator_agent/\*
+- agents/autopiloot/observability_agent/\*
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/services/firebase/functions/main.py
+- agents/autopiloot/services/firebase/functions/scheduler.py
+- agents/autopiloot/services/firebase/functions/core.py
+
+End state (must exist after completion):
+
+- No `sys.path.append/insert` in functions modules
+- All imports use `agents.autopiloot.*` package-absolute paths
+- All function tests pass
+
+# 6) Low-Level Steps
+
+1. Remove `sys.path.append/insert` from `scheduler.py` and `main.py`.
+2. Replace relative/implicit imports with absolute imports, e.g.:
+   - `from agents.autopiloot.orchestrator_agent.orchestrator_agent import orchestrator_agent`
+   - `from agents.autopiloot.observability_agent.observability_agent import observability_agent`
+   - `from agents.autopiloot.core.env_loader import get_config_value`
+3. Ensure `agents/__init__.py` and `agents/autopiloot/__init__.py` support package imports.
+4. Run tests and fix any pathing issues.
+
+Terminal snippet:
+
+```bash
+rg "sys\.path\.(append|insert)\(| from (orchestrator_agent|observability_agent|core)" agents/autopiloot/services/firebase/functions -n
+python -m unittest agents/autopiloot/services/firebase/functions/test_functions.py -v
+```
+
+# 7) Acceptance Criteria
+
+- No path manipulation in any function module
+- Imports are package-absolute
+- All Firebase function tests pass
+
+# 8) Testing Strategy
+
+- Run existing function tests; add a smoke test importing `scheduler.py` without side effects.

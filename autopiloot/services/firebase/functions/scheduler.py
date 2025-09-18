@@ -3,17 +3,11 @@ Firebase Functions v2 for scheduling Autopiloot agents and monitoring.
 Handles daily scraping schedule and budget monitoring.
 """
 
-import os
-import sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from firebase_functions import scheduler_fn, firestore_fn, options
 from firebase_admin import initialize_app, firestore
 import logging
-
-# Add autopiloot to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # Initialize Firebase Admin
 initialize_app()
@@ -23,25 +17,8 @@ db = firestore.client()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Lazy-initialized orchestrator agent singleton
-_orchestrator_agent: Optional[Any] = None
-
-def get_orchestrator_agent():
-    """
-    Get or create the orchestrator agent instance (lazy initialization).
-    This minimizes cold start costs by deferring agent creation until needed.
-    """
-    global _orchestrator_agent
-    if _orchestrator_agent is None:
-        try:
-            from orchestrator_agent.orchestrator_agent import orchestrator_agent
-            _orchestrator_agent = orchestrator_agent
-            logger.info("Orchestrator agent initialized successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import orchestrator agent: {e}")
-            # Fallback to None, functions will use existing logic
-            _orchestrator_agent = None
-    return _orchestrator_agent
+# Import shared agent helpers
+from .agent_helpers import get_orchestrator_agent, get_observability_agent, get_linkedin_agent
 
 
 # ==================================================================================
@@ -68,9 +45,9 @@ def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]
         if orchestrator:
             try:
                 # Use orchestrator's planning and dispatch tools
-                from orchestrator_agent.tools.plan_daily_run import PlanDailyRun
-                from orchestrator_agent.tools.dispatch_scraper import DispatchScraper
-                from orchestrator_agent.tools.emit_run_events import EmitRunEvents
+                from agents.autopiloot.orchestrator_agent.tools.plan_daily_run import PlanDailyRun
+                from agents.autopiloot.orchestrator_agent.tools.dispatch_scraper import DispatchScraper
+                from agents.autopiloot.orchestrator_agent.tools.emit_run_events import EmitRunEvents
 
                 # Plan the daily run
                 planner = PlanDailyRun()
@@ -105,13 +82,13 @@ def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]
                 logger.warning(f"Orchestrator agent failed, falling back to direct agency: {e}")
 
         # Fallback to direct agency usage
-        from agency import AutopilootAgency
+        from agents.autopiloot.agency import AutopilootAgency
 
         # Initialize the agency
         agency = AutopilootAgency()
 
         # Get configured channel from settings
-        from core.env_loader import get_config_value
+        from agents.autopiloot.core.env_loader import get_config_value
         channels = get_config_value("scraper.handles", ["@AlexHormozi"])
 
         results = []
@@ -248,7 +225,7 @@ def on_transcription_written(event: firestore_fn.Event[firestore_fn.Change[fires
             transaction_count += 1
         
         # Get budget configuration
-        from core.env_loader import get_config_value, env_loader
+        from agents.autopiloot.core.env_loader import get_config_value, env_loader
         daily_budget = get_config_value("budgets.transcription_daily_usd", 5.0)
         alert_threshold = env_loader.get_float_var("BUDGET_ALERT_THRESHOLD", 0.8)
         
@@ -320,7 +297,7 @@ def _send_budget_alert(date: str, total_cost: float, daily_budget: float,
     """
     try:
         # Import Assistant tools
-        from assistant.tools import FormatSlackBlocks, SendSlackMessage
+        from agents.autopiloot.assistant_agent.tools import FormatSlackBlocks, SendSlackMessage
         
         # Format the alert message
         formatter = FormatSlackBlocks()
@@ -341,7 +318,7 @@ def _send_budget_alert(date: str, total_cost: float, daily_budget: float,
         
         # Send to Slack
         sender = SendSlackMessage()
-        from core.env_loader import get_config_value
+        from agents.autopiloot.core.env_loader import get_config_value
         sender.channel = get_config_value("notifications.slack.channel", "ops-autopiloot")
         sender.blocks = blocks['blocks']
         
@@ -358,7 +335,7 @@ def _send_error_alert(message: str, context: Dict[str, Any]) -> None:
     Send error alert via Assistant agent.
     """
     try:
-        from assistant.tools import SendErrorAlert
+        from agents.autopiloot.assistant_agent.tools import SendErrorAlert
         
         alert = SendErrorAlert()
         alert.message = message
@@ -419,6 +396,9 @@ def trigger_scraper_manual(event: firestore_fn.Event[firestore_fn.DocumentSnapsh
 # ==================================================================================
 # SCHEDULED FUNCTION: Daily Digest at 07:00 Europe/Amsterdam
 # ==================================================================================
+# NOTE: The schedule and timezone in the decorator are fixed at deployment time.
+# Runtime configuration (channel, sections, timezone for date calc) can be changed
+# via settings.yaml without redeployment.
 
 @scheduler_fn.on_schedule(
     schedule="0 7 * * *",  # 07:00 daily
@@ -435,18 +415,29 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
 
     Runs 6 hours after the 01:00 scraper to allow complete processing.
     """
-    logger.info("Starting daily digest delivery at 07:00 Europe/Amsterdam")
+    # Get configurable digest settings
+    from agents.autopiloot.core.env_loader import get_config_value
+
+    digest_enabled = get_config_value("notifications.slack.digest.enabled", True)
+    digest_timezone = get_config_value("notifications.slack.digest.timezone", "Europe/Amsterdam")
+    digest_channel = get_config_value("notifications.slack.digest.channel", "ops-autopiloot")
+
+    if not digest_enabled:
+        logger.info("Daily digest is disabled in configuration")
+        return {"ok": True, "message": "Digest disabled in configuration"}
+
+    logger.info(f"Starting daily digest delivery (timezone: {digest_timezone}, channel: {digest_channel})")
 
     try:
         from datetime import datetime, timedelta
         import pytz
         import json
 
-        # Calculate yesterday's date in Europe/Amsterdam timezone
-        ams_tz = pytz.timezone("Europe/Amsterdam")
-        now_ams = datetime.now(ams_tz)
-        yesterday_ams = now_ams - timedelta(days=1)
-        yesterday_date = yesterday_ams.strftime("%Y-%m-%d")
+        # Calculate yesterday's date in configured timezone
+        tz = pytz.timezone(digest_timezone)
+        now_tz = datetime.now(tz)
+        yesterday_tz = now_tz - timedelta(days=1)
+        yesterday_date = yesterday_tz.strftime("%Y-%m-%d")
 
         logger.info(f"Generating digest for date: {yesterday_date}")
 
@@ -455,13 +446,13 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
 
         if observability_agent is None:
             # Fallback: use tool directly
-            from observability_agent.tools.generate_daily_digest import GenerateDailyDigest
-            from observability_agent.tools.send_slack_message import SendSlackMessage
+            from agents.autopiloot.observability_agent.tools.generate_daily_digest import GenerateDailyDigest
+            from agents.autopiloot.observability_agent.tools.send_slack_message import SendSlackMessage
 
             # Generate digest
             digest_tool = GenerateDailyDigest(
                 date=yesterday_date,
-                timezone_name="Europe/Amsterdam"
+                timezone_name=digest_timezone
             )
 
             digest_result = digest_tool.run()
@@ -473,7 +464,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
 
             # Send to Slack
             slack_tool = SendSlackMessage(
-                channel="ops-autopiloot",  # Default channel
+                channel=digest_channel,
                 blocks=digest_data["slack_blocks"]
             )
 
@@ -493,12 +484,12 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
                 logger.warning(f"Agent workflow failed, using direct tool approach: {agent_error}")
 
                 # Fallback to direct tool usage
-                from observability_agent.tools.generate_daily_digest import GenerateDailyDigest
-                from observability_agent.tools.send_slack_message import SendSlackMessage
+                from agents.autopiloot.observability_agent.tools.generate_daily_digest import GenerateDailyDigest
+                from agents.autopiloot.observability_agent.tools.send_slack_message import SendSlackMessage
 
                 digest_tool = GenerateDailyDigest(
                     date=yesterday_date,
-                    timezone_name="Europe/Amsterdam"
+                    timezone_name=digest_timezone
                 )
 
                 digest_result = digest_tool.run()
@@ -506,7 +497,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
 
                 if "error" not in digest_data:
                     slack_tool = SendSlackMessage(
-                        channel="ops-autopiloot",
+                        channel=digest_channel,
                         blocks=digest_data["slack_blocks"]
                     )
                     slack_result = slack_tool.run()
@@ -526,7 +517,8 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
         return {
             'ok': True,
             'date': yesterday_date,
-            'timezone': 'Europe/Amsterdam',
+            'timezone': digest_timezone,
+            'channel': digest_channel,
             'execution_time': datetime.utcnow().isoformat(),
             'message': 'Daily digest sent successfully'
         }
@@ -545,7 +537,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
 
         # Send error alert to Slack
         try:
-            from observability_agent.tools.send_error_alert import SendErrorAlert
+            from agents.autopiloot.observability_agent.tools.send_error_alert import SendErrorAlert
 
             error_tool = SendErrorAlert(
                 error_type="daily_digest_failed",
@@ -563,21 +555,233 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
         }
 
 
-# Lazy-initialized observability agent singleton
-_observability_agent: Optional[Any] = None
+# ==================================================================================
+# SCHEDULED FUNCTION: LinkedIn Ingestion at 06:00 Europe/Amsterdam
+# ==================================================================================
 
-def get_observability_agent():
+@scheduler_fn.on_schedule(
+    schedule="0 6 * * *",  # Daily at 06:00
+    timezone=scheduler_fn.Timezone("Europe/Amsterdam"),
+    memory=options.MemoryOption.MB_512,
+    timeout_sec=300,  # 5 minutes timeout
+    max_instances=1,  # Only one instance at a time
+)
+def schedule_linkedin_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
     """
-    Get or create the observability agent instance (lazy initialization).
-    Used for daily digest delivery and error alerting.
+    Scheduled function to run LinkedIn content ingestion daily at 06:00 Europe/Amsterdam.
+    Processes configured LinkedIn profiles and stores content to Zep GraphRAG.
     """
-    global _observability_agent
-    if _observability_agent is None:
+    try:
+        logger.info(f"Starting daily LinkedIn ingestion at {event.timestamp}")
+
+        # Get LinkedIn configuration
+        from agents.autopiloot.core.env_loader import get_config_value
+
+        # Check if LinkedIn ingestion is enabled
+        linkedin_enabled = get_config_value("linkedin.enabled", True)
+        if not linkedin_enabled:
+            logger.info("LinkedIn ingestion is disabled in configuration")
+            return {"ok": True, "message": "LinkedIn ingestion disabled"}
+
+        # Get configured profiles
+        profiles = get_config_value("linkedin.profiles", [])
+        if not profiles:
+            logger.warning("No LinkedIn profiles configured for ingestion")
+            return {"ok": True, "message": "No profiles configured"}
+
+        # Get processing limits
+        daily_limit = get_config_value("linkedin.processing.daily_limit_per_profile", 25)
+        content_types = get_config_value("linkedin.processing.content_types", ["posts", "comments"])
+
+        # Get LinkedIn agent
+        linkedin_agent = get_linkedin_agent()
+        if not linkedin_agent:
+            logger.error("Failed to initialize LinkedIn agent")
+            return {"ok": False, "error": "LinkedIn agent initialization failed"}
+
+        results = []
+        total_processed = 0
+        total_errors = 0
+
+        for profile in profiles:
+            profile_id = profile.get("identifier", profile) if isinstance(profile, dict) else profile
+            logger.info(f"Processing LinkedIn profile: {profile_id}")
+
+            try:
+                # Create ingestion workflow message
+                workflow_message = f"""
+                Run complete LinkedIn content ingestion for profile: {profile_id}
+
+                Requirements:
+                - Fetch up to {daily_limit} recent posts
+                - Include comments and reactions for each post
+                - Process content types: {', '.join(content_types)}
+                - Normalize all content and deduplicate
+                - Store in Zep GraphRAG with proper grouping
+                - Save comprehensive audit record to Firestore
+
+                Use the complete workflow: GetUserPosts → GetPostComments → GetPostReactions →
+                NormalizeLinkedInContent → DeduplicateEntities → ComputeLinkedInStats →
+                UpsertToZepGroup → SaveIngestionRecord
+                """
+
+                # Run the LinkedIn agent workflow
+                result = linkedin_agent.run(workflow_message)
+
+                # Parse result for metrics
+                processed_count = 0
+                error_count = 0
+
+                # Extract metrics from result string (basic parsing)
+                if "processed" in str(result).lower():
+                    try:
+                        import re
+                        numbers = re.findall(r'\d+', str(result))
+                        if numbers:
+                            processed_count = int(numbers[0])
+                    except:
+                        processed_count = 1  # Assume at least 1 if successful
+
+                total_processed += processed_count
+
+                # Log successful profile processing
+                audit_ref = db.collection('audit_logs').document()
+                audit_ref.set({
+                    'type': 'linkedin_ingestion',
+                    'profile': profile_id,
+                    'timestamp': firestore.SERVER_TIMESTAMP,
+                    'status': 'success',
+                    'processed_count': processed_count,
+                    'result': str(result)[:1000],  # Truncate long results
+                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat()
+                })
+
+                results.append({
+                    'profile': profile_id,
+                    'status': 'success',
+                    'processed': processed_count,
+                    'message': str(result)[:200]
+                })
+
+            except Exception as e:
+                logger.error(f"Failed to process LinkedIn profile {profile_id}: {str(e)}")
+                total_errors += 1
+
+                # Log failure to audit
+                audit_ref = db.collection('audit_logs').document()
+                audit_ref.set({
+                    'type': 'linkedin_ingestion',
+                    'profile': profile_id,
+                    'timestamp': firestore.SERVER_TIMESTAMP,
+                    'status': 'failed',
+                    'error': str(e),
+                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat()
+                })
+
+                results.append({
+                    'profile': profile_id,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+
+        logger.info(f"LinkedIn ingestion completed. Processed {len(results)} profiles, {total_processed} items total, {total_errors} errors")
+
+        # Send summary to observability if significant activity
+        if total_processed > 0 or total_errors > 0:
+            try:
+                _send_linkedin_summary(
+                    profiles_processed=len(results),
+                    items_processed=total_processed,
+                    errors=total_errors,
+                    results=results
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send LinkedIn summary: {e}")
+
+        return {
+            'ok': True,
+            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'profiles_processed': len(results),
+            'items_processed': total_processed,
+            'errors': total_errors,
+            'results': results
+        }
+
+    except Exception as e:
+        logger.error(f"Critical error in LinkedIn scheduler: {str(e)}")
+
+        # Send error alert
         try:
-            from observability_agent.observability_agent import observability_agent
-            _observability_agent = observability_agent
-            logger.info("Observability agent initialized successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import observability agent: {e}")
-            _observability_agent = None
-    return _observability_agent
+            _send_error_alert(
+                message=f"LinkedIn daily ingestion failed critically",
+                context={'error': str(e), 'timestamp': event.timestamp}
+            )
+        except:
+            pass  # Don't fail on alert failure
+
+        return {
+            'ok': False,
+            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'error': str(e)
+        }
+
+
+def _send_linkedin_summary(profiles_processed: int, items_processed: int,
+                          errors: int, results: list) -> None:
+    """
+    Send LinkedIn ingestion summary via Assistant agent's Slack integration.
+    """
+    try:
+        # Import Assistant tools
+        from agents.autopiloot.assistant_agent.tools import FormatSlackBlocks, SendSlackMessage
+
+        # Determine status emoji and summary
+        if errors == 0:
+            status_emoji = "✅"
+            status_text = "All profiles processed successfully"
+        elif errors < profiles_processed:
+            status_emoji = "⚠️"
+            status_text = f"Partial success: {errors} profiles failed"
+        else:
+            status_emoji = "❌"
+            status_text = "All profiles failed"
+
+        # Format the summary message
+        formatter = FormatSlackBlocks()
+        formatter.items = {
+            'title': f'{status_emoji} LinkedIn Ingestion Summary',
+            'summary': status_text,
+            'fields': [
+                {'label': 'Profiles Processed', 'value': str(profiles_processed)},
+                {'label': 'Content Items', 'value': str(items_processed)},
+                {'label': 'Errors', 'value': str(errors)},
+                {'label': 'Success Rate', 'value': f"{((profiles_processed - errors) / profiles_processed * 100):.1f}%" if profiles_processed > 0 else "0%"}
+            ],
+            'footer': f'LinkedIn ingestion completed at {datetime.utcnow().strftime("%Y-%m-%d %H:%M")} UTC'
+        }
+
+        # Add profile details if there are failures
+        if errors > 0:
+            failed_profiles = [r['profile'] for r in results if r['status'] == 'failed']
+            if failed_profiles:
+                formatter.items['fields'].append({
+                    'label': 'Failed Profiles',
+                    'value': ', '.join(failed_profiles[:5])  # Limit to first 5
+                })
+
+        blocks = formatter.run()
+
+        # Send to Slack
+        sender = SendSlackMessage()
+        from agents.autopiloot.core.env_loader import get_config_value
+        sender.channel = get_config_value("notifications.slack.channel", "ops-autopiloot")
+        sender.blocks = blocks['blocks']
+
+        result = sender.run()
+        logger.info(f"LinkedIn summary sent to Slack: {result}")
+
+    except Exception as e:
+        logger.error(f"Failed to send LinkedIn summary: {str(e)}")
+
+
+# Agent getters are imported from shared helpers above

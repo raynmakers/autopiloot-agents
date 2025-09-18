@@ -47,6 +47,24 @@ This document summarizes the Firebase Functions v2 implementation for Autopiloot
   - Updates `costs_daily/{date}` documents
   - Prevents duplicate alerts per day
 
+### 3. `daily_digest_delivery`
+
+- **Type**: Scheduled Function (`scheduler_fn`)
+- **Schedule**: Daily at 07:00 Europe/Amsterdam (`0 7 * * *`)
+- **Purpose**: Automated daily operational digest delivery to Slack
+- **Features**:
+  - Comprehensive processing summary (videos discovered, transcribed, summarized)
+  - Cost analysis with budget percentage and alerts
+  - Error monitoring and dead letter queue analysis
+  - System health indicators and performance metrics
+  - Rich Slack Block Kit formatting with quick links
+  - Configurable content sections and target channel
+- **Configuration**:
+  - Runtime channel override via `config/settings.yaml`
+  - Date calculation timezone configurable
+  - Content sections customizable (summary, budgets, issues, links)
+  - Enable/disable via configuration flag
+
 ## ⚙️ Configuration
 
 ### Environment Variables Required
@@ -61,6 +79,28 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 ```bash
 DAILY_BUDGET_USD=5.0  # Defaults to $5.00
 ```
+
+### Daily Digest Configuration
+
+Configure digest behavior in `config/settings.yaml`:
+
+```yaml
+notifications:
+  slack:
+    channel: "ops-autopiloot"        # Default channel for alerts
+    digest:
+      enabled: true                 # Enable/disable digest delivery
+      time: "07:00"                # Fixed at deployment (Europe/Amsterdam)
+      timezone: "Europe/Amsterdam" # Timezone for date calculations
+      channel: "ops-autopiloot"    # Target channel (can override default)
+      sections:                    # Customize digest content
+        - "summary"               # Processing statistics
+        - "budgets"              # Cost analysis
+        - "issues"               # Error monitoring
+        - "links"                # Quick access links
+```
+
+**Note**: The delivery schedule (`07:00 Europe/Amsterdam`) is fixed at Firebase Functions deployment time and cannot be changed without redeployment. Runtime configuration allows customizing content and target channel only.
 
 ### Firebase Project Requirements
 
@@ -95,7 +135,12 @@ DAILY_BUDGET_USD=5.0  # Defaults to $5.00
 1. Deploy functions to Firebase project
 2. Verify scheduled function runs at 01:00 Amsterdam time
 3. Test event function by creating transcript documents
-4. Confirm Slack notifications in `#ops-autopiloot` channel
+4. **Test Daily Digest**:
+   - Wait for automatic delivery at 07:00 Amsterdam time, OR
+   - Manually trigger via Firestore: Create document in `triggers/digest_manual` collection
+   - Verify digest appears in configured Slack channel with proper formatting
+   - Check that date calculation respects configured timezone
+5. Confirm Slack notifications in `#ops-autopiloot` channel
 
 ## 🚀 Deployment
 
@@ -131,12 +176,58 @@ See `services/firebase/DEPLOYMENT.md` for complete deployment instructions.
 - **Region**: europe-west1 (matches Amsterdam timezone)
 - **Scaling**: Automatic based on demand
 
+## 🔧 Troubleshooting
+
+### Daily Digest Issues
+
+| Problem | Cause | Solution |
+|---------|--------|----------|
+| Digest not delivered | SLACK_BOT_TOKEN missing/invalid | Verify environment variable in Functions console |
+| Wrong channel | Configuration mismatch | Update `notifications.slack.digest.channel` in settings.yaml |
+| Empty digest | No data for date | Check Firestore collections have data for target date |
+| Timezone errors | Invalid IANA timezone | Ensure `notifications.slack.digest.timezone` uses valid IANA format |
+| Digest disabled | Configuration flag | Set `notifications.slack.digest.enabled: true` in settings.yaml |
+
+### Function Deployment Issues
+
+| Problem | Cause | Solution |
+|---------|--------|----------|
+| Deploy fails | Missing dependencies | Check `requirements.txt` in functions directory |
+| Permission errors | Service account issues | Verify IAM roles: Functions Developer, Firestore Admin |
+| Import errors | Missing modules | Ensure all dependencies are in `requirements.txt` |
+| Memory errors | Insufficient allocation | Increase memory allocation in function decorators |
+
+### Function Runtime Issues
+
+| Problem | Cause | Solution |
+|---------|--------|----------|
+| Timeout errors | Function exceeds time limit | Optimize queries or increase timeout in decorators |
+| Firestore errors | Permission or quota issues | Check Firestore IAM and billing limits |
+| Environment variables | Missing required vars | Verify all required environment variables are set |
+
+### Verification Commands
+
+```bash
+# Check Firebase Functions logs
+firebase functions:log --limit 50
+
+# Check specific function logs
+firebase functions:log --only daily_digest_delivery
+
+# Test Firestore connection
+firebase firestore:indexes
+
+# Verify deployment status
+firebase functions:list
+```
+
 ## 🎯 Success Criteria Met
 
 - ✅ Scheduled function triggers scraper at 01:00 Europe/Amsterdam
 - ✅ Event-driven function monitors transcription budget
-- ✅ Both functions deploy without errors
-- ✅ Slack notifications implemented for alerts
+- ✅ **Daily digest delivery at 07:00 Europe/Amsterdam**
+- ✅ All functions deploy without errors
+- ✅ Slack notifications implemented for alerts and digest
 - ✅ Firestore collections and indexes configured
 - ✅ Security rules restrict access to server-only
 - ✅ Comprehensive documentation provided
@@ -146,8 +237,9 @@ See `services/firebase/DEPLOYMENT.md` for complete deployment instructions.
 1. **Deploy to Firebase**: Follow deployment guide
 2. **Configure Slack**: Set up bot token and channel permissions
 3. **Test Integration**: Create test documents and verify alerts
-4. **Monitor Performance**: Set up alerting and log analysis
-5. **Implement Agents**: Continue with scraper, transcriber, and summarizer agents
+4. **Test Daily Digest**: Wait for 07:00 delivery or manually trigger via Firestore
+5. **Monitor Performance**: Set up alerting and log analysis
+6. **Implement Agents**: Continue with scraper, transcriber, and summarizer agents
 
 ---
 

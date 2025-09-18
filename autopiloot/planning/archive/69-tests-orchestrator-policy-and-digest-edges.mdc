@@ -1,0 +1,59 @@
+---
+description: "Add edge/negative tests for orchestrator policies and daily digest scenarios"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-TEST-0069"
+title: "Tests: Orchestrator policy boundaries + Daily digest edge cases"
+status: "planned"
+priority: "P1"
+labels: ["tests", "orchestrator", "observability"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Increase coverage for orchestrator policy enforcement and daily digest edge scenarios.
+
+# 2) Background / Context
+
+Critical negative paths need explicit tests to prevent regressions.
+
+# 3) Assumptions & Constraints
+
+- Use unittest and mocks; no real external calls.
+
+# 4) Dependencies
+
+- orchestrator_agent/tools/enforce_policies.py
+- orchestrator_agent/tools/plan_daily_run.py
+- observability_agent/tools/generate_daily_digest.py
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/tests/orchestrator_tools/
+- agents/autopiloot/tests/observability_tools/
+
+End state:
+
+- New tests:
+  - `test_enforce_policies_boundaries.py`
+  - `test_plan_daily_run_invalid_plan.py`
+  - `test_daily_digest_empty_day.py`
+  - `test_daily_digest_dlq_spike.py`
+  - `test_daily_digest_cost_overrun.py`
+  - `test_daily_digest_timezone_edges.py`
+
+# 6) Low-Level Steps
+
+1. Add orchestrator boundary tests (limits, invalid inputs, DLQ fallback).
+2. Add digest edge tests (no data, high volume, budget threshold, DST transitions).
+3. Run full test suite.
+
+# 7) Acceptance Criteria
+
+- All new tests exist and pass locally
+- Regressions in negative paths are caught

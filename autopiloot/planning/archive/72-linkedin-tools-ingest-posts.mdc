@@ -1,0 +1,48 @@
+---
+description: "Implement get_user_posts and get_post_comments tools using RapidAPI"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-LI-0072"
+title: "LinkedIn: implement posts and comments ingestion"
+status: "planned"
+priority: "P1"
+labels: ["linkedin", "tools", "ingestion"]
+dependencies: ["TASK-LI-0071"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement tools to fetch user posts (historical/backfill + daily) and post comments via RapidAPI.
+
+# 2) Background / Context
+
+Use Fresh LinkedIn Scraper API via RapidAPI. See docs: `https://docs.saleleads.ai/api-reference/user-additional-data/get-user-experiences`.
+
+# 3) Assumptions & Constraints
+
+- Pagination and 429/5xx backoff.
+- Max history 1000 items.
+
+# 4) Dependencies
+
+- linkedin_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- linkedin_agent/tools/get_user_posts.py
+- linkedin_agent/tools/get_post_comments.py
+
+# 6) Low-Level Steps
+
+1. Create `get_user_posts.py` with inputs (urn, page, page_size, max_items, since_iso).
+2. Create `get_post_comments.py` with inputs (post_ids, page).
+3. Implement HTTP calls with headers: `x-rapidapi-host`, `x-rapidapi-key` from env.
+4. Return normalized JSON strings.
+
+# 7) Acceptance Criteria
+
+- Tools return JSON strings; include pagination info; handle errors gracefully.

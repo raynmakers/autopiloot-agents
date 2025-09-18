@@ -1,5 +1,5 @@
 # Autopiloot Configuration File
-# Runtime settings for orchestrator, scraper, transcriber, summarizer, and observability agents
+# Runtime settings for orchestrator, scraper, transcriber, summarizer, observability, and linkedin agents
 
 # ID of the Google Sheet used for backfill links
 sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
@@ -31,9 +31,20 @@ llm:
 notifications:
   slack:
     channel: "ops-autopiloot"
+    digest:
+      enabled: true
+      time: "07:00"
+      timezone: "Europe/Amsterdam"
+      channel: "ops-autopiloot"
+      sections:
+        - "summary"
+        - "budgets"
+        - "issues"
+        - "links"
 
 budgets:
   transcription_daily_usd: 5.0
+  alert_threshold: 0.8  # 80% threshold for budget alerts
 
 idempotency:
   max_video_duration_sec: 4200  # 70 minutes maximum
@@ -62,3 +73,23 @@ orchestrator:
     budget_enforcement: true  # Enable budget limit enforcement
     quota_enforcement: true  # Enable API quota enforcement
     max_retries_per_video: 3  # Global retry limit per video
+
+linkedin:
+  api:
+    # RapidAPI host and key via environment variables:
+    # RAPIDAPI_LINKEDIN_HOST and RAPIDAPI_LINKEDIN_KEY
+    rate_limit_per_minute: 60  # Rate limiting for LinkedIn API calls
+    max_posts_per_profile: 50  # Maximum posts to fetch per profile
+  profiles:
+    # Target LinkedIn profiles for content ingestion
+    - "alexhormozi"  # Example LinkedIn username/handle
+  zep:
+    group_prefix: "linkedin"  # Prefix for Zep group names (e.g., "linkedin_posts", "linkedin_comments")
+    collection_name: "linkedin_content"  # Zep collection for LinkedIn content
+  processing:
+    daily_limit_per_profile: 25  # Maximum content items per profile per day
+    content_types:
+      - "posts"
+      - "comments"
+      - "reactions"
+    min_engagement_threshold: 5  # Minimum likes/comments to process content

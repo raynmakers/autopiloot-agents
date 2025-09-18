@@ -1,0 +1,50 @@
+---
+description: "Add CI script to enforce snake_case tool filenames and fail on violations"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-CI-0067"
+title: "CI: Enforce snake_case filenames in \*\*/tools/"
+status: "planned"
+priority: "P2"
+labels: ["ci", "naming", "lint"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Prevent regressions by failing CI when any tool filename is not snake_case.
+
+# 2) Background / Context
+
+Mixed naming causes import issues; we standardized, now enforce.
+
+# 3) Assumptions & Constraints
+
+- CI workflow exists or will be extended later.
+
+# 4) Dependencies
+
+- agents/autopiloot/scripts/
+
+# 5) Context Plan
+
+Beginning:
+
+- N/A
+
+End state:
+
+- `agents/autopiloot/scripts/check_tool_filenames_snake_case.sh`
+- CI calls the script before tests
+
+# 6) Low-Level Steps
+
+1. Add shell script to scan `agents/autopiloot/**/tools/*.py` and assert `^[a-z0-9_]+\.py$`.
+2. Update CI workflow to run the script.
+3. Optional: add pre-commit hook.
+
+# 7) Acceptance Criteria
+
+- CI fails on non-compliant filenames with clear output
