@@ -1,0 +1,49 @@
+---
+description: "Synthesize Strategy Playbook, generate content briefs, and persist artifacts"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-STR-0080"
+title: "Strategy: synthesis, briefs, and storage"
+status: "planned"
+priority: "P1"
+labels: ["strategy", "synthesis", "artifacts"]
+dependencies: ["TASK-STR-0079"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement `mine_trigger_phrases`, `synthesize_strategy_playbook`, `generate_content_briefs`, `save_strategy_artifacts`.
+
+# 2) Background / Context
+
+Deliver actionable outputs and store them.
+
+# 3) Assumptions & Constraints
+
+- Use LLM with task-specific settings; Drive/Firestore/Zep for storage.
+
+# 4) Dependencies
+
+- strategy_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- strategy_agent/tools/mine_trigger_phrases.py
+- strategy_agent/tools/synthesize_strategy_playbook.py
+- strategy_agent/tools/generate_content_briefs.py
+- strategy_agent/tools/save_strategy_artifacts.py
+
+# 6) Low-Level Steps
+
+1. Implement trigger phrase mining (log-odds method) with cohorts.
+2. Implement playbook synthesis (MD + JSON) with prompt/version tracking.
+3. Implement briefs generation; ensure diversity.
+4. Implement storage to Drive/Firestore and optional Zep doc.
+
+# 7) Acceptance Criteria
+
+- Outputs saved; references persisted; tests cover core paths.

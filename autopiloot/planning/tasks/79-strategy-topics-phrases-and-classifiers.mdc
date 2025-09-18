@@ -1,0 +1,49 @@
+---
+description: "Extract keywords/phrases, cluster topics, classify post types, and analyze tone"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-STR-0079"
+title: "Strategy: topics, phrases, post types, tone of voice"
+status: "planned"
+priority: "P1"
+labels: ["strategy", "nlp", "classification"]
+dependencies: ["TASK-STR-0078"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement tools: `extract_keywords_and_phrases`, `cluster_topics_embeddings`, `classify_post_types`, `analyze_tone_of_voice`.
+
+# 2) Background / Context
+
+Identify what works and how it’s expressed.
+
+# 3) Assumptions & Constraints
+
+- May use LLMs or local models for classification.
+
+# 4) Dependencies
+
+- strategy_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- strategy_agent/tools/extract_keywords_and_phrases.py
+- strategy_agent/tools/cluster_topics_embeddings.py
+- strategy_agent/tools/classify_post_types.py
+- strategy_agent/tools/analyze_tone_of_voice.py
+
+# 6) Low-Level Steps
+
+1. Implement keyphrase extraction and entity detection.
+2. Implement embeddings clustering and labeling.
+3. Implement post type classifier (taxonomy + confidence).
+4. Implement tone analysis (labels + scores) and distributions.
+
+# 7) Acceptance Criteria
+
+- JSON outputs with top-N lists, clusters, distributions, and correlations with engagement.
