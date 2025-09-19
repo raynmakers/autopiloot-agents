@@ -1,6 +1,51 @@
 # Autopiloot Configuration File
 # Runtime settings for orchestrator, scraper, transcriber, summarizer, observability, and linkedin agents
 
+# Modular Agent Configuration
+enabled_agents:
+  - "orchestrator_agent"  # Required: CEO agent coordinates all workflows
+  - "scraper_agent"       # YouTube content discovery
+  - "transcriber_agent"   # Video transcription via AssemblyAI
+  - "summarizer_agent"    # Business-focused summarization
+  - "observability_agent" # Monitoring and notifications
+  - "linkedin_agent"      # LinkedIn content ingestion
+  - "strategy_agent"      # Strategic analysis and playbooks
+  - "drive_agent"         # Google Drive content tracking
+
+# Communication flows between agents (source -> target)
+communication_flows:
+  # CEO (orchestrator) coordinates all other agents
+  - ["orchestrator_agent", "scraper_agent"]
+  - ["orchestrator_agent", "transcriber_agent"]
+  - ["orchestrator_agent", "summarizer_agent"]
+  - ["orchestrator_agent", "linkedin_agent"]
+  - ["orchestrator_agent", "strategy_agent"]
+  - ["orchestrator_agent", "drive_agent"]
+  - ["orchestrator_agent", "observability_agent"]
+
+  # Primary content processing workflow
+  - ["scraper_agent", "transcriber_agent"]      # Discovered videos -> transcription
+  - ["transcriber_agent", "summarizer_agent"]   # Transcripts -> summaries
+
+  # LinkedIn content analysis workflow
+  - ["linkedin_agent", "strategy_agent"]        # LinkedIn content -> strategic analysis
+
+  # Observability monitoring (bidirectional)
+  - ["observability_agent", "scraper_agent"]
+  - ["observability_agent", "transcriber_agent"]
+  - ["observability_agent", "summarizer_agent"]
+  - ["observability_agent", "linkedin_agent"]
+  - ["observability_agent", "strategy_agent"]
+  - ["observability_agent", "drive_agent"]
+
+  # Error reporting and status updates back to observability
+  - ["scraper_agent", "observability_agent"]
+  - ["transcriber_agent", "observability_agent"]
+  - ["summarizer_agent", "observability_agent"]
+  - ["linkedin_agent", "observability_agent"]
+  - ["strategy_agent", "observability_agent"]
+  - ["drive_agent", "observability_agent"]
+
 # ID of the Google Sheet used for backfill links
 sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
 
@@ -121,3 +166,4 @@ rag:
   zep:
     namespace:
       drive: "autopiloot_drive_content"  # Zep namespace for Drive content indexing
+

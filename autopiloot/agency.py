@@ -1,24 +1,25 @@
 """
 Autopiloot Agency - YouTube Content Discovery and Processing
 Agency Swarm v1.0.0 compliant implementation for automated video transcription and summarization
+
+Modular architecture with config-driven agent loading.
 """
 
+import logging
 from agency_swarm import Agency
-from orchestrator_agent import orchestrator_agent
-from scraper_agent import scraper_agent
-from transcriber_agent import transcriber_agent
-from summarizer_agent import summarizer_agent
-from observability_agent import observability_agent
-from linkedin_agent import linkedin_agent
-from strategy_agent import strategy_agent
-from drive_agent import drive_agent
+from core.agent_registry import create_agent_registry
+from config.loader import load_app_config
+
+logger = logging.getLogger(__name__)
 
 
 class AutopilootAgency(Agency):
     """
     Multi-agent system for content discovery, processing, and knowledge management.
 
-    Workflow:
+    Modular architecture with config-driven agent loading from settings.yaml enabled_agents.
+
+    Workflow (when all agents enabled):
     1. OrchestratorAgent (CEO) coordinates end-to-end pipeline and enforces policies
     2. ScraperAgent discovers new videos from target channels and Google Sheets
     3. TranscriberAgent converts videos to text using AssemblyAI with quality controls
@@ -28,52 +29,81 @@ class AutopilootAgency(Agency):
     7. DriveAgent tracks configured Google Drive files/folders and indexes content into Zep GraphRAG
     8. ObservabilityAgent handles notifications, monitoring, and operational oversight
     """
-    
-    def __init__(self):
-        # Define communication flows between agents (Agency Swarm v1.0.0 format)
-        communication_flows = [
-            # CEO to all agents for coordination and policy enforcement
-            [orchestrator_agent, scraper_agent],
-            [orchestrator_agent, transcriber_agent],
-            [orchestrator_agent, summarizer_agent],
-            [orchestrator_agent, linkedin_agent],
-            [orchestrator_agent, strategy_agent],
-            [orchestrator_agent, drive_agent],
-            [orchestrator_agent, observability_agent],
 
-            # Primary workflow: Scraper -> Transcriber -> Summarizer
-            [scraper_agent, transcriber_agent],
-            [transcriber_agent, summarizer_agent],
+    def __init__(self, config=None):
+        self.config = config or load_app_config()
+        self.agent_registry = create_agent_registry()
+        self.loaded_agents = self.agent_registry.loaded_agents
 
-            # LinkedIn workflow: LinkedIn -> Strategy (for content analysis)
-            [linkedin_agent, strategy_agent],
+        logger.info(f"Initializing AutopilootAgency with {len(self.loaded_agents)} agents")
 
-            # Drive Agent can be accessed by CEO (no specific flows needed initially per task spec)
-            # Future: Drive -> Strategy for document-based insights
+        # Build communication flows dynamically based on loaded agents
+        communication_flows = self._build_communication_flows()
 
-            # Observability can communicate with all agents for monitoring/notifications
-            [observability_agent, scraper_agent],
-            [observability_agent, transcriber_agent],
-            [observability_agent, summarizer_agent],
-            [observability_agent, linkedin_agent],
-            [observability_agent, strategy_agent],
-            [observability_agent, drive_agent],
+        # Get CEO agent (orchestrator_agent is required)
+        ceo_agent = self.agent_registry.get_agent("orchestrator_agent")
 
-            # Bidirectional communication for error handling and status updates
-            [scraper_agent, observability_agent],
-            [transcriber_agent, observability_agent],
-            [summarizer_agent, observability_agent],
-            [linkedin_agent, observability_agent],
-            [strategy_agent, observability_agent],
-            [drive_agent, observability_agent],
-        ]
-        
         super().__init__(
-            # OrchestratorAgent as CEO (entry point)
-            orchestrator_agent,
+            ceo_agent,
             communication_flows=communication_flows,
             shared_instructions="./agency_manifesto.md",
         )
+
+        logger.info("AutopilootAgency initialization complete")
+
+    def _build_communication_flows(self):
+        """
+        Build communication flows from configuration, filtering by enabled agents.
+
+        Returns flows that reflect the configured communication_flows for enabled agents only.
+        """
+        flows = []
+        agents = self.loaded_agents
+        config_flows = self.config.get('communication_flows', [])
+
+        if not config_flows:
+            logger.warning("No communication_flows found in configuration, using empty flows")
+            return flows
+
+        logger.info(f"Processing {len(config_flows)} configured communication flows")
+
+        for flow_config in config_flows:
+            if not isinstance(flow_config, list) or len(flow_config) != 2:
+                logger.warning(f"Invalid flow configuration: {flow_config} (must be [source, target])")
+                continue
+
+            source_name, target_name = flow_config
+
+            # Validate both agents exist in loaded agents
+            if source_name not in agents:
+                logger.debug(f"Skipping flow {source_name} -> {target_name}: source agent not enabled")
+                continue
+
+            if target_name not in agents:
+                logger.debug(f"Skipping flow {source_name} -> {target_name}: target agent not enabled")
+                continue
+
+            # Add the flow with actual agent instances
+            source_agent = agents[source_name]
+            target_agent = agents[target_name]
+            flows.append([source_agent, target_agent])
+
+            logger.debug(f"Added flow: {source_name} -> {target_name}")
+
+        logger.info(f"Built {len(flows)} communication flows from configuration")
+        return flows
+
+    def get_enabled_agents(self):
+        """Get list of enabled agent names."""
+        return self.agent_registry.get_enabled_agents()
+
+    def get_loaded_agents(self):
+        """Get dictionary of loaded agent instances."""
+        return self.loaded_agents.copy()
+
+    def is_agent_enabled(self, agent_name: str) -> bool:
+        """Check if specific agent is enabled."""
+        return self.agent_registry.is_agent_enabled(agent_name)
 
 
 # Initialize the agency
