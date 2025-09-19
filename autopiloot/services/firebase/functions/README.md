@@ -6,8 +6,8 @@ This directory contains Firebase Functions v2 for the Autopiloot project, implem
 
 Firebase Functions provide cloud-native scheduling and automation for the Autopiloot Agency:
 
-- **Scheduled Functions**: Daily agent execution at 01:00 Europe/Amsterdam
-- **Event-Driven Functions**: Real-time budget monitoring triggered by transcript creation
+- **Scheduled Functions**: Multi-platform content processing (YouTube, LinkedIn, Drive)
+- **Event-Driven Functions**: Real-time budget monitoring and daily digest delivery
 - **Auto-scaling**: Serverless execution with automatic concurrency management
 - **Integrated Logging**: Structured logging with audit trail integration
 
@@ -33,12 +33,14 @@ def daily_scraper_execution(event: ScheduledEvent) -> None:
 
 **Workflow Steps:**
 
-1. Initialize AutopilootAgency with production configuration
-2. Execute ScraperAgent (CEO) discovery workflow
-3. Trigger TranscriberAgent processing pipeline
-4. Coordinate SummarizerAgent content analysis
-5. Monitor via ObservabilityAgent with Slack notifications
-6. Log execution results to audit_logs collection
+1. Initialize AutopilootAgency with 8-agent architecture
+2. Execute OrchestratorAgent (CEO) for workflow coordination
+3. Process YouTube content via ScraperAgent → TranscriberAgent → SummarizerAgent
+4. Ingest LinkedIn content via LinkedInAgent with engagement analysis
+5. Process Google Drive documents via DriveAgent with text extraction
+6. Generate strategic insights via StrategyAgent across all content sources
+7. Monitor and alert via ObservabilityAgent with comprehensive Slack notifications
+8. Log execution results to audit_logs collection
 
 ### 2. `monitor_transcription_budget`
 
@@ -63,6 +65,68 @@ def monitor_transcription_budget(event: firestore_fn.Event[firestore_fn.Document
 3. Calculate budget percentage against configured limit ($5 default)
 4. Send Slack alerts at 80% threshold via ObservabilityAgent tools
 5. Log budget events to audit_logs for compliance
+
+### 3. `daily_digest_delivery`
+
+**Type**: Scheduled Function
+**Schedule**: `0 7 * * *` (Daily at 07:00 CET/CEST)
+**Timezone**: Europe/Amsterdam
+**Purpose**: Generate and deliver comprehensive daily operational digest
+
+```python
+@scheduler_fn.on_schedule(
+    schedule="0 7 * * *",
+    timezone="Europe/Amsterdam",
+    memory=256,
+    timeout_sec=300  # 5 minutes
+)
+def daily_digest_delivery(event: ScheduledEvent) -> None:
+    """Generate and deliver daily operational digest via Slack."""
+```
+
+**Digest Components:**
+
+1. Processing summary across all content sources (YouTube, LinkedIn, Drive)
+2. Cost analysis and budget utilization
+3. Error monitoring and system health indicators
+4. Performance metrics and success rates
+5. Quick links to resources and documentation
+
+### 4. `schedule_linkedin_daily`
+
+**Type**: Scheduled Function
+**Schedule**: `0 6 * * *` (Daily at 06:00 CET/CEST)
+**Timezone**: Europe/Amsterdam
+**Purpose**: Execute LinkedIn content ingestion workflow
+
+```python
+@scheduler_fn.on_schedule(
+    schedule="0 6 * * *",
+    timezone="Europe/Amsterdam",
+    memory=512,
+    timeout_sec=300  # 5 minutes
+)
+def schedule_linkedin_daily(event: ScheduledEvent) -> None:
+    """Execute daily LinkedIn content ingestion via LinkedInAgent."""
+```
+
+### 5. `schedule_drive_ingestion`
+
+**Type**: Scheduled Function
+**Schedule**: `0 */3 * * *` (Every 3 hours)
+**Timezone**: Europe/Amsterdam
+**Purpose**: Process Google Drive documents with incremental change detection
+
+```python
+@scheduler_fn.on_schedule(
+    schedule="0 */3 * * *",
+    timezone="Europe/Amsterdam",
+    memory=512,
+    timeout_sec=300  # 5 minutes
+)
+def schedule_drive_ingestion(event: ScheduledEvent) -> None:
+    """Execute Drive content ingestion via DriveAgent."""
+```
 
 ## Project Structure
 
@@ -519,8 +583,9 @@ Monitor function costs and optimize resource usage:
 
 ---
 
-**Firebase Functions Status**: Production Ready ✅  
-**Latest Update**: 2025-09-15  
-**Runtime**: Python 3.11  
-**Region**: europe-west1  
-**Functions**: 2 active (scheduled + event-driven)
+**Firebase Functions Status**: Production Ready ✅
+**Latest Update**: 2025-09-19
+**Runtime**: Python 3.11
+**Region**: europe-west1
+**Functions**: 5 active (4 scheduled + 1 event-driven)
+**Architecture**: 8-agent support with multi-platform content processing

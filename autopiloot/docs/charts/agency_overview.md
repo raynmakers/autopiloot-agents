@@ -14,6 +14,7 @@ flowchart LR
     OBS[ObservabilityAgent]
     LIN[LinkedInAgent]
     STR[StrategyAgent]
+    DRV[DriveAgent]
   end
 
   subgraph Storage
@@ -31,6 +32,7 @@ flowchart LR
   ORC --> OBS
   ORC --> LIN
   ORC --> STR
+  ORC --> DRV
 
   %% Core YouTube pipeline
   SCR -- videos --> FS
@@ -45,7 +47,12 @@ flowchart LR
   LIN -- posts/comments/metrics --> ZEP
   LIN -- audit --> FS
 
-  %% Strategy analysis over LinkedIn corpus
+  %% Drive content ingestion
+  DRV -- incremental changes --> GD
+  DRV -- documents --> ZEP
+  DRV -- audit --> FS
+
+  %% Strategy analysis over all content sources
   ZEP --> STR
   STR -- playbook & briefs --> GD
   STR -- strategy records --> FS

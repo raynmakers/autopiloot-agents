@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0036 | [Comprehensive Testing Framework and Dependency Management](#adr-0036) | 2025-09-19 | Accepted | —          | —             |
 | 0035 | [Google Drive Agent Implementation with Zep GraphRAG Integration](#adr-0035) | 2025-09-19 | Accepted | —          | —             |
 | 0034 | [LinkedIn Agent Implementation with Scheduled Ingestion](#adr-0034) | 2025-09-18 | Accepted | —          | —             |
 | 0033 | [Daily Digest Operational Documentation Standardization](#adr-0033) | 2025-09-17 | Accepted | —          | —             |
@@ -2753,5 +2754,116 @@ drive_agent:
 - **Test Coverage**: Comprehensive test suite enables confident updates and feature additions
 - **Documentation Standards**: Complete tool documentation and operational procedures
 - **Monitoring Infrastructure**: Slack alerts and audit trails for proactive troubleshooting
+
+---
+
+## ADR-0036 — Comprehensive Testing Framework and Dependency Management
+<a id="adr-0036"></a>
+
+**Date**: 2025-09-19
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system had achieved complete implementation across 8 agents with 86 production tools, but gaps existed in test coverage for newer agents (Drive Agent had 0 test files) and dependency management was incomplete. Missing test coverage for critical components creates deployment risk and makes feature evolution difficult. Additionally, specialized dependencies for text extraction (PDF, DOCX) and NLP analysis were not declared, leading to runtime failures in production deployments.
+
+Key requirements:
+- Complete test coverage for all 8 agents with consistent testing patterns
+- Comprehensive dependency management for specialized tool requirements
+- Mock implementations for external API testing without credentials
+- Production readiness validation and deployment preparation
+- Consistent testing framework across LinkedIn, Strategy, and Drive agents
+
+### Alternatives
+
+- **Minimal testing approach**: Test only core workflows, skip comprehensive edge cases, faster development but higher production risk
+- **Manual testing only**: Rely on human QA testing, no automated test suite, not scalable for 86 tools across 8 agents
+- **External testing services**: Use third-party testing platforms, additional cost and complexity, vendor dependency
+- **Incomplete dependency management**: Install packages as needed during deployment, runtime failures, inconsistent environments
+- **Real API testing only**: No mocking, requires production credentials for testing, expensive and brittle
+
+### Decision
+
+**Implement comprehensive testing framework with complete dependency management:**
+
+**Testing Framework Architecture:**
+- **Drive Agent Test Suite**: 8 comprehensive test files covering all 7 Drive Agent tools
+- **Mock-First Design**: External APIs (Google Drive, Zep, Firestore) mocked for isolated testing
+- **Test Pattern Consistency**: Follow established LinkedIn Agent testing patterns across all agents
+- **Coverage Validation**: 72 total test files ensuring comprehensive agent tool coverage
+- **Suite Runner**: Orchestrated test execution with detailed reporting and coverage metrics
+
+**Drive Agent Test Coverage (8 test files):**
+1. **test_list_tracked_targets_from_config.py**: Configuration loading, validation, pattern normalization
+2. **test_resolve_folder_tree.py**: Recursive folder traversal, pagination, authentication handling
+3. **test_list_drive_changes.py**: Incremental change detection, timestamp filtering, API error handling
+4. **test_fetch_file_content.py**: Multi-format fetching, Google Workspace exports, size limit enforcement
+5. **test_extract_text_from_document.py**: Text extraction pipeline, encoding detection, format support
+6. **test_upsert_drive_docs_to_zep.py**: Zep GraphRAG integration, document chunking, batch processing
+7. **test_save_drive_ingestion_record.py**: Firestore audit logging, performance metrics, error categorization
+8. **test_suite_runner.py**: Test orchestration, coverage reporting, production readiness validation
+
+**Dependency Management Enhancement:**
+```python
+# Drive Agent text extraction dependencies
+PyPDF2>=3.0.1        # PDF text extraction
+python-docx>=0.8.11   # DOCX document processing
+pandas>=2.0.3         # CSV data processing
+
+# Strategy Agent NLP dependencies
+scikit-learn>=1.3.0   # Machine learning and clustering
+nltk>=3.8.1           # Natural language processing
+```
+
+**Mock Implementation Strategy:**
+- **Google Drive API**: Mock service building, file operations, and authentication
+- **Zep GraphRAG**: Mock client initialization, document operations, and collection management
+- **Firestore**: Mock database operations, document creation, and query execution
+- **Firebase Functions**: Mock agent helpers and lazy initialization patterns
+- **External Services**: Comprehensive error simulation and edge case handling
+
+**Testing Standards:**
+- **Agency Swarm Compliance**: All tests validate BaseTool inheritance and Pydantic Field usage
+- **Error Handling**: Comprehensive testing of API failures, network timeouts, and authentication errors
+- **Edge Cases**: Empty responses, malformed data, quota exhaustion, and permission denied scenarios
+- **Performance Testing**: File size limits, processing duration validation, and resource management
+- **Integration Testing**: End-to-end workflow validation with mocked external dependencies
+
+### Consequences
+
+**Positive:**
+- **Production Confidence**: Complete test coverage eliminates deployment risk for critical Drive Agent functionality
+- **Development Velocity**: Comprehensive mocking enables rapid development without external API dependencies
+- **Regression Prevention**: 72 test files provide safety net for feature evolution and refactoring
+- **Dependency Clarity**: Explicit requirements.txt prevents runtime failures and environment inconsistencies
+- **Operational Excellence**: Test suite validation ensures all 86 tools maintain production readiness standards
+
+**Technical Benefits:**
+- **8-Agent Coverage**: Every agent now has comprehensive test coverage following consistent patterns
+- **Mock Framework**: Reusable mocking patterns for Drive API, Zep, and Firestore across test suites
+- **Validation Pipeline**: Automated testing enables CI/CD deployment with confidence
+- **Error Simulation**: Comprehensive error scenario testing improves production resilience
+- **Documentation**: Test files serve as executable documentation for tool usage and behavior
+
+**Dependency Management:**
+- **Text Processing**: PyPDF2, python-docx, pandas enable robust document content extraction
+- **NLP Capabilities**: scikit-learn, nltk support Strategy Agent content analysis and clustering
+- **Version Pinning**: Explicit version constraints prevent dependency conflicts in production
+- **Environment Consistency**: Complete requirements.txt ensures reproducible deployments
+- **Security**: Pinned versions enable vulnerability scanning and dependency auditing
+
+**Development Workflow:**
+- **Test-Driven Development**: Comprehensive test suite supports confident feature development
+- **Continuous Integration**: Automated testing validates changes before deployment
+- **Quality Gates**: Test coverage requirements prevent incomplete implementations
+- **Debugging**: Isolated tests enable rapid issue identification and resolution
+- **Team Collaboration**: Standardized testing patterns reduce onboarding time for new developers
+
+**Maintenance:**
+- **Test Maintenance**: Comprehensive test coverage requires ongoing maintenance as features evolve
+- **Dependency Updates**: Regular dependency updates needed for security and feature improvements
+- **Mock Accuracy**: Mock implementations must stay current with external API changes
+- **Performance**: Large test suite increases CI/CD execution time but provides comprehensive validation
 
 ---
