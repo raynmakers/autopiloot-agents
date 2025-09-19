@@ -1,0 +1,45 @@
+---
+description: "Implement list_drive_changes and fetch_file_content tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DRV-0083"
+title: "Drive: list changes + fetch file content"
+status: "planned"
+priority: "P1"
+labels: ["drive", "tools"]
+dependencies: ["TASK-DRV-0082"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement change listing since checkpoint and file download/export for supported MIME types.
+
+# 2) Background / Context
+
+Enables incremental ingestion with minimal API usage.
+
+# 3) Assumptions & Constraints
+
+- Use modifiedTime filters or Changes API; support pagination.
+
+# 4) Dependencies
+
+- drive_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- drive_agent/tools/list_drive_changes.py
+- drive_agent/tools/fetch_file_content.py
+
+# 6) Low-Level Steps
+
+1. Implement change listing by file IDs and since_iso.
+2. Implement content fetch for txt, md, pdf (export), docx/gdoc (export), with size limits.
+
+# 7) Acceptance Criteria
+
+- Returns JSON with change set and downloadable content.

@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 _orchestrator_agent: Optional[Any] = None
 _observability_agent: Optional[Any] = None
 _linkedin_agent: Optional[Any] = None
+_drive_agent: Optional[Any] = None
+_strategy_agent: Optional[Any] = None
 
 
 def get_orchestrator_agent():
@@ -78,12 +80,54 @@ def get_linkedin_agent():
     return _linkedin_agent
 
 
+def get_drive_agent():
+    """
+    Get or create the Drive agent instance (lazy initialization).
+    Used for Google Drive content ingestion and Zep indexing.
+
+    Returns:
+        The Drive agent instance or None if import fails
+    """
+    global _drive_agent
+    if _drive_agent is None:
+        try:
+            from agents.autopiloot.drive_agent.drive_agent import drive_agent
+            _drive_agent = drive_agent
+            logger.info("Drive agent initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import Drive agent: {e}")
+            _drive_agent = None
+    return _drive_agent
+
+
+def get_strategy_agent():
+    """
+    Get or create the Strategy agent instance (lazy initialization).
+    Used for content analysis and playbook synthesis.
+
+    Returns:
+        The Strategy agent instance or None if import fails
+    """
+    global _strategy_agent
+    if _strategy_agent is None:
+        try:
+            from agents.autopiloot.strategy_agent.strategy_agent import strategy_agent
+            _strategy_agent = strategy_agent
+            logger.info("Strategy agent initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import Strategy agent: {e}")
+            _strategy_agent = None
+    return _strategy_agent
+
+
 def reset_agents():
     """
     Reset all cached agent instances. Useful for testing.
     """
-    global _orchestrator_agent, _observability_agent, _linkedin_agent
+    global _orchestrator_agent, _observability_agent, _linkedin_agent, _drive_agent, _strategy_agent
     _orchestrator_agent = None
     _observability_agent = None
     _linkedin_agent = None
+    _drive_agent = None
+    _strategy_agent = None
     logger.info("All agent instances reset")

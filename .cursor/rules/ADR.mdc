@@ -55,6 +55,11 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0035 | [Google Drive Agent Implementation with Zep GraphRAG Integration](#adr-0035) | 2025-09-19 | Accepted | —          | —             |
+| 0034 | [LinkedIn Agent Implementation with Scheduled Ingestion](#adr-0034) | 2025-09-18 | Accepted | —          | —             |
+| 0033 | [Daily Digest Operational Documentation Standardization](#adr-0033) | 2025-09-17 | Accepted | —          | —             |
+| 0032 | [Edge Case Testing Framework Enhancement](#adr-0032)        | 2025-09-17 | Accepted | —          | —             |
+| 0031 | [Firebase Functions Configuration Normalization](#adr-0031)  | 2025-09-17 | Accepted | —          | —             |
 | 0030 | [Tool Filename Standardization to Snake Case](#adr-0030)    | 2025-09-16 | Accepted | —          | —             |
 | 0029 | [Security Architecture and Service Account Management](#adr-0029) | 2025-09-15 | Accepted | —          | —             |
 | 0028 | [Documentation Standardization and Roadmap Implementation](#adr-0028) | 2025-09-15 | Accepted | —          | —             |
@@ -2234,5 +2239,519 @@ Agency Swarm v1.0.0 framework works with both naming patterns, but standardizing
 - CI enforcement can be added to prevent regression to mixed naming
 - Documentation automatically reflects consistent naming patterns
 - Tool discovery scripts work with predictable naming scheme
+
+---
+
+## ADR-0031 — Firebase Functions Configuration Normalization
+
+<a id="adr-0031"></a>
+**Date**: 2025-09-17
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Firebase Functions were using inconsistent patterns for accessing environment variables and configuration:
+- Direct `os.getenv()` calls scattered throughout function code
+- Hardcoded constants mixed with configurable values
+- No centralized configuration validation
+- Inconsistent error handling for missing environment variables
+
+This created maintenance challenges and reduced reliability of the Firebase Functions deployment.
+
+### Decision
+
+Implement centralized configuration normalization for Firebase Functions:
+
+1. **Replace direct `os.getenv()` calls** with centralized helper functions:
+   - `get_required_env_var(key, description)` for mandatory environment variables
+   - `get_config_value(key_path, default=None)` for settings.yaml configuration
+
+2. **Standardize configuration imports** across all Firebase Functions:
+   - Import helpers from `core/env_loader` and `config/config`
+   - Remove direct `os` module imports where replaced
+
+3. **Move constants to configuration**:
+   - Budget thresholds from hardcoded to `config/settings.yaml`
+   - Channel names and operational parameters configurable
+   - Default values preserved for backward compatibility
+
+4. **Add configuration validation**:
+   - Required environment variables validated at startup
+   - Clear error messages for missing configuration
+   - Type validation for numeric configuration values
+
+### Implementation
+
+**Files Modified:**
+- `services/firebase/functions/core.py` - Environment variable access normalization
+- `services/firebase/functions/main.py` - Import standardization
+- `services/firebase/functions/scheduler.py` - Configuration-driven constants
+- `config/settings.yaml` - Added budget and alert configuration sections
+
+**Key Changes:**
+```python
+# Before: Direct os.getenv() calls
+slack_token = os.getenv("SLACK_BOT_TOKEN")
+
+# After: Centralized helpers with validation
+slack_token = get_required_env_var("SLACK_BOT_TOKEN", "Slack Bot Token for API access")
+```
+
+**Configuration additions:**
+```yaml
+budgets:
+  transcription_daily_usd: 5.0
+  alert_threshold: 0.8  # 80% threshold for budget alerts
+```
+
+### Consequences
+
+**Positive:**
+- **Centralized configuration management**: All environment access goes through validated helpers
+- **Improved error handling**: Clear error messages for missing configuration
+- **Enhanced maintainability**: Configuration changes don't require code modifications
+- **Better testing**: Mock-friendly configuration access patterns
+- **Deployment reliability**: Configuration validation prevents runtime failures
+
+**Neutral:**
+- **Additional abstraction layer**: Small increase in function complexity
+- **Configuration dependency**: Functions now depend on core utilities
+
+**Implementation details:**
+- Maintained backward compatibility with existing environment variables
+- Added comprehensive error handling and logging
+- Validated all Firebase Functions deploy correctly
+- No breaking changes to existing functionality
+
+---
+
+## ADR-0032 — Edge Case Testing Framework Enhancement
+
+<a id="adr-0032"></a>
+**Date**: 2025-09-17
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The testing framework needed comprehensive edge case coverage for critical system components:
+- Orchestrator policy enforcement lacked boundary condition testing
+- Daily digest functionality needed edge case validation
+- System reliability required comprehensive failure scenario testing
+- Previous testing focused on happy path scenarios
+
+Edge cases and boundary conditions are critical for production reliability, especially for operational systems handling cost monitoring and workflow orchestration.
+
+### Decision
+
+Implement comprehensive edge case testing framework covering boundary conditions, invalid inputs, and error scenarios:
+
+1. **Orchestrator Tools Edge Cases**:
+   - Policy enforcement with extreme values and invalid configurations
+   - Daily planning with malformed inputs and missing parameters
+   - Boundary testing for limits, thresholds, and validation rules
+
+2. **Daily Digest Edge Cases**:
+   - Empty day scenarios with missing data
+   - Dead Letter Queue spike detection and handling
+   - Cost overrun scenarios and budget threshold testing
+   - Timezone edge cases including DST transitions
+
+3. **Testing Infrastructure**:
+   - Mock-based testing for external service failures
+   - Comprehensive error condition coverage
+   - Boundary value analysis for numeric parameters
+   - Invalid input validation testing
+
+### Implementation
+
+**New Test Files Created (65 tests total):**
+
+**Orchestrator Tools:**
+- `tests/orchestrator_tools/test_enforce_policies_boundaries.py` (13 tests)
+  - Extreme policy values, invalid configurations, boundary conditions
+- `tests/orchestrator_tools/test_plan_daily_run_invalid_plan.py` (16 tests)
+  - Malformed planning scenarios, invalid parameters, edge cases
+
+**Observability Tools:**
+- `tests/observability_tools/test_daily_digest_empty_day.py` (10 tests)
+  - Missing data scenarios, corrupted documents, connection failures
+- `tests/observability_tools/test_daily_digest_dlq_spike.py` (8 tests)
+  - High volume failures, error patterns, system degradation
+- `tests/observability_tools/test_daily_digest_cost_overrun.py` (8 tests)
+  - Budget threshold breaches, anomalous costs, alert scenarios
+- `tests/observability_tools/test_daily_digest_timezone_edges.py` (10 tests)
+  - DST transitions, international date line, invalid timezones
+
+**Key Testing Patterns:**
+```python
+# Boundary value testing
+def test_policy_enforcement_extreme_values(self):
+    result = enforce_policies(max_videos_per_channel=99999, budget_limit=0.01)
+
+# Invalid input validation
+def test_daily_digest_malformed_date(self):
+    with self.assertRaises(ValueError):
+        generate_daily_digest(date="invalid-date-format")
+
+# Edge case mocking
+@patch('firestore_client.collection')
+def test_empty_data_scenario(self, mock_collection):
+    mock_collection.return_value.get.return_value = []
+```
+
+### Consequences
+
+**Positive:**
+- **Comprehensive edge case coverage**: 65 new tests covering boundary conditions
+- **Production reliability**: Early detection of edge case failures
+- **Robust error handling**: Validation of system behavior under stress
+- **Regression prevention**: Edge cases tested automatically in CI
+- **Operational confidence**: Critical workflows validated under adverse conditions
+
+**Neutral:**
+- **Increased test suite size**: 65 additional tests increase execution time
+- **Mock complexity**: Extensive mocking required for edge case simulation
+
+**Testing coverage areas:**
+- Policy enforcement with extreme and invalid values
+- Daily digest with missing/corrupted data scenarios
+- Timezone handling across DST transitions and international boundaries
+- Error spike detection and alerting thresholds
+- Budget monitoring and cost overrun scenarios
+- System degradation and recovery patterns
+
+---
+
+## ADR-0033 — Daily Digest Operational Documentation Standardization
+
+<a id="adr-0033"></a>
+**Date**: 2025-09-17
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The daily digest functionality required comprehensive operational documentation for:
+- Operations teams managing the 07:00 Europe/Amsterdam delivery schedule
+- Configuration management and troubleshooting procedures
+- Integration with existing Firebase Functions and Slack infrastructure
+- Production deployment and monitoring guidance
+
+Documentation needed to cover technical configuration, operational procedures, and troubleshooting workflows to ensure reliable daily digest delivery.
+
+### Decision
+
+Implement comprehensive daily digest operational documentation across multiple documentation layers:
+
+1. **User-Facing Documentation** (`readme.md`):
+   - Daily digest feature overview and value proposition
+   - Sample output with realistic data examples
+   - Configuration options and runtime behavior
+   - Common troubleshooting scenarios and solutions
+
+2. **Technical Implementation Documentation** (`docs/firebase_implementation.md`):
+   - Firebase Functions integration details
+   - Deployment procedures and environment requirements
+   - Comprehensive troubleshooting tables with specific error scenarios
+   - Manual testing procedures and validation steps
+
+3. **Operational Procedures**:
+   - Configuration management via `config/settings.yaml`
+   - Channel override and content customization options
+   - Timezone handling and delivery schedule constraints
+   - Manual triggering procedures for testing
+
+### Implementation
+
+**Documentation Updates:**
+
+**README.md Daily Digest Section:**
+- **Features overview**: Processing summary, cost analysis, error monitoring, quick links
+- **Sample output**: Realistic Slack message example with proper formatting
+- **Configuration**: Complete YAML configuration with all available options
+- **Troubleshooting table**: Common issues mapped to specific solutions
+
+```markdown
+## 📅 Daily Digest
+
+### Features
+- 📊 Processing Summary: Videos discovered, transcribed, summarized
+- 💰 Cost Analysis: Daily spend vs. budget with percentage usage
+- ⚠️ Error Monitoring: Dead letter queue alerts and system health
+- 🔗 Quick Links: Direct access to Google Drive and system resources
+
+### Configuration
+```yaml
+notifications:
+  slack:
+    digest:
+      enabled: true
+      time: "07:00"                   # Fixed at deployment
+      timezone: "Europe/Amsterdam"    # Timezone for date calculations
+      channel: "ops-autopiloot"       # Target Slack channel
+```
+
+**Firebase Implementation Documentation:**
+- **Function specification**: `daily_digest_delivery` scheduled function details
+- **Environment requirements**: SLACK_BOT_TOKEN and configuration dependencies
+- **Troubleshooting tables**: Comprehensive error scenarios with specific solutions
+- **Manual testing**: Procedures for validation and verification
+
+### Consequences
+
+**Positive:**
+- **Operational clarity**: Clear procedures for daily digest management
+- **Troubleshooting efficiency**: Specific solutions mapped to common issues
+- **Configuration transparency**: All options documented with examples
+- **Deployment confidence**: Step-by-step procedures reduce deployment risk
+- **Team enablement**: Operations teams can manage digest without developer intervention
+
+**Documentation coverage:**
+- Feature overview with value proposition and sample output
+- Complete configuration options with runtime vs. deployment-time constraints
+- Troubleshooting procedures covering delivery, channel, data, and timezone issues
+- Manual testing and validation procedures
+- Integration guidance for Firebase Functions and Slack infrastructure
+
+**Maintenance:**
+- Documentation stays current with digest feature evolution
+- Troubleshooting procedures validated against real operational scenarios
+- Configuration examples tested and verified functional
+- Sample output updated to reflect actual system behavior
+
+---
+
+## ADR-0034 — LinkedIn Agent Implementation with Scheduled Ingestion
+<a id="adr-0034"></a>
+
+**Date**: 2025-09-18
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system successfully processes YouTube content but lacks LinkedIn content ingestion capabilities. LinkedIn provides valuable business insights, engagement metrics, and professional content that complements the existing knowledge management workflow. The system requires a comprehensive LinkedIn Agent with scheduled ingestion, data processing, and Zep GraphRAG integration to expand content sources beyond YouTube.
+
+Key requirements:
+- Professional social media content ingestion from LinkedIn profiles
+- Integration with existing Zep GraphRAG knowledge management system
+- Scheduled daily processing with operational monitoring
+- Comprehensive data pipeline: fetch → normalize → deduplicate → analyze → store
+- Firebase Functions integration following established patterns
+- Complete test coverage for production readiness
+
+### Alternatives
+
+- **Manual LinkedIn data collection**: Labor-intensive, inconsistent, no automation, limited scalability
+- **Third-party LinkedIn analytics tools**: Expensive SaaS subscriptions, limited data control, vendor lock-in, integration complexity
+- **Direct LinkedIn API integration**: Rate limiting issues, complex authentication, unofficial API deprecation risk
+- **Simple content scraping**: Legal compliance risks, brittle implementation, no structured data processing
+- **Separate service/application**: Additional infrastructure complexity, deployment overhead, inter-service communication challenges
+
+### Decision
+
+**Implement comprehensive LinkedIn Agent with RapidAPI integration and Firebase Functions scheduling:**
+
+**Agent Architecture:**
+- **LinkedInAgent**: Agency Swarm v1.0.0 compliant agent with 9 specialized tools
+- **Tool Suite**: Complete data pipeline from ingestion through Zep storage
+- **Configuration**: Centralized settings.yaml with profile lists, limits, and processing rules
+- **Error Handling**: Comprehensive retry logic, exponential backoff, dead letter queue integration
+
+**Core Tools (9 total):**
+1. **GetUserPosts**: RapidAPI integration for LinkedIn posts with pagination
+2. **GetPostComments**: Batch comment extraction with nested replies support
+3. **GetPostReactions**: Reaction metrics aggregation and engagement analysis
+4. **GetUserCommentActivity**: User engagement tracking and networking behavior
+5. **NormalizeLinkedInContent**: Schema v1.0 compliance and data standardization
+6. **DeduplicateEntities**: Multi-strategy deduplication (keep_latest, keep_first, merge_data)
+7. **ComputeLinkedInStats**: Statistical analysis, engagement metrics, trend detection
+8. **UpsertToZepGroup**: Zep GraphRAG integration with group-based content organization
+9. **SaveIngestionRecord**: Firestore audit logging with comprehensive metrics tracking
+
+**Scheduling Integration:**
+- **Schedule**: Daily execution at 06:00 Europe/Amsterdam (configurable)
+- **Firebase Functions**: `schedule_linkedin_daily()` with 5-minute timeout, 512MB memory
+- **Agent Helpers**: Lazy initialization pattern consistent with orchestrator/observability agents
+- **Operational Monitoring**: Slack summaries, audit logging, error alerting
+
+**Data Processing Pipeline:**
+- **Content Types**: Posts, comments, reactions (configurable)
+- **Daily Limits**: 25 items per profile per day (configurable)
+- **Profile Management**: Multiple target profiles via settings.yaml configuration
+- **Quality Control**: Engagement thresholds, content validation, duplicate detection
+- **Storage**: Zep GraphRAG groups with structured metadata and semantic search capabilities
+
+**Testing Framework:**
+- **Comprehensive Coverage**: 10 test files covering all 9 tools plus test suite runner
+- **Mock Integration**: External APIs mocked (RapidAPI, Zep, Firestore) for isolated testing
+- **Validation Testing**: Pydantic field validation, error handling, edge cases
+- **Production Readiness**: Syntax validation, environment configuration testing
+
+### Consequences
+
+**Positive:**
+- **Content Diversification**: LinkedIn business insights complement YouTube educational content
+- **Knowledge Management**: Structured professional content in Zep GraphRAG for semantic search
+- **Operational Excellence**: Automated daily ingestion with comprehensive monitoring
+- **Scalable Architecture**: Multi-profile support with configurable limits and processing rules
+- **Data Quality**: Normalization, deduplication, and statistical analysis ensure clean data
+- **Production Ready**: Complete test coverage, error handling, and operational monitoring
+- **Integration Consistency**: Follows established Firebase Functions and agent patterns
+
+**Technical Benefits:**
+- **9-Tool Pipeline**: Complete data processing from ingestion through storage
+- **RapidAPI Integration**: Reliable third-party LinkedIn data access with rate limiting
+- **Schema Compliance**: Version 1.0 normalization ensures data consistency
+- **Audit Trail**: Comprehensive Firestore logging for operational monitoring
+- **Error Resilience**: Exponential backoff, retry logic, and graceful degradation
+- **Mock Testing**: Development and testing without external API dependencies
+
+**Operational Impact:**
+- **Daily Automation**: Set-and-forget LinkedIn content processing
+- **Resource Management**: Configurable limits prevent API quota exhaustion
+- **Monitoring Integration**: Slack notifications and audit logging for operational visibility
+- **Quality Assurance**: Statistical analysis and engagement metrics for content insights
+- **Maintenance**: Snake case tool naming and comprehensive documentation
+
+**Maintenance:**
+- **Configuration Management**: Centralized settings.yaml for runtime adjustments
+- **Test Maintenance**: Comprehensive test suite enables confident updates
+- **Documentation**: Complete tool documentation and test coverage reports
+- **Operational Procedures**: Slack alerts and audit trails for troubleshooting
+
+---
+
+## ADR-0035 — Google Drive Agent Implementation with Zep GraphRAG Integration
+<a id="adr-0035"></a>
+
+**Date**: 2025-09-19
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+The Autopiloot system successfully processes YouTube content and LinkedIn data but lacks comprehensive document and file content ingestion capabilities. Google Drive serves as a primary repository for strategic documents, research materials, meeting notes, and business intelligence that would enhance the knowledge management workflow. The system requires a robust Google Drive Agent with scheduled incremental processing, text extraction from multiple formats, and Zep GraphRAG integration to expand knowledge sources beyond social media content.
+
+Key requirements:
+- Automated Google Drive content discovery and incremental processing
+- Multi-format text extraction (PDF, DOCX, HTML, CSV, plain text)
+- Integration with existing Zep GraphRAG knowledge management system
+- Scheduled processing with configurable sync intervals (3-hour default)
+- Comprehensive audit logging and operational monitoring
+- Firebase Functions integration following established patterns
+- Complete test coverage for production readiness
+
+### Alternatives
+
+- **Manual document processing**: Labor-intensive, inconsistent, no automation, limited scalability, human error prone
+- **Third-party document management tools**: Expensive SaaS subscriptions, vendor lock-in, limited integration flexibility, data residency concerns
+- **Google Drive API polling without change detection**: Inefficient API usage, quota exhaustion risk, duplicate processing overhead
+- **File system synchronization approach**: Local storage requirements, sync conflicts, version control complexity, limited cloud deployment
+- **Separate microservice architecture**: Additional infrastructure complexity, inter-service communication overhead, deployment coordination challenges
+
+### Decision
+
+**Implement comprehensive Google Drive Agent with incremental change detection and Zep GraphRAG integration:**
+
+**Agent Architecture:**
+- **DriveAgent**: Agency Swarm v1.0.0 compliant agent with 7 specialized tools
+- **Tool Suite**: Complete pipeline from configuration loading through audit logging
+- **Configuration**: Centralized settings.yaml with drive targets, file patterns, and processing limits
+- **Error Handling**: Comprehensive retry logic, graceful degradation, checkpoint management
+
+**Core Tools (7 total):**
+1. **ListTrackedTargetsFromConfig**: Configuration loading and Drive target normalization
+2. **ResolveFolderTree**: Recursive folder structure resolution with pattern filtering
+3. **ListDriveChanges**: Incremental change detection since last checkpoint timestamp
+4. **FetchFileContent**: Multi-format file fetching with Google Workspace export support
+5. **ExtractTextFromDocument**: Robust text extraction pipeline supporting PDF, DOCX, HTML, CSV
+6. **UpsertDriveDocsToZep**: Zep GraphRAG integration with document chunking and semantic indexing
+7. **SaveDriveIngestionRecord**: Firestore audit logging with comprehensive metrics and performance tracking
+
+**Scheduling Integration:**
+- **Schedule**: Every 3 hours starting at 00:00 Europe/Amsterdam (configurable)
+- **Firebase Functions**: `schedule_drive_ingestion()` with 5-minute timeout, 512MB memory allocation
+- **Agent Helpers**: Lazy initialization pattern consistent with other agents (`get_drive_agent()`)
+- **Operational Monitoring**: Slack notifications, comprehensive audit trails, error alerting
+
+**Incremental Processing Design:**
+- **Change Detection**: Uses Google Drive Changes API with checkpoint tokens
+- **File Filtering**: fnmatch pattern support for include/exclude rules per target
+- **Content Validation**: File size limits (25MB default), format validation, permission checks
+- **Checkpoint Management**: ISO timestamp persistence for resumable processing
+- **API Efficiency**: Minimal API calls through change-based detection vs. full scanning
+
+**Text Extraction Pipeline:**
+- **Multi-Format Support**: PDF (PyPDF2), DOCX (python-docx), HTML (BeautifulSoup), CSV (pandas), plain text
+- **Google Workspace Integration**: Automatic export to supported formats (DOCX, PDF, HTML, CSV)
+- **Content Processing**: Text cleaning, length limiting (100k chars), metadata extraction
+- **Error Recovery**: Graceful format fallbacks, partial extraction on errors, detailed error logging
+
+**Zep GraphRAG Integration:**
+- **Document Chunking**: Configurable chunk sizes (2000 chars default) with overlap
+- **Semantic Indexing**: Structured metadata for enhanced search and retrieval
+- **Namespace Organization**: Configurable Zep namespaces for content isolation
+- **Batch Processing**: Efficient bulk operations with comprehensive error tracking
+- **Version Management**: Content hash comparison for duplicate detection
+
+**Configuration Architecture:**
+```yaml
+drive_agent:
+  targets:
+    - id: "folder_strategy_docs"
+      type: "folder"
+      name: "Strategy Documents"
+      include_patterns: ["*.pdf", "*.docx"]
+      exclude_patterns: ["**/archive/**", "**/templates/**"]
+  zep:
+    namespace: "autopiloot_drive_content"
+  sync:
+    interval_hours: 3
+  limits:
+    max_file_size_mb: 25
+    max_chunk_size_chars: 2000
+```
+
+### Consequences
+
+**Positive:**
+- **Knowledge Expansion**: Comprehensive document content adds strategic intelligence to existing social media data
+- **Incremental Efficiency**: Change-based processing minimizes API usage and processing overhead
+- **Format Flexibility**: Multi-format text extraction supports diverse document types
+- **Operational Excellence**: Automated 3-hour sync with comprehensive monitoring and audit trails
+- **Search Enhancement**: Zep GraphRAG integration enables semantic search across document corpus
+- **Production Ready**: Complete test coverage, error handling, and operational monitoring
+- **Integration Consistency**: Follows established Firebase Functions and agent communication patterns
+
+**Technical Benefits:**
+- **7-Tool Pipeline**: Complete workflow from configuration through audit logging
+- **Google Drive API Integration**: Official API usage with proper authentication and quota management
+- **Text Processing Robustness**: Multiple extraction methods with fallback mechanisms
+- **Zep GraphRAG Enhancement**: Structured document indexing with semantic search capabilities
+- **Audit Compliance**: Comprehensive Firestore logging for operational monitoring and debugging
+- **Mock Testing Framework**: Development and testing without external API dependencies
+
+**Operational Impact:**
+- **Automated Knowledge Management**: Set-and-forget document processing with configurable targets
+- **Resource Optimization**: Incremental processing prevents quota exhaustion and duplicate work
+- **Monitoring Integration**: Slack notifications and detailed audit logs for operational visibility
+- **Content Quality**: Text extraction quality validation and comprehensive error reporting
+- **Maintenance Efficiency**: Snake case tool naming and comprehensive documentation standards
+
+**Architecture Integration:**
+- **Firebase Functions**: Consistent scheduling pattern with existing agents (LinkedIn, orchestrator)
+- **Agent Communication**: CEO pattern integration for workflow coordination
+- **Configuration Management**: Centralized settings.yaml following established patterns
+- **Error Handling**: DLQ integration and exponential backoff consistent with reliability architecture
+- **Observability**: Comprehensive metrics and alerting through existing observability agent
+
+**Maintenance:**
+- **Configuration Flexibility**: Runtime adjustments through settings.yaml without code changes
+- **Test Coverage**: Comprehensive test suite enables confident updates and feature additions
+- **Documentation Standards**: Complete tool documentation and operational procedures
+- **Monitoring Infrastructure**: Slack alerts and audit trails for proactive troubleshooting
 
 ---

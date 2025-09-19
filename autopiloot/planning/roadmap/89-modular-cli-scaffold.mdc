@@ -1,0 +1,45 @@
+---
+description: "CLI scaffold to generate a new agent from template"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-MOD-0089"
+title: "Modular: new_agent scaffold CLI"
+status: "planned"
+priority: "P2"
+labels: ["modular", "cli", "scaffold"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Create `scripts/new_agent.py` to scaffold agents with structure, instructions, tools folder, tests, and chart.
+
+# 2) Background / Context
+
+Speeds duplication and reuse.
+
+# 3) Assumptions & Constraints
+
+- Pure Python script; no external deps.
+
+# 4) Dependencies
+
+- agents/autopiloot/
+
+# 5) Context Plan
+
+End state:
+
+- scripts/new_agent.py
+- template assets under scripts/templates/
+
+# 6) Low-Level Steps
+
+1. Implement CLI args: name, description, tools list.
+2. Render files with snake_case and package paths.
+
+# 7) Acceptance Criteria
+
+- Running script produces a ready-to-wire agent package.

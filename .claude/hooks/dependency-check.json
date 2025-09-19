@@ -1,0 +1,7 @@
+{
+  "name": "Dependency Security Check",
+  "description": "Check for vulnerable dependencies",
+  "matcher": "package\\.json|requirements\\.txt|Gemfile|pom\\.xml|go\\.mod",
+  "prompt": "This file manages dependencies. Check for:\n1. Known vulnerabilities in dependencies\n2. Outdated packages with security fixes\n3. Packages from untrusted sources\n4. Dependencies that haven't been updated in >2 years\n\nRun appropriate security audit commands and report findings.",
+  "tools": ["run_command"]
+}

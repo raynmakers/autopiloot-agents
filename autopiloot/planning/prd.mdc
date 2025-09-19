@@ -175,11 +175,69 @@ Add new agents to extend the Autopiloot agency. The existing four agents and the
     - APIs: Google Drive, Firestore, Zep
     - Output: JSON `{ drive_ids: {...}, report_doc_ref, zep_doc_id }`
 
-### New Agent 3 — <optional>
+### New Agent 3 — Google Drive Agent
 
-- Role:
-- Integration:
-- Tools:
+- Role: Track configured Google Drive files and folders (recursively) for new and updated content and index them into the RAG database for retrieval. “Tracking” means discovering additions/updates since the last checkpoint and ingesting text content.
+- Integration: Reads targets from settings, queries Drive API, extracts text, and upserts documents and metadata to Zep GraphRAG (existing RAG database). Writes audit records to Firestore.
+- Tools (snake_case, BaseTool, JSON string outputs):
+  - list_tracked_targets_from_config
+    - Description: Load Drive tracking targets from `settings.yaml` (files and folders). Targets include IDs and optional include/exclude patterns.
+    - Inputs: none
+    - Validation: Keys present; normalize IDs.
+    - Core Functions: Return list of `{ type: "file"|"folder", id, patterns }`.
+    - APIs: None
+    - Output: JSON `{ targets: [...] }`
+  - resolve_folder_tree
+    - Description: For each folder target, recursively list all underlying folders/files.
+    - Inputs: `folder_ids` (List[str]), `max_depth` (int, optional)
+    - Validation: Prevent pathological depth; handle permissions errors.
+    - Core Functions: Drive Files.list traversal; collect file metadata.
+    - APIs: Google Drive API
+    - Output: JSON `{ files: [...], folders: [...] }`
+  - list_drive_changes
+    - Description: List files created/modified since `since_iso` across resolved targets.
+    - Inputs: `file_ids` (List[str]), `since_iso` (str, optional), `page_token` (str, optional)
+    - Validation: Timestamps valid; handle pagination.
+    - Core Functions: Use Drive Changes or Files.list with modifiedTime filter; union results.
+    - APIs: Google Drive API
+    - Output: JSON `{ changed: [...], next_page_token: <str|null> }`
+  - fetch_file_content
+    - Description: Download file content for supported MIME types.
+    - Inputs: `file_id` (str), `mime_type_hint` (str, optional)
+    - Validation: Supported types only (txt, md, pdf, docx, gdoc export)
+    - Core Functions: Export/download content; return bytes/base64 with metadata.
+    - APIs: Google Drive API
+    - Output: JSON `{ content_b64, mime_type, size, filename }`
+  - extract_text_from_document
+    - Description: Convert downloaded content to clean UTF-8 text.
+    - Inputs: `content_b64` (str), `mime_type` (str), `filename` (str)
+    - Validation: Non-empty; size limits; conversion success.
+    - Core Functions: Parse text, Markdown, PDF (pdfminer/pymupdf), DOCX; strip boilerplate.
+    - APIs: None (local libraries)
+    - Output: JSON `{ text }`
+  - upsert_drive_docs_to_zep
+    - Description: Upsert text documents into Zep with Drive metadata for RAG.
+    - Inputs: `namespace` (str, default `drive_tracked`), `items` (JSON list of {text, file_id, path, modified_time, mime_type})
+    - Validation: Zep credentials present; idempotent by `file_id` + `modified_time`.
+    - Core Functions: Upsert documents; attach metadata; return counts.
+    - APIs: Zep SDK/API
+    - Output: JSON `{ upserted: n, skipped: n }`
+  - save_drive_ingestion_record
+    - Description: Persist audit record for each run (counts, errors, durations, checkpoint cursor) to Firestore under `drive_ingestions/{namespace}/{date}`.
+    - Inputs: `namespace` (str), `stats` (JSON), `started_at` (str), `ended_at` (str)
+    - Validation: ISO timestamps; stats required.
+    - Core Functions: Upsert audit document; update last checkpoint.
+    - APIs: Firestore Admin SDK
+    - Output: string status
+
+Scheduling & Triggers (delta):
+
+- Add a scheduled function to poll Drive at a configurable interval (e.g., hourly at 05:00, or every 3h). Webhook/Push notifications via Drive Changes API can be considered later; initial implementation uses polling.
+
+Configuration (delta):
+
+- `drive.tracking.targets`: array of items like `{ type: "file"|"folder", id: "...", include: ["*.md", "*.pdf"], exclude: ["Archive/**"] }`
+- `rag.zep.namespace.drive`: default `drive_tracked`.
 
 ---
 

@@ -1,0 +1,45 @@
+---
+description: "Config-driven communication_flows between agents"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-MOD-0087"
+title: "Modular: communication_flows from settings"
+status: "planned"
+priority: "P1"
+labels: ["modular", "flows", "config"]
+dependencies: ["TASK-MOD-0086"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Define `communication_flows` in `settings.yaml` and wire into `agency.py` construction.
+
+# 2) Background / Context
+
+Allows composing different agency topologies without code changes.
+
+# 3) Assumptions & Constraints
+
+- Validate agent names exist in loaded registry.
+
+# 4) Dependencies
+
+- agents/autopiloot/agency.py
+- config/settings.yaml
+
+# 5) Context Plan
+
+End state:
+
+- `agency.py` builds flows from config tuples.
+
+# 6) Low-Level Steps
+
+1. Add `communication_flows` to settings.yaml.
+2. Parse and validate against loaded agents.
+
+# 7) Acceptance Criteria
+
+- Flows reflect config at runtime.

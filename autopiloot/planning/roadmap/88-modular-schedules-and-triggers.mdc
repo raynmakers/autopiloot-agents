@@ -1,0 +1,44 @@
+---
+description: "Agent-provided schedules/triggers registered by Firebase functions"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-MOD-0088"
+title: "Modular: schedules & triggers registry"
+status: "planned"
+priority: "P2"
+labels: ["modular", "scheduling", "firebase"]
+dependencies: ["TASK-MOD-0086"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Each agent exposes `get_schedules()` / `get_triggers()`; functions register them dynamically.
+
+# 2) Background / Context
+
+Lets agencies customize which jobs are active.
+
+# 3) Assumptions & Constraints
+
+- Keep backwards-compatible default schedules.
+
+# 4) Dependencies
+
+- services/firebase/functions/scheduler.py
+
+# 5) Context Plan
+
+End state:
+
+- Helper reads enabled agents and registers schedules.
+
+# 6) Low-Level Steps
+
+1. Define optional hooks in agents returning cron specs and event handlers.
+2. Modify scheduler to read hooks from enabled agents.
+
+# 7) Acceptance Criteria
+
+- Schedules reflect enabled agents and their hooks.

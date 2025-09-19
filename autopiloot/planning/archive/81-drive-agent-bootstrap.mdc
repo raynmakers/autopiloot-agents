@@ -1,0 +1,54 @@
+---
+description: "Create Google Drive Agent folder, instructions, tools package, and config keys"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DRV-0081"
+title: "Bootstrap Google Drive Agent (structure + config)"
+status: "planned"
+priority: "P1"
+labels: ["agent", "drive", "setup"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Create `drive_agent/` with `__init__.py`, `drive_agent.py`, `instructions.md`, and `tools/` package. Add new config keys for tracked targets and Zep namespace.
+
+# 2) Background / Context
+
+Per PRD v2, Drive Agent tracks configured files/folders (recursively) and indexes new/updated content into Zep GraphRAG.
+
+# 3) Assumptions & Constraints
+
+- Tools inherit `agency_swarm.tools.BaseTool` and return JSON strings.
+- Snake_case filenames.
+
+# 4) Dependencies
+
+- planning/prd.mdc (Google Drive Agent section)
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/agency.py _(read-only)_
+- agents/autopiloot/config/settings.yaml _(read-only)_
+
+End state:
+
+- agents/autopiloot/drive_agent/**init**.py
+- agents/autopiloot/drive_agent/drive_agent.py
+- agents/autopiloot/drive_agent/instructions.md
+- agents/autopiloot/drive_agent/tools/**init**.py
+
+# 6) Low-Level Steps
+
+1. Create `drive_agent/` folder and boilerplate with ModelSettings.
+2. Add config keys in settings.yaml under `drive.tracking.targets` and `rag.zep.namespace.drive`.
+3. Import agent in `agency.py` (no flows required initially).
+
+# 7) Acceptance Criteria
+
+- Module imports without errors; agent discoverable.

@@ -1,0 +1,45 @@
+---
+description: "Implement save_drive_ingestion_record and add Drive scheduler"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DRV-0085"
+title: "Drive: audit records + scheduler"
+status: "planned"
+priority: "P1"
+labels: ["drive", "scheduler", "firestore"]
+dependencies: ["TASK-DRV-0084"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Persist audit records and schedule periodic Drive polling.
+
+# 2) Background / Context
+
+Operational tracking and automation.
+
+# 3) Assumptions & Constraints
+
+- Use Firebase Functions scheduler; configurable cadence.
+
+# 4) Dependencies
+
+- services/firebase/functions/scheduler.py
+
+# 5) Context Plan
+
+End state:
+
+- drive_agent/tools/save_drive_ingestion_record.py
+- Scheduled function for Drive polling
+
+# 6) Low-Level Steps
+
+1. Implement Firestore write for `drive_ingestions/{namespace}/{date}` with counts, durations, errors, checkpoint.
+2. Add scheduler at e.g., every 3h; lazy-init Drive Agent; run end-to-end ingest.
+
+# 7) Acceptance Criteria
+
+- Audit doc created; scheduler runs locally/tests pass.

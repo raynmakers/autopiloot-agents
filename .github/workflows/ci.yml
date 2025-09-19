@@ -36,6 +36,11 @@ jobs:
         # Install development dependencies for testing
         pip install pytest pytest-cov pytest-mock ruff mypy types-PyYAML types-requests
 
+    - name: Check tool filenames (snake_case)
+      run: |
+        cd autopiloot
+        ./scripts/check_tool_filenames_snake_case.sh
+
     - name: Lint with ruff
       run: |
         cd autopiloot

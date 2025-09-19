@@ -1,0 +1,45 @@
+---
+description: "Implement list_tracked_targets_from_config and resolve_folder_tree tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DRV-0082"
+title: "Drive: targets from config + recursive folder tree"
+status: "planned"
+priority: "P1"
+labels: ["drive", "tools"]
+dependencies: ["TASK-DRV-0081"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Implement tools to load tracked targets and resolve folder trees recursively.
+
+# 2) Background / Context
+
+Feeds subsequent change listing and content ingestion.
+
+# 3) Assumptions & Constraints
+
+- Respect include/exclude patterns where provided.
+
+# 4) Dependencies
+
+- drive_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- drive_agent/tools/list_tracked_targets_from_config.py
+- drive_agent/tools/resolve_folder_tree.py
+
+# 6) Low-Level Steps
+
+1. Implement config loader tool returning normalized targets.
+2. Implement Drive traversal with pagination and error handling.
+
+# 7) Acceptance Criteria
+
+- JSON outputs; handles nested folders and pattern filters.

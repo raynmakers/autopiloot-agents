@@ -1,0 +1,37 @@
+name: Claude Security Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [main, master]
+
+jobs:
+  security-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Security Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Perform comprehensive security review of this PR:
+
+            1. Check OWASP Top 10 vulnerabilities
+            2. Scan for hardcoded secrets
+            3. Verify input validation
+            4. Check authentication/authorization
+            5. Review crypto implementations
+
+            Block merge if CRITICAL issues found.
+            Comment on PR with findings and remediation steps.
+          allowed_tools: |
+            mcp__github__create_pull_request_comment
+            mcp__github__request_changes

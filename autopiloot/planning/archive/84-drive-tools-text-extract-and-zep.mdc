@@ -1,0 +1,45 @@
+---
+description: "Implement extract_text_from_document and upsert_drive_docs_to_zep tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-DRV-0084"
+title: "Drive: text extraction + Zep upsert"
+status: "planned"
+priority: "P1"
+labels: ["drive", "zep", "rag"]
+dependencies: ["TASK-DRV-0083"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Convert downloaded files to clean text and upsert to Zep with Drive metadata.
+
+# 2) Background / Context
+
+Indexes tracked content into existing GraphRAG (Zep).
+
+# 3) Assumptions & Constraints
+
+- PDF and DOCX extraction via established libraries; honor size limits.
+
+# 4) Dependencies
+
+- drive_agent/tools/
+
+# 5) Context Plan
+
+End state:
+
+- drive_agent/tools/extract_text_from_document.py
+- drive_agent/tools/upsert_drive_docs_to_zep.py
+
+# 6) Low-Level Steps
+
+1. Implement robust text extraction pipeline (txt, md, pdf, docx, gdoc export).
+2. Upsert documents with namespace, metadata, and idempotency key.
+
+# 7) Acceptance Criteria
+
+- JSON outputs with upsert counts and error handling.

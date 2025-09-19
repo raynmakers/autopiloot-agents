@@ -73,7 +73,7 @@ autopiloot/
 │   ├── __init__.py
 │   ├── observability_agent.py   # Agent definition for operational oversight and monitoring
 │   ├── instructions.md          # Budget monitoring, error alerting, and operational workflows
-│   └── tools/                   # 10 comprehensive monitoring, alerting, and analysis tools
+│   └── tools/                   # 11 comprehensive monitoring, alerting, and analysis tools
 │       ├── __init__.py
 │       ├── format_slack_blocks.py       # Rich Slack Block Kit message formatting
 │       ├── send_slack_message.py        # Slack API integration with channel management
@@ -84,7 +84,8 @@ autopiloot/
 │       ├── stuck_job_scanner.py         # Stale job detection across all agent collections
 │       ├── report_daily_summary.py      # Comprehensive pipeline health reporting with Slack formatting
 │       ├── llm_observability_metrics.py # Token usage tracking and cost analysis
-│       └── alert_engine.py              # Centralized alert management with throttling and deduplication
+│       ├── alert_engine.py              # Centralized alert management with throttling and deduplication
+│       └── generate_daily_digest.py     # Daily operational digest with 07:00 Europe/Amsterdam delivery
 │
 ├── core/                        # Shared Utilities and Infrastructure (TASK-53)
 │   ├── __init__.py              # Core package initialization
@@ -94,6 +95,9 @@ autopiloot/
 │   ├── idempotency.py          # Core naming conventions and deduplication logic
 │   ├── time_utils.py           # ISO 8601 timestamp handling and exponential backoff
 │   └── slack_utils.py          # Slack channel normalization and Block Kit formatting
+│
+├── scripts/                     # Development and CI Automation Scripts (TASK-67)
+│   └── check_tool_filenames_snake_case.sh # CI enforcement of snake_case tool naming
 │
 ├── config/                      # Configuration Management System
 │   ├── loader.py                # YAML configuration loader with validation
@@ -119,7 +123,7 @@ autopiloot/
 │   └── tools/
 │       └── [legacy tool implementations]
 │
-├── tests/                       # Comprehensive Production Test Suite (70+ tests - TASK-54)
+├── tests/                       # Comprehensive Production Test Suite (135+ tests - TASK-54, TASK-69)
 │   ├── __init__.py
 │   ├── test_config.py           # Configuration loading tests (11 cases)
 │   ├── test_env_loader.py       # Environment validation tests (17 cases)
@@ -128,7 +132,7 @@ autopiloot/
 │   ├── test_reliability.py      # Error handling and retry logic tests (22 cases)
 │   ├── test_sheets.py           # Google Sheets integration tests (18 cases)
 │   │
-│   ├── # Orchestrator Agent Tests (TASK-ORC-0001) - 8/8 tools, 91 test methods
+│   ├── # Orchestrator Agent Tests (TASK-ORC-0001, TASK-69) - 8/8 tools, 120+ test methods
 │   ├── orchestrator_tools/
 │   │   ├── __init__.py
 │   │   ├── test_dispatch_scraper.py
@@ -136,8 +140,10 @@ autopiloot/
 │   │   ├── test_dispatch_summarizer.py
 │   │   ├── test_emit_run_events.py
 │   │   ├── test_enforce_policies.py
+│   │   ├── test_enforce_policies_boundaries.py # TASK-69: Edge case testing (13 tests)
 │   │   ├── test_handle_dlq.py
 │   │   ├── test_plan_daily_run.py
+│   │   ├── test_plan_daily_run_invalid_plan.py # TASK-69: Edge case testing (16 tests)
 │   │   └── test_query_dlq.py
 │   │
 │   ├── # Scraper Agent Tests (all snake_case)
@@ -167,7 +173,7 @@ autopiloot/
 │   ├── test_llm_observability.py       # TASK-LLM-0007: LLM configuration (10 cases)
 │   ├── test_prompt_version_firestore.py # TASK-LLM-0007: Prompt versioning (6 cases)
 │   │
-│   ├── # Observability Agent Tests (TASK-OBS-0002) - 10/10 tools, complete coverage
+│   ├── # Observability Agent Tests (TASK-OBS-0002, TASK-69) - 11/11 tools, complete coverage
 │   ├── observability_tools/
 │   │   ├── __init__.py
 │   │   ├── test_format_slack_blocks.py    # Slack Block Kit formatting (12 cases)
@@ -179,16 +185,28 @@ autopiloot/
 │   │   ├── test_stuck_job_scanner.py      # Stale job detection
 │   │   ├── test_report_daily_summary.py   # Daily operational reporting
 │   │   ├── test_llm_observability_metrics.py # LLM usage and cost tracking
-│   │   └── test_alert_engine.py           # Centralized alert management
+│   │   ├── test_alert_engine.py           # Centralized alert management
+│   │   ├── test_generate_daily_digest.py  # Daily digest generation and formatting
+│   │   ├── test_daily_digest_empty_day.py # TASK-69: Empty day edge cases (10 tests)
+│   │   ├── test_daily_digest_dlq_spike.py # TASK-69: DLQ spike detection (8 tests)
+│   │   ├── test_daily_digest_cost_overrun.py # TASK-69: Cost overrun scenarios (8 tests)
+│   │   └── test_daily_digest_timezone_edges.py # TASK-69: Timezone edge cases (10 tests)
 │   └── test_observability_ops.py          # Legacy comprehensive ops suite
 │
 ├── planning/                    # Project Requirements and Task Documentation
 │   ├── prd.mdc                  # Product Requirements Document
-│   ├── tasks.md                 # Project completion status (42/42 tasks complete)
+│   ├── tasks.md                 # Project completion status (70/70 tasks complete)
 │   ├── rename_map_tools_snake_case.json # Tool renaming documentation (TASK-57)
-│   ├── tasks/                   # Active task specifications (now empty - all archived)
-│   │   └── __init__.py          # Package initialization
-│   └── archive/                 # Completed task specifications (42 archived)
+│   ├── tasks/                   # Active task specifications
+│   │   ├── __init__.py          # Package initialization
+│   │   ├── 64-firebase-functions-imports-standardization.mdc
+│   │   ├── 65-shared-agent-init-helper.mdc
+│   │   ├── 66-digest-config-and-channel-override.mdc
+│   │   ├── 67-ci-enforce-snake-case-tool-filenames.mdc
+│   │   ├── 68-env-config-normalization-in-functions.mdc
+│   │   ├── 69-tests-orchestrator-policy-and-digest-edges.mdc
+│   │   └── 70-docs-update-daily-digest-readme.mdc
+│   └── archive/                 # Completed task specifications (70 archived)
 │       ├── readme.md            # Archive overview and task completion status
 │       ├── 00-config-yaml.mdc   # Configuration system
 │       ├── 00-env-config.mdc    # Environment variables
@@ -201,7 +219,7 @@ autopiloot/
 │       ├── 54-testing-ci.mdc    # TASK-54: CI/CD and testing infrastructure
 │       ├── 55-documentation-roadmap.mdc # TASK-55: Documentation and changelog
 │       ├── 56-security-secrets.mdc # TASK-56: Security and service accounts
-│       └── [26 other completed tasks...]
+│       └── [64 other completed tasks...]
 │
 ├── docs/                        # Implementation Documentation (Production Ready - TASK-55)
 │   ├── agents_overview.md       # Detailed agent documentation and tool reference
@@ -225,7 +243,7 @@ autopiloot/
 
 ### 1. Agency Swarm v1.0.0 Full Compliance
 - **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings (5 production agents)
-- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (41 production tools, all snake_case)
+- **Tools**: All inherit from `agency_swarm.tools.BaseTool` (42 production tools, all snake_case)
 - **Validation**: Comprehensive Pydantic Field validation throughout
 - **Returns**: JSON string responses from all tool `run()` methods
 - **Communication**: Proper agency_chart definition with OrchestratorAgent CEO pattern
@@ -299,6 +317,7 @@ from core.reliability import DeadLetterQueue, QuotaManager
 - **Configuration**: 28 tests (config loading, environment validation)
 - **Core Systems**: 22 tests (reliability, audit logging, idempotency)
 - **Agent Tools**: 35+ tests per major workflow (transcription, summarization, alerts)
+- **Edge Cases**: 65 additional boundary condition tests (TASK-69)
 - **Integration**: Firebase functions, API integrations, end-to-end workflows
 
 ### Test Categories
@@ -311,8 +330,9 @@ Unit Tests (isolated functionality)
 
 Integration Tests (API and service integration)
 ├── Transcriber Pipeline (56 tests across 5 tools)
-├── Summarizer Workflows (47+ tests across 7 tools)  
-├── Observability Monitoring (59+ tests across 10 tools)
+├── Summarizer Workflows (47+ tests across 7 tools)
+├── Observability Monitoring (95+ tests across 11 tools)
+├── Orchestrator Operations (120+ tests across 8 tools)
 └── Scraper Discovery (35+ tests across 7 tools)
 
 End-to-End Tests
@@ -400,6 +420,7 @@ notifications:
 ### GitHub Actions CI/CD Pipeline
 ```
 .github/workflows/ci.yml
+├── Tool Filename Validation (snake_case enforcement - TASK-67)
 ├── Multi-Python Testing (3.9, 3.10, 3.11, 3.12)
 ├── Comprehensive External Service Mocking
 ├── Security Scanning (bandit, git-secrets)
@@ -417,10 +438,10 @@ notifications:
 
 ---
 
-**Architecture Status**: Production Ready ✅  
-**Latest Update**: 2025-09-15  
-**Total Tools**: 31 across 4 agents  
-**Test Coverage**: 70+ comprehensive tests (TASK-54)  
-**CI/CD Pipeline**: GitHub Actions with multi-version support (TASK-54)  
-**Framework Compliance**: Agency Swarm v1.0.0 ✅  
-**Final Tasks Completed**: 53-56 (Code Quality, Testing, Documentation, Security)
+**Architecture Status**: Production Ready ✅
+**Latest Update**: 2025-09-17
+**Total Tools**: 42 across 5 agents
+**Test Coverage**: 135+ comprehensive tests (TASK-54, TASK-69)
+**CI/CD Pipeline**: GitHub Actions with multi-version support (TASK-54)
+**Framework Compliance**: Agency Swarm v1.0.0 ✅
+**Final Tasks Completed**: 64-70 (Functions Standardization, Edge Testing, Documentation)

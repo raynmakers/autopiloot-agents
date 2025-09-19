@@ -1,0 +1,7 @@
+{
+  "name": "Risk-Based Security Review",
+  "description": "Route changes to appropriate reviewers based on risk level",
+  "matcher": ".*",
+  "prompt": "Analyze this change for security risk level:\n\n## Risk Assessment Criteria\n**CRITICAL RISK** (Security architect + 2 reviewers required):\n- Authentication/authorization changes\n- Cryptographic implementations\n- Database schema modifications\n- External API integrations\n- Payment processing code\n\n**HIGH RISK** (Security champion + 1 reviewer):\n- User input handling\n- File upload/download functionality  \n- Session management\n- Data validation logic\n\n**MEDIUM RISK** (Any trained reviewer):\n- Business logic changes\n- Configuration updates\n- UI/frontend modifications\n\n**LOW RISK** (Automated review only):\n- Documentation changes\n- Test additions\n- Logging improvements\n\nRoute to appropriate reviewer(s) and set review requirements based on risk level.\nFor CRITICAL: Block merge until security architect approval.",
+  "tools": ["run_command", "read_file"]
+}

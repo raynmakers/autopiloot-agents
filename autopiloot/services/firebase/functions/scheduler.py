@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import shared agent helpers
-from .agent_helpers import get_orchestrator_agent, get_observability_agent, get_linkedin_agent
+from .agent_helpers import get_orchestrator_agent, get_observability_agent, get_linkedin_agent, get_drive_agent
 
 
 # ==================================================================================
@@ -782,6 +782,252 @@ def _send_linkedin_summary(profiles_processed: int, items_processed: int,
 
     except Exception as e:
         logger.error(f"Failed to send LinkedIn summary: {str(e)}")
+
+
+# ==================================================================================
+# SCHEDULED FUNCTION: Drive Content Ingestion every 3 hours
+# ==================================================================================
+
+@scheduler_fn.on_schedule(
+    schedule="0 */3 * * *",  # Every 3 hours
+    timezone=scheduler_fn.Timezone("Europe/Amsterdam"),
+    memory=options.MemoryOption.MB_512,
+    timeout_sec=480,  # 8 minutes timeout
+    max_instances=1,  # Only one instance at a time
+)
+def schedule_drive_ingestion(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
+    """
+    Scheduled function to run Google Drive content ingestion every 3 hours.
+    Tracks configured Drive files/folders and indexes new/updated content into Zep GraphRAG.
+    """
+    try:
+        logger.info(f"Starting Drive content ingestion at {event.timestamp}")
+
+        # Get Drive configuration
+        from agents.autopiloot.core.env_loader import get_config_value
+
+        # Check if Drive ingestion is enabled
+        drive_enabled = get_config_value("drive.enabled", True)
+        if not drive_enabled:
+            logger.info("Drive ingestion is disabled in configuration")
+            return {"ok": True, "message": "Drive ingestion disabled"}
+
+        # Get configured targets
+        drive_config = get_config_value("drive", {})
+        tracking_config = drive_config.get("tracking", {})
+        targets = tracking_config.get("targets", [])
+
+        if not targets:
+            logger.warning("No Drive targets configured for ingestion")
+            return {"ok": True, "message": "No targets configured"}
+
+        # Get processing configuration
+        sync_interval = tracking_config.get("sync_interval_minutes", 60)
+        max_file_size_mb = tracking_config.get("max_file_size_mb", 10)
+
+        # Get Zep namespace
+        rag_config = get_config_value("rag", {})
+        zep_config = rag_config.get("zep", {})
+        namespace_config = zep_config.get("namespace", {})
+        zep_namespace = namespace_config.get("drive", "autopiloot_drive_content")
+
+        # Get Drive agent
+        drive_agent = get_drive_agent()
+        if not drive_agent:
+            logger.error("Failed to initialize Drive agent")
+            return {"ok": False, "error": "Drive agent initialization failed"}
+
+        # Generate run ID
+        run_id = f"drive_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        start_time = datetime.utcnow()
+
+        logger.info(f"Processing {len(targets)} Drive targets with run ID: {run_id}")
+
+        try:
+            # Create comprehensive ingestion workflow message
+            workflow_message = f"""
+            Run complete Google Drive content ingestion for {len(targets)} configured targets.
+
+            Configuration:
+            - Zep namespace: {zep_namespace}
+            - Sync interval: {sync_interval} minutes
+            - Max file size: {max_file_size_mb} MB
+            - Run ID: {run_id}
+
+            Requirements:
+            1. Load all tracked targets from configuration
+            2. For each target, resolve folder tree or get file metadata
+            3. List changes since last checkpoint (if available)
+            4. Fetch content for new/updated files within size limits
+            5. Extract clean text from all supported formats (PDF, DOCX, etc.)
+            6. Upsert documents to Zep GraphRAG with proper metadata
+            7. Save comprehensive audit record to Firestore with:
+               - Processing metrics and performance data
+               - Target-by-target results and error tracking
+               - Checkpoint data for next incremental run
+               - Success rates and recommendations
+
+            Use the complete workflow: ListTrackedTargetsFromConfig → ResolveFolderTree/ListDriveChanges →
+            FetchFileContent → ExtractTextFromDocument → UpsertDriveDocsToZep → SaveDriveIngestionRecord
+
+            Handle errors gracefully and ensure audit trail is maintained for operational monitoring.
+            """
+
+            # Run the Drive agent workflow
+            result = drive_agent.run(workflow_message)
+
+            # Calculate processing duration
+            end_time = datetime.utcnow()
+            processing_duration = (end_time - start_time).total_seconds()
+
+            # Parse result for metrics (basic parsing)
+            processed_files = 0
+            zep_documents = 0
+            errors = 0
+
+            # Extract metrics from result string (basic parsing)
+            result_str = str(result).lower()
+            if "processed" in result_str or "upserted" in result_str:
+                try:
+                    import re
+                    # Look for numbers in the result
+                    numbers = re.findall(r'\d+', str(result))
+                    if numbers:
+                        processed_files = int(numbers[0]) if len(numbers) > 0 else 0
+                        zep_documents = int(numbers[1]) if len(numbers) > 1 else processed_files
+                except:
+                    processed_files = 1  # Assume at least 1 if successful
+
+            if "error" in result_str or "failed" in result_str:
+                errors = 1
+
+            # Log successful ingestion run
+            audit_ref = db.collection('audit_logs').document()
+            audit_ref.set({
+                'type': 'drive_ingestion',
+                'run_id': run_id,
+                'namespace': zep_namespace,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'status': 'success' if errors == 0 else 'completed_with_errors',
+                'targets_configured': len(targets),
+                'files_processed': processed_files,
+                'zep_documents_upserted': zep_documents,
+                'processing_duration_seconds': processing_duration,
+                'sync_interval_minutes': sync_interval,
+                'result': str(result)[:1000],  # Truncate long results
+                'event_id': event.id if hasattr(event, 'id') else None
+            })
+
+            logger.info(f"Drive ingestion completed successfully. Run ID: {run_id}, Files: {processed_files}, Duration: {processing_duration:.1f}s")
+
+            return {
+                'ok': True,
+                'run_id': run_id,
+                'namespace': zep_namespace,
+                'targets_configured': len(targets),
+                'files_processed': processed_files,
+                'zep_documents_upserted': zep_documents,
+                'processing_duration_seconds': processing_duration,
+                'sync_interval_minutes': sync_interval,
+                'errors': errors,
+                'message': f'Drive ingestion completed with {processed_files} files processed'
+            }
+
+        except Exception as workflow_error:
+            # Calculate duration even for failed runs
+            end_time = datetime.utcnow()
+            processing_duration = (end_time - start_time).total_seconds()
+
+            logger.error(f"Drive agent workflow failed: {str(workflow_error)}")
+
+            # Log failure to audit
+            audit_ref = db.collection('audit_logs').document()
+            audit_ref.set({
+                'type': 'drive_ingestion',
+                'run_id': run_id,
+                'namespace': zep_namespace,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'status': 'failed',
+                'targets_configured': len(targets),
+                'processing_duration_seconds': processing_duration,
+                'error': str(workflow_error),
+                'event_id': event.id if hasattr(event, 'id') else None
+            })
+
+            # Send error alert
+            try:
+                _send_drive_error_alert(
+                    run_id=run_id,
+                    targets_count=len(targets),
+                    error=str(workflow_error),
+                    duration=processing_duration
+                )
+            except Exception as alert_error:
+                logger.warning(f"Failed to send Drive error alert: {alert_error}")
+
+            return {
+                'ok': False,
+                'run_id': run_id,
+                'namespace': zep_namespace,
+                'targets_configured': len(targets),
+                'processing_duration_seconds': processing_duration,
+                'error': str(workflow_error)
+            }
+
+    except Exception as e:
+        logger.error(f"Critical error in Drive scheduler: {str(e)}")
+
+        # Send critical error alert
+        try:
+            _send_error_alert(
+                message=f"Drive ingestion scheduler failed critically",
+                context={'error': str(e), 'timestamp': event.timestamp}
+            )
+        except:
+            pass  # Don't fail on alert failure
+
+        return {
+            'ok': False,
+            'run_id': f"failed_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+            'error': str(e)
+        }
+
+
+def _send_drive_error_alert(run_id: str, targets_count: int, error: str, duration: float) -> None:
+    """
+    Send Drive ingestion error alert via Assistant agent's Slack integration.
+    """
+    try:
+        # Import Assistant tools
+        from agents.autopiloot.assistant_agent.tools import FormatSlackBlocks, SendSlackMessage
+
+        # Format the error alert
+        formatter = FormatSlackBlocks()
+        formatter.items = {
+            'title': '🔴 Drive Ingestion Failed',
+            'summary': f'Scheduled Drive content ingestion failed after {duration:.1f} seconds',
+            'fields': [
+                {'label': 'Run ID', 'value': run_id},
+                {'label': 'Targets Configured', 'value': str(targets_count)},
+                {'label': 'Processing Duration', 'value': f'{duration:.1f}s'},
+                {'label': 'Error', 'value': error[:200] + '...' if len(error) > 200 else error}
+            ],
+            'footer': 'Check Drive agent logs and configuration for resolution'
+        }
+
+        blocks = formatter.run()
+
+        # Send to Slack
+        sender = SendSlackMessage()
+        from agents.autopiloot.core.env_loader import get_config_value
+        sender.channel = get_config_value("notifications.slack.channel", "ops-autopiloot")
+        sender.blocks = blocks['blocks']
+
+        result = sender.run()
+        logger.info(f"Drive error alert sent to Slack: {result}")
+
+    except Exception as e:
+        logger.error(f"Failed to send Drive error alert: {str(e)}")
 
 
 # Agent getters are imported from shared helpers above

@@ -1,0 +1,47 @@
+---
+description: "Tests and documentation for modular agency (registry, flows, CLI, charts)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-MOD-0090"
+title: "Modular: tests + docs update"
+status: "planned"
+priority: "P3"
+labels: ["modular", "tests", "docs"]
+dependencies: ["TASK-MOD-0086", "TASK-MOD-0087", "TASK-MOD-0089"]
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Add tests for registry and flows; update docs/README and auto-generate Mermaid charts for new agents.
+
+# 2) Background / Context
+
+Ensures quality and developer experience.
+
+# 3) Assumptions & Constraints
+
+- Use unittest; no external services.
+
+# 4) Dependencies
+
+- tests/
+- docs/
+
+# 5) Context Plan
+
+End state:
+
+- tests for agent registry, flows validation, and CLI scaffold.
+- docs/README updates on modular setup and configuration.
+
+# 6) Low-Level Steps
+
+1. Add tests for enabled_agents loading and flow validation.
+2. Add CLI scaffold smoke test.
+3. Update docs with configuration examples and workflow charts.
+
+# 7) Acceptance Criteria
+
+- Tests pass; docs reflect modular architecture.

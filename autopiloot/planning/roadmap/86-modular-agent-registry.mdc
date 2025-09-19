@@ -1,0 +1,47 @@
+---
+description: "Config-driven agent registry: enable/disable agents and dynamic imports"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-MOD-0086"
+title: "Modular: Implement config-driven agent registry"
+status: "planned"
+priority: "P1"
+labels: ["modular", "registry", "config"]
+dependencies: []
+created: "2025-09-17"
+
+# 1) High-Level Objective
+
+Load agents dynamically from `settings.yaml.enabled_agents` and build the agency without hard-coded imports.
+
+# 2) Background / Context
+
+Supports duplicating the agency and modularly adding/removing agents.
+
+# 3) Assumptions & Constraints
+
+- Use `importlib` for dynamic imports, validate exported symbol exists.
+- Fail fast with clear error if agent import fails.
+
+# 4) Dependencies
+
+- agents/autopiloot/agency.py
+- agents/autopiloot/config/loader.py
+
+# 5) Context Plan
+
+End state:
+
+- `agency.py` reads `enabled_agents` and imports `agents.autopiloot.<agent>.<agent>` module dynamically, assembling the Agency.
+
+# 6) Low-Level Steps
+
+1. Extend `settings.yaml` with `enabled_agents`.
+2. Implement loader in `agency.py` with importlib and validation.
+3. Log loaded agents; error on duplicates/missing.
+
+# 7) Acceptance Criteria
+
+- Disabling/Enabling agents in config changes runtime composition without code edits.

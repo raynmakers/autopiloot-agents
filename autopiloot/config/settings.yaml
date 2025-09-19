@@ -93,3 +93,31 @@ linkedin:
       - "comments"
       - "reactions"
     min_engagement_threshold: 5  # Minimum likes/comments to process content
+
+drive:
+  tracking:
+    # Configured Drive files and folders to track for content changes
+    targets:
+      # Example folder configuration
+      - type: "folder"
+        id: "example_folder_id_here"
+        recursive: true
+        name: "Strategy Documents"
+      # Example file configuration
+      - type: "file"
+        id: "example_file_id_here"
+        name: "Playbook.docx"
+    sync_interval_minutes: 60  # How often to check for changes
+    max_file_size_mb: 10  # Maximum file size to process
+    supported_formats:
+      - ".txt"
+      - ".md"
+      - ".pdf"
+      - ".docx"
+      - ".html"
+      - ".csv"
+
+rag:
+  zep:
+    namespace:
+      drive: "autopiloot_drive_content"  # Zep namespace for Drive content indexing

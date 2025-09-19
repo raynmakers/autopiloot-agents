@@ -1,0 +1,7 @@
+{
+  "name": "Security Gate",
+  "description": "Automated security review before commits",
+  "matcher": ".*",
+  "prompt": "Before allowing this commit, perform a security review focusing on:\n1. OWASP Top 10 vulnerabilities\n2. Hardcoded secrets or credentials\n3. Input validation gaps\n4. Authorization bypass opportunities\n5. SQL injection potential\n\nBLOCK commit if any CRITICAL or HIGH severity security issues found.\nProvide specific remediation steps for each issue.",
+  "tools": ["edit_file", "run_command"]
+}

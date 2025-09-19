@@ -11,6 +11,7 @@ from summarizer_agent import summarizer_agent
 from observability_agent import observability_agent
 from linkedin_agent import linkedin_agent
 from strategy_agent import strategy_agent
+from drive_agent import drive_agent
 
 
 class AutopilootAgency(Agency):
@@ -24,7 +25,8 @@ class AutopilootAgency(Agency):
     4. SummarizerAgent generates business-focused summaries and stores across platforms
     5. LinkedInAgent ingests LinkedIn posts, comments, and reactions for knowledge management
     6. StrategyAgent analyzes LinkedIn corpus to generate actionable content strategy and playbooks
-    7. ObservabilityAgent handles notifications, monitoring, and operational oversight
+    7. DriveAgent tracks configured Google Drive files/folders and indexes content into Zep GraphRAG
+    8. ObservabilityAgent handles notifications, monitoring, and operational oversight
     """
     
     def __init__(self):
@@ -36,6 +38,7 @@ class AutopilootAgency(Agency):
             [orchestrator_agent, summarizer_agent],
             [orchestrator_agent, linkedin_agent],
             [orchestrator_agent, strategy_agent],
+            [orchestrator_agent, drive_agent],
             [orchestrator_agent, observability_agent],
 
             # Primary workflow: Scraper -> Transcriber -> Summarizer
@@ -45,12 +48,16 @@ class AutopilootAgency(Agency):
             # LinkedIn workflow: LinkedIn -> Strategy (for content analysis)
             [linkedin_agent, strategy_agent],
 
+            # Drive Agent can be accessed by CEO (no specific flows needed initially per task spec)
+            # Future: Drive -> Strategy for document-based insights
+
             # Observability can communicate with all agents for monitoring/notifications
             [observability_agent, scraper_agent],
             [observability_agent, transcriber_agent],
             [observability_agent, summarizer_agent],
             [observability_agent, linkedin_agent],
             [observability_agent, strategy_agent],
+            [observability_agent, drive_agent],
 
             # Bidirectional communication for error handling and status updates
             [scraper_agent, observability_agent],
@@ -58,6 +65,7 @@ class AutopilootAgency(Agency):
             [summarizer_agent, observability_agent],
             [linkedin_agent, observability_agent],
             [strategy_agent, observability_agent],
+            [drive_agent, observability_agent],
         ]
         
         super().__init__(

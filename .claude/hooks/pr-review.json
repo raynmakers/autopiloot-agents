@@ -1,0 +1,7 @@
+{
+  "name": "PR Security Review",
+  "description": "Comprehensive security analysis for pull requests",
+  "matcher": "pull_request",
+  "prompt": "Analyze this PR for security vulnerabilities using the security review checklist:\n\n$ARGUMENTS\n\nGenerate findings in this format:\n- **[SEVERITY]** Description\n- **Impact:** What could an attacker achieve?\n- **Remediation:** Specific steps to fix\n- **CWE ID:** If applicable\n\nSeverities: CRITICAL, HIGH, MEDIUM, LOW, INFO",
+  "tools": ["read_file", "run_command", "edit_file"]
+}

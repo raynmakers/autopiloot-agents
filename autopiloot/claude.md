@@ -259,7 +259,53 @@ firebase emulators:start
 
 ### Task and Project Status
 
-- All 30 planned tasks completed and archived in `planning/archive/`
-- Production-ready status achieved with comprehensive test coverage (70+ tests)
-- Complete ADR documentation in `.cursor/rules/ADR.mdc` (23 architectural decisions)
+- All 80 planned tasks completed and archived in `planning/archive/`
+- Production-ready status achieved with comprehensive test coverage (160+ tests)
+- Complete ADR documentation in `.cursor/rules/ADR.mdc` (23+ architectural decisions)
 - Folder structure documented in `.cursor/rules/folder-structure.mdc`
+
+## Security Review Standards
+
+### Required Security Checks
+Every code change MUST pass these security gates:
+
+#### 1. Automated Scanning
+- SAST scan with zero CRITICAL findings
+- Dependency vulnerability scan
+- Secrets detection scan
+- Configuration security check
+
+#### 2. Manual Review Requirements
+- Authentication/authorization logic reviewed by security-trained developer
+- Cryptographic implementations reviewed by crypto-knowledgeable team member
+- Database query construction verified for injection protection
+- Input validation completeness confirmed
+
+#### 3. Security Review Checklist
+- [ ] No hardcoded secrets, API keys, or credentials
+- [ ] All database queries use parameterization
+- [ ] User input validation at application boundaries
+- [ ] Authentication required for all protected endpoints
+- [ ] Authorization checks at data access level
+- [ ] HTTPS enforced for sensitive operations
+- [ ] Error messages don't leak sensitive information
+- [ ] Dependencies are up-to-date and vulnerability-free
+
+### Severity Guidelines
+- **CRITICAL**: Immediate RCE, data breach, or auth bypass - BLOCK merge
+- **HIGH**: Significant security risk - Fix before merge
+- **MEDIUM**: Security weakness - Fix within 1 week
+- **LOW**: Security improvement - Fix in next sprint
+
+### False Positive Handling
+If security tool flags false positive:
+1. Document why it's false positive in PR comments
+2. Add suppression comment with justification
+3. Update tool configuration if pattern recurring
+
+### Emergency Override Process
+For production hotfixes only:
+1. Security team approval required
+2. Temporary merge allowed
+3. Security review within 24 hours
+4. Follow-up fix within 72 hours

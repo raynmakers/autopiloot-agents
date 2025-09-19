@@ -26,3 +26,12 @@ agency-swarm>=0.7.2
 # Additional dependencies for tools
 pathlib>=1.0.1
 typing-extensions>=4.0.0
+
+# Drive Agent text extraction dependencies
+PyPDF2>=3.0.1
+python-docx>=0.8.11
+pandas>=2.0.3
+
+# Strategy Agent NLP dependencies
+scikit-learn>=1.3.0
+nltk>=3.8.1
