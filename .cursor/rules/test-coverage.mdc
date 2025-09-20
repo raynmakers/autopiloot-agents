@@ -1,0 +1,137 @@
+---
+description: Test Coverage Requirements and Guidelines
+globs:
+alwaysApply: true
+---
+
+# Test Coverage Requirements
+
+## MANDATORY Coverage Generation
+
+**Every time you write, update, or modify tests, you MUST generate comprehensive test coverage reports.**
+
+### Required Coverage Commands
+
+```bash
+# Install coverage if not available
+pip install coverage
+
+# Run tests with coverage measurement
+coverage run --source=<module_name> -m unittest discover tests -v
+
+# Generate HTML coverage report
+coverage html --directory=coverage/<module_name>
+
+# Generate text coverage summary
+coverage report --show-missing > coverage_summary.txt
+```
+
+### Coverage Standards
+
+1. **Critical Modules**: 100% line coverage required
+   - Agent initialization files (e.g., `agent.py`, `drive_agent.py`)
+   - Configuration loading modules
+   - Core initialization logic
+
+2. **Tool Modules**: Minimum 80% line coverage required
+   - All tool classes and methods
+   - Error handling paths
+   - Configuration validation
+
+3. **Test Coverage Documentation**: Always create
+   - HTML coverage reports for visual analysis
+   - Text summaries with line-by-line details
+   - Coverage analysis markdown documenting gaps and improvements
+
+### Coverage Report Structure
+
+```
+coverage/<module_name>/
+├── index.html                 # Interactive HTML coverage report
+├── coverage_summary.txt       # Text summary with missing lines
+├── coverage_analysis.md       # Analysis and improvement recommendations
+└── <module>_coverage.html     # Module-specific coverage details
+```
+
+### Mocking for Coverage
+
+To achieve high coverage, properly mock external dependencies:
+
+```python
+# Mock agency_swarm dependencies
+with patch.dict('sys.modules', {
+    'agency_swarm': MagicMock(),
+    'agency_swarm.Agent': mock_agent_class,
+    'agency_swarm.ModelSettings': mock_model_settings_class
+}):
+    import module_under_test
+```
+
+**Common Dependencies to Mock:**
+- `agency_swarm.Agent` and `agency_swarm.ModelSettings`
+- External API clients (OpenAI, AssemblyAI, YouTube, LinkedIn)
+- File system operations
+- Database connections (Firestore)
+- Environment variables (when testing fallback paths)
+
+### Coverage Analysis Documentation
+
+Create `coverage_analysis.md` with:
+
+```markdown
+# Coverage Analysis for [Module Name]
+
+## Summary
+- Total Lines: X
+- Covered Lines: Y
+- Coverage Percentage: Z%
+
+## Critical Modules Coverage
+- [module.py]: X/X lines (100%) ✅
+- [other_module.py]: Y/Z lines (XX%)
+
+## Gaps Analysis
+### Missing Coverage
+- Line X-Y: [Reason and plan for coverage]
+- Line Z: [Justification if intentionally excluded]
+
+## Improvement Plan
+1. [Specific steps to improve coverage]
+2. [Mock strategies for uncovered external dependencies]
+
+## Coverage Trend
+- Previous: XX%
+- Current: YY%
+- Target: 100% for critical, 80% minimum overall
+```
+
+### Integration with Development Workflow
+
+1. **After Writing Tests**: Immediately run coverage analysis
+2. **Before Committing**: Ensure coverage standards are met
+3. **Pull Request Requirements**: Include coverage reports in commits
+4. **Documentation Updates**: Update coverage analysis when adding new modules
+
+### Examples of High Coverage Achievement
+
+**Drive Agent Example (100% coverage achieved):**
+- Used module import testing with agency_swarm mocking
+- Tested both successful configuration loading and exception fallback paths
+- Covered sys.path modification and agent instantiation
+- Created comprehensive test suite with multiple test methods
+
+**Best Practices for 100% Coverage:**
+1. Test actual module imports, not just logic simulation
+2. Mock external dependencies comprehensively
+3. Test both success and failure code paths
+4. Clear module cache between tests for accurate coverage
+5. Validate all configuration scenarios (success, partial, complete failure)
+
+### Enforcement
+
+**This is MANDATORY for all code changes involving tests. No exceptions.**
+
+- Coverage reports must be generated and committed
+- Coverage percentage must meet minimum standards
+- Gaps must be documented with improvement plans
+- Critical modules must achieve 100% coverage

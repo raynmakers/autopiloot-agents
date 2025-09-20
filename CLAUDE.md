@@ -463,7 +463,8 @@ autopiloot/
 ├── services/firebase/    # Firebase Functions for scheduling and automation
 ├── tests/               # Comprehensive test suite (160+ tests across 8 agents)
 ├── planning/archive/    # Completed task specifications (90 archived)
-├── coverage_report_drive_agent/ # Drive Agent 100% coverage reports
+├── coverage/                # Test coverage reports for all agents
+│   └── drive_agent/         # Drive Agent 100% coverage reports
 └── docs/               # Implementation documentation and guides
 ```
 

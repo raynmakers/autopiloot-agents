@@ -78,6 +78,7 @@ After the user provides the requested details, proceed to drafting the PRD file 
 ### Best Practices
 
 - **4-16 Tools Per Agent**: Each agent should have between 4 and 16 tools. Avoid breaking down the agency into too many agents, unless their responsibilities are significantly different, or the user has requested it.
+- **Test Coverage Requirements**: ALWAYS generate test coverage reports when creating or updating tests. Aim for 100% coverage on critical modules and minimum 80% overall coverage.
 
 # Step 2: Task creation
 
@@ -207,6 +208,10 @@ class ConfigType(TypedDict):
 - Create integration tests that call real APIs/services
 - Verify file outputs and side effects
 - Test error conditions and edge cases
+- **MANDATORY: Generate test coverage reports with minimum 80% coverage**
+- **Target 100% coverage for critical initialization and configuration modules**
+- Mock external dependencies appropriately (agency_swarm, APIs, file systems)
+- Include coverage analysis and improvement recommendations
 
 # 10) Notes / Links
 
@@ -324,6 +329,9 @@ Tools are the specific actions that agents can perform. They are defined using p
 5. Test the Tool
    Add a test case at the bottom of the file in if **name** == "**main**": block. It will be used to test the tool later.
 
+6. Generate Coverage Report
+   After creating tests, ALWAYS generate test coverage reports to ensure code quality and completeness.
+
 ### Best Practices
 
 - **Use Python Packages**: Prefer to use various API wrapper packages and SDKs available on pip, rather than calling these APIs directly using requests.
@@ -332,6 +340,7 @@ Tools are the specific actions that agents can perform. They are defined using p
 - **NEVER include API keys as tool inputs**: If a tool needs an API key or access token, always retrieve it from environment variables using the `os` package inside the `run` method. Do not define API keys or tokens as input fields for the tool.
 - **Use global variables for constants**: If a tool requires a constant value that doesn't change from use to use (for example, `ad_account_id`, `pull_request_id`, etc.), define it above the tool function instead of passing it as a parameter.
 - **Add a test case at the bottom of the file**: Add a test case for each tool in if **name** == "**main**": block. It will be used to test the tool later.
+- **Test Coverage Requirement**: ALWAYS generate test coverage reports when creating or updating tools. Target 100% coverage for critical initialization modules and minimum 80% for tool modules.
 
 ### Complete Example of a Tool File
 
@@ -578,7 +587,39 @@ The final step is to test each tool and the agency itself, to ensure they are wo
    python -m unittest agency_name.tests.test_agent_name -v
    ```
 
-4. Once all tools and tests are working as expected, you can test the agency by running the following command:
+4. **MANDATORY: Generate Test Coverage Reports**
+
+   After running tests, ALWAYS generate comprehensive test coverage reports using Python's coverage tool:
+
+   ```bash
+   # Install coverage if not already available
+   pip install coverage
+
+   # Run tests with coverage measurement
+   coverage run --source=agency_name -m unittest discover agency_name/tests -v
+
+   # Generate HTML coverage report
+   coverage html --directory=coverage/agency_name
+
+   # Generate text coverage summary
+   coverage report --show-missing > coverage_summary.txt
+   ```
+
+   **Coverage Requirements:**
+   - Aim for 100% line coverage on critical initialization modules (like agent.py files)
+   - Minimum 80% coverage for all tool modules
+   - Document any uncovered lines with justification
+   - Create coverage analysis documentation explaining coverage gaps and improvement plans
+
+   **Coverage Report Structure:**
+   ```
+   coverage/agency_name/
+   ├── index.html                    # Interactive HTML coverage report
+   ├── coverage_summary.txt          # Text summary with line-by-line details
+   └── coverage_analysis.md          # Analysis and improvement recommendations
+   ```
+
+5. Once all tools and tests are working as expected, you can test the agency by running the following command:
 
    ```bash
    python agency_name/agency.py
