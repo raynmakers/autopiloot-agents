@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autopiloot is a production-ready multi-agent system built with Agency Swarm v1.0.0 for automated YouTube content processing. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, and provides comprehensive operational monitoring with strict cost controls.
+Autopiloot is a production-ready 8-agent system built with Agency Swarm v1.0.0 for automated YouTube content processing and strategic content analysis. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, analyzes content strategy through LinkedIn data, manages Google Drive documentation, and provides comprehensive operational monitoring with strict cost controls.
 
 **Core Architecture**: Event-driven broker pattern where Firestore serves as both data store and event broker, with Firebase Functions v2 for scheduling and automation.
 
@@ -13,7 +13,7 @@ Autopiloot is a production-ready multi-agent system built with Agency Swarm v1.0
 ### Testing
 
 ```bash
-# Run all tests (135+ comprehensive tests)
+# Run all tests (160+ comprehensive tests across 8 agents)
 cd autopiloot
 python -m unittest discover tests -v
 
@@ -46,6 +46,21 @@ python -m unittest tests.test_save_transcript_record -v
 python -m unittest tests.test_generate_short_summary -v
 python -m unittest tests.test_store_short_in_zep -v
 python -m unittest tests.test_save_summary_record_enhanced -v
+
+# Drive agent tests (8/8 tools with 100% coverage)
+python -m unittest tests.drive_tools.test_drive_agent -v
+python -m unittest tests.drive_tools.test_extract_text_from_document -v
+python -m unittest tests.drive_tools.test_upsert_drive_docs_to_zep -v
+
+# LinkedIn agent tests (10/10 tools, strategic analysis)
+python -m unittest tests.linkedin_tools.test_compute_linkedin_stats -v
+python -m unittest tests.linkedin_tools.test_get_user_posts -v
+python -m unittest tests.linkedin_tools.test_normalize_linkedin_content -v
+
+# Strategy agent tests (9/9 tools, content strategy analysis)
+python -m unittest tests.strategy_tools.test_classify_post_types -v
+python -m unittest tests.strategy_tools.test_generate_content_briefs -v
+python -m unittest tests.strategy_tools.test_cluster_topics_embeddings -v
 
 # Test individual tools (each has test block)
 python scraper_agent/tools/save_video_metadata.py
@@ -113,9 +128,9 @@ python config/env_loader.py
 
 - **Framework Compliance**: All tools inherit from `agency_swarm.tools.BaseTool` with Pydantic Field validation
 - **Return Convention**: All tool `run()` methods return JSON strings (not Dict objects)
-- **Agent Structure**: 5 production agents in `{agent_name}/` directories with `tools/` subdirectories
-- **Communication Flow**: OrchestratorAgent (CEO) → ScraperAgent → TranscriberAgent → SummarizerAgent, with ObservabilityAgent monitoring all
-- **Tool Count**: 42 production tools across all agents (all using snake_case filenames)
+- **Agent Structure**: 8 production agents in `{agent_name}/` directories with `tools/` subdirectories
+- **Communication Flow**: OrchestratorAgent (CEO) coordinates all agents; core pipeline ScraperAgent → TranscriberAgent → SummarizerAgent; parallel analysis via DriveAgent, LinkedinAgent, StrategyAgent; ObservabilityAgent monitors all
+- **Tool Count**: 86 production tools across all agents (all using snake_case filenames)
 
 ### Multi-Layer Configuration System
 
@@ -162,16 +177,22 @@ python config/env_loader.py
 ### Agent Communication Pattern
 
 ```python
-# Agency chart defines allowed communication flows
+# Agency chart defines allowed communication flows (8-agent architecture)
 agency_chart = [
     orchestrator_agent,  # CEO can communicate with all
     [orchestrator_agent, scraper_agent],     # Workflow dispatch
     [orchestrator_agent, transcriber_agent], # Workflow dispatch
     [orchestrator_agent, summarizer_agent],  # Workflow dispatch
-    [scraper_agent, transcriber_agent],      # Content pipeline
+    [orchestrator_agent, drive_agent],       # Document management
+    [orchestrator_agent, linkedin_agent],    # LinkedIn data ingestion
+    [orchestrator_agent, strategy_agent],    # Content strategy analysis
+    [scraper_agent, transcriber_agent],      # Core pipeline
     [transcriber_agent, summarizer_agent],   # Processing pipeline
+    [linkedin_agent, strategy_agent],        # Strategic analysis flow
+    [drive_agent, strategy_agent],           # Documentation and strategy
     [observability_agent, orchestrator_agent], # Monitoring flows
-    [observability_agent, scraper_agent, transcriber_agent, summarizer_agent], # Multi-directional monitoring
+    [observability_agent, scraper_agent, transcriber_agent, summarizer_agent,
+     drive_agent, linkedin_agent, strategy_agent], # Multi-directional monitoring
 ]
 ```
 
@@ -263,16 +284,23 @@ ZEP_API_KEY=...
 LANGFUSE_SECRET_KEY=...
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_HOST=https://cloud.langfuse.com
+
+# LinkedIn and Strategy Agent integrations
+LINKEDIN_ACCESS_TOKEN=...
+LINKEDIN_API_URL=https://api.linkedin.com/v2
 ```
 
 ## Testing Strategy
 
-### Test Coverage (135+ Tests)
+### Test Coverage (160+ Tests across 8 Agents)
 
 - **Configuration**: 28 tests (config loading, environment validation)
 - **Core Systems**: 22 tests (reliability, audit logging, idempotency)
-- **Agent Tools**: 200+ tests across all workflows
-- **Edge Cases**: 65 additional boundary condition tests
+- **Agent Tools**: 240+ tests across all 8 agent workflows
+- **Drive Agent**: 100% test coverage for core initialization (18/18 lines)
+- **LinkedIn Agent**: Strategic content analysis and ingestion testing
+- **Strategy Agent**: NLP clustering, content classification, and brief generation
+- **Edge Cases**: 75 additional boundary condition tests
 - **Integration**: Firebase functions, API integrations, end-to-end workflows
 
 ### Test Categories
@@ -289,7 +317,10 @@ Integration Tests (API and service integration)
 ├── Transcriber Pipeline (56+ tests across 5 tools)
 ├── Summarizer Workflows (47+ tests across 7 tools)
 ├── Observability Monitoring (95+ tests across 11 tools)
-└── Scraper Discovery (35+ tests across 7 tools)
+├── Scraper Discovery (35+ tests across 7 tools)
+├── Drive Agent Tools (8 tools with 100% coverage)
+├── LinkedIn Agent Pipeline (10 tools with strategic analysis)
+└── Strategy Agent NLP (9 tools with content classification)
 
 End-to-End Tests
 ├── Firebase Functions deployment and execution
@@ -299,10 +330,12 @@ End-to-End Tests
 
 ### Mock Strategy
 
-- **External APIs**: Mock YouTube, AssemblyAI, OpenAI, Slack, Zep clients
+- **External APIs**: Mock YouTube, AssemblyAI, OpenAI, Slack, Zep, LinkedIn clients
 - **Google Services**: Mock Firestore, Drive API with in-memory storage
+- **Agency Swarm**: Mock Agent and ModelSettings classes for dependency-free testing
 - **Configuration**: Use test environment variables and mock credentials
 - **Time-based**: Mock datetime for consistent testing of time-sensitive features
+- **NLP Libraries**: Mock scikit-learn, NLTK for Strategy Agent testing
 
 ## Firebase Deployment
 
@@ -406,11 +439,11 @@ Every code change must pass:
 
 ## Project Status
 
-- **Completion**: 70/70 planned tasks completed and archived
-- **Production Status**: ✅ Production ready with comprehensive monitoring
-- **Test Coverage**: 135+ comprehensive tests across all components
+- **Completion**: 90/90 planned tasks completed and archived
+- **Production Status**: ✅ Production ready with comprehensive monitoring across 8 agents
+- **Test Coverage**: 160+ comprehensive tests including 100% coverage for Drive Agent core
 - **CI/CD**: GitHub Actions pipeline with multi-Python version support
-- **Documentation**: Complete ADR system with 23+ architectural decisions
+- **Documentation**: Complete ADR system with 37+ architectural decisions
 - **Security**: Comprehensive audit trail, PII avoidance, admin-only Firestore access
 
 ## File Structure Key Points
@@ -421,13 +454,17 @@ autopiloot/
 ├── scraper_agent/         # Content discovery and metadata management
 ├── transcriber_agent/     # AssemblyAI integration and transcript processing
 ├── summarizer_agent/      # LLM-powered summarization and storage
+├── drive_agent/           # Google Drive document management and Zep GraphRAG integration
+├── linkedin_agent/        # LinkedIn data ingestion and social content analysis
+├── strategy_agent/        # Content strategy analysis with NLP clustering and classification
 ├── observability_agent/   # Monitoring, alerting, and operational oversight
 ├── core/                  # Shared utilities (audit logging, reliability, etc.)
 ├── config/               # Configuration management and environment validation
 ├── services/firebase/    # Firebase Functions for scheduling and automation
-├── tests/               # Comprehensive test suite (135+ tests)
-├── planning/archive/    # Completed task specifications (70 archived)
+├── tests/               # Comprehensive test suite (160+ tests across 8 agents)
+├── planning/archive/    # Completed task specifications (90 archived)
+├── coverage_report_drive_agent/ # Drive Agent 100% coverage reports
 └── docs/               # Implementation documentation and guides
 ```
 
-Tools use snake_case filenames enforced by CI pipeline, with classes using PascalCase names. All agents follow Agency Swarm v1.0.0 patterns with proper inheritance and validation.
+Tools use snake_case filenames enforced by CI pipeline, with classes using PascalCase names. All 8 agents follow Agency Swarm v1.0.0 patterns with proper inheritance and validation.

@@ -55,6 +55,7 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0037 | [Drive Agent 100% Test Coverage Achievement](#adr-0037)     | 2025-09-20 | Accepted | —          | —             |
 | 0036 | [Comprehensive Testing Framework and Dependency Management](#adr-0036) | 2025-09-19 | Accepted | —          | —             |
 | 0035 | [Google Drive Agent Implementation with Zep GraphRAG Integration](#adr-0035) | 2025-09-19 | Accepted | —          | —             |
 | 0034 | [LinkedIn Agent Implementation with Scheduled Ingestion](#adr-0034) | 2025-09-18 | Accepted | —          | —             |
@@ -2865,5 +2866,127 @@ nltk>=3.8.1           # Natural language processing
 - **Dependency Updates**: Regular dependency updates needed for security and feature improvements
 - **Mock Accuracy**: Mock implementations must stay current with external API changes
 - **Performance**: Large test suite increases CI/CD execution time but provides comprehensive validation
+
+---
+
+## ADR-0037 — Drive Agent 100% Test Coverage Achievement
+
+<a id="adr-0037"></a>
+
+**Date**: 2025-09-20
+**Status**: Accepted
+**Owner**: AI Agent
+
+### Context
+
+Following the implementation of the comprehensive testing framework in ADR-0036, the Drive Agent's core initialization module (drive_agent.py) had incomplete test coverage at 22%. This critical component handles agent configuration loading, fallback mechanisms for config failures, and agent instantiation with agency_swarm dependencies. Lines 22-26 specifically contain exception handling logic that provides fallback configuration values when the config loading system fails, but these lines were not covered by existing tests.
+
+Key requirements:
+- Achieve 100% line coverage for drive_agent.py core initialization
+- Test both successful configuration loading and exception fallback paths
+- Mock agency_swarm dependencies for proper module import testing
+- Cover sys.path modification logic for config imports
+- Validate agent instantiation with correct parameter passing
+- Generate comprehensive coverage reports for documentation
+
+### Alternatives
+
+- **Simulate-only testing**: Test configuration logic without actual module import, faster but misses actual execution paths
+- **Partial coverage acceptance**: Accept 22% coverage focusing only on logic validation, leaves critical paths untested
+- **Integration testing only**: Test with real agency_swarm dependencies, requires external framework installation
+- **Mock-minimal approach**: Basic mocking without comprehensive exception scenario testing, misses edge cases
+- **No coverage measurement**: Rely on functional testing without metrics, no visibility into untested code paths
+
+### Decision
+
+**Implement comprehensive module import testing with 100% coverage achievement:**
+
+**Testing Strategy:**
+- **Actual Module Import**: Create tests that import drive_agent.py module rather than simulating logic
+- **Agency Swarm Mocking**: Mock agency_swarm.Agent and ModelSettings classes for dependency-free testing
+- **Configuration Path Testing**: Test both successful config loading (lines 15-21) and exception fallback (lines 22-26)
+- **Sys Path Coverage**: Validate sys.path modification logic (lines 12-13) during module initialization
+- **Agent Instantiation**: Test agent creation with proper parameter validation (lines 28-37)
+
+**Comprehensive Test Coverage (15 test methods):**
+
+**Existing Test Suite Enhancement:**
+```python
+# Core configuration testing
+test_successful_agent_creation_with_config()     # Config extraction logic
+test_fallback_configuration_values()             # Fallback mechanism simulation
+test_config_loading_error_handling()             # Multiple exception scenarios
+test_direct_config_loading_exception_fallback()  # Direct lines 22-26 testing
+test_config_loading_various_exceptions()         # Exception type validation
+
+# Module import testing (NEW - critical for coverage)
+test_actual_drive_agent_import_with_successful_config()  # Lines 15-21 coverage
+test_actual_drive_agent_import_with_config_exception()   # Lines 22-26 coverage
+test_actual_drive_agent_sys_path_modification()          # Lines 12-13 coverage
+```
+
+**Mock Implementation Strategy:**
+```python
+# Agency Swarm dependency mocking
+with patch.dict('sys.modules', {
+    'agency_swarm': MagicMock(),
+    'agency_swarm.Agent': mock_agent_class,
+    'agency_swarm.ModelSettings': mock_model_settings_class
+}):
+    import drive_agent.drive_agent as drive_agent_module
+```
+
+**Coverage Measurement:**
+- **Before**: 18 statements, 14 missed, 22% coverage
+- **After**: 18 statements, 0 missed, 100% coverage
+- **Tool**: Python coverage.py with HTML and text reporting
+- **Reports**: Generated in coverage_report_drive_agent/ directory
+
+**Exception Path Testing:**
+- ImportError when loader module unavailable (lines 22-26)
+- Configuration loading failures with proper fallback values
+- Multiple exception types (ModuleNotFoundError, FileNotFoundError, KeyError)
+- Validation that fallback values match expected defaults
+
+### Consequences
+
+**Positive:**
+- **Complete Coverage**: 100% line coverage achieved for drive_agent.py with 0 missed statements
+- **Execution Path Validation**: Both configuration success and failure paths comprehensively tested
+- **Production Confidence**: Critical exception handling logic validated through actual execution
+- **Dependency Independence**: Tests run without agency_swarm framework installation requirements
+- **Documentation**: Coverage reports provide visual validation of tested code paths
+
+**Technical Benefits:**
+- **Real Execution Testing**: Module import tests execute actual initialization code vs. simulation
+- **Mock Framework Reusability**: Agency Swarm mocking patterns reusable across agent test suites
+- **Coverage Reporting**: HTML and text reports enable ongoing coverage monitoring
+- **Exception Validation**: Comprehensive testing of error scenarios improves production resilience
+- **Configuration Robustness**: Fallback mechanism testing ensures graceful degradation
+
+**Testing Architecture:**
+- **Multi-layered Coverage**: Logic simulation + actual module import + exception scenarios
+- **Framework Independence**: Tests execute without external agency_swarm dependencies
+- **Path Isolation**: Separate tests for configuration success vs. failure execution paths
+- **Clean Test State**: Module cache clearing ensures fresh imports for accurate testing
+- **Assertion Completeness**: Validation of agent creation, config loading, and parameter passing
+
+**Coverage Reporting:**
+- **Visual Coverage**: HTML reports show line-by-line coverage with green highlighting
+- **Metrics Tracking**: Text reports provide quantitative coverage measurement (18/18 lines)
+- **Documentation Integration**: Coverage analysis markdown provides implementation context
+- **Ongoing Monitoring**: Coverage reports enable regression detection in future changes
+
+**Development Impact:**
+- **Confidence**: 100% coverage enables confident refactoring and feature evolution
+- **Quality Gates**: Coverage requirements prevent regression in critical initialization code
+- **Debugging**: Comprehensive test coverage aids rapid issue identification and resolution
+- **Team Alignment**: Clear coverage metrics provide shared understanding of test completeness
+
+**Maintenance:**
+- **Test Maintenance**: Comprehensive mocking requires updates when agency_swarm APIs evolve
+- **Coverage Monitoring**: Ongoing coverage measurement needed to maintain 100% standards
+- **Mock Accuracy**: Mock implementations must reflect actual agency_swarm behavior accurately
+- **Test Execution**: Larger test suite increases execution time but provides complete validation
 
 ---
