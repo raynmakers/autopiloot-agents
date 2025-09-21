@@ -6,7 +6,7 @@ Generates statistical analysis for strategy optimization and performance trackin
 import json
 import statistics
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict
 from agency_swarm.tools import BaseTool
 from pydantic import Field
@@ -88,7 +88,7 @@ class ComputeLinkedInStats(BaseTool):
             # Initialize result structure
             result = {
                 "analysis_metadata": {
-                    "computed_at": datetime.utcnow().isoformat() + "Z",
+                    "computed_at": datetime.now(timezone.utc).isoformat(),
                     "data_sources": [],
                     "analysis_period": None
                 }

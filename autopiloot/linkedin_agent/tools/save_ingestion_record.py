@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -92,7 +92,7 @@ class SaveIngestionRecord(BaseTool):
             db = firestore.Client(project=project_id)
 
             # Generate audit record ID
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             record_id = f"linkedin_ingestion_{timestamp}_{self.run_id[:8]}"
 
             # Prepare audit record
@@ -111,7 +111,7 @@ class SaveIngestionRecord(BaseTool):
                 "firestore_document_path": f"{collection_name}/{record_id}",
                 "status": "saved",
                 "record_summary": record_summary,
-                "saved_at": datetime.utcnow().isoformat() + "Z"
+                "saved_at": datetime.now(timezone.utc).isoformat()
             }
 
             return json.dumps(result)
@@ -145,13 +145,13 @@ class SaveIngestionRecord(BaseTool):
             "run_id": self.run_id,
             "profile_identifier": self.profile_identifier,
             "content_type": self.content_type,
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat(),
 
             # Processing metadata
             "processing": {
                 "duration_seconds": self.processing_duration_seconds,
                 "start_time": self._calculate_start_time(),
-                "end_time": datetime.utcnow().isoformat() + "Z"
+                "end_time": datetime.now(timezone.utc).isoformat()
             },
 
             # Ingestion statistics
@@ -214,10 +214,10 @@ class SaveIngestionRecord(BaseTool):
             str: ISO timestamp of estimated start time
         """
         if self.processing_duration_seconds:
-            start_time = datetime.utcnow().timestamp() - self.processing_duration_seconds
+            start_time = datetime.now(timezone.utc).timestamp() - self.processing_duration_seconds
             return datetime.fromtimestamp(start_time).isoformat() + "Z"
         else:
-            return datetime.utcnow().isoformat() + "Z"
+            return datetime.now(timezone.utc).isoformat()
 
     def _determine_run_status(self) -> str:
         """
@@ -283,7 +283,7 @@ class SaveIngestionRecord(BaseTool):
         Returns:
             str: Mock JSON response
         """
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         record_id = f"linkedin_ingestion_{timestamp}_{self.run_id[:8]}"
 
         result = {
@@ -291,7 +291,7 @@ class SaveIngestionRecord(BaseTool):
             "firestore_document_path": f"linkedin_ingestion_logs/{record_id}",
             "status": "mock_saved",
             "record_summary": self._create_record_summary(),
-            "saved_at": datetime.utcnow().isoformat() + "Z",
+            "saved_at": datetime.now(timezone.utc).isoformat(),
             "note": "Mock response - Firestore not available in test environment"
         }
 

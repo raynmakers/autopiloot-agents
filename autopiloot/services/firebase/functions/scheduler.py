@@ -72,7 +72,7 @@ def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]
 
                 return {
                     'ok': True,
-                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+                    'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat(),
                     'method': 'orchestrator_agent',
                     'plan': plan_result,
                     'dispatch': dispatch_result
@@ -138,7 +138,7 @@ def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]
         
         return {
             'ok': True,
-            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat(),
             'channels_processed': len(results),
             'results': results
         }
@@ -157,7 +157,7 @@ def schedule_scraper_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]
         
         return {
             'ok': False,
-            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat(),
             'error': str(e)
         }
 
@@ -206,7 +206,7 @@ def on_transcription_written(event: firestore_fn.Event[firestore_fn.Change[fires
         logger.info(f"New transcript {video_id} cost: ${transcription_cost:.2f}")
         
         # Calculate daily total
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         start_of_day = datetime.combine(today, datetime.min.time())
         end_of_day = start_of_day + timedelta(days=1)
         
@@ -368,8 +368,8 @@ def trigger_scraper_manual(event: firestore_fn.Event[firestore_fn.DocumentSnapsh
         # Create a mock scheduled event
         from types import SimpleNamespace
         mock_event = SimpleNamespace(
-            timestamp=datetime.utcnow().isoformat(),
-            id=f"manual_{datetime.utcnow().timestamp()}"
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            id=f"manual_{datetime.now(timezone.utc).timestamp()}"
         )
         
         # Run the scraper
@@ -509,7 +509,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
             'date': yesterday_date,
             'timestamp': firestore.SERVER_TIMESTAMP,
             'status': 'success',
-            'execution_time': datetime.utcnow().isoformat()
+            'execution_time': datetime.now(timezone.utc).isoformat()
         })
 
         logger.info("Daily digest delivery completed successfully")
@@ -519,7 +519,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
             'date': yesterday_date,
             'timezone': digest_timezone,
             'channel': digest_channel,
-            'execution_time': datetime.utcnow().isoformat(),
+            'execution_time': datetime.now(timezone.utc).isoformat(),
             'message': 'Daily digest sent successfully'
         }
 
@@ -551,7 +551,7 @@ def daily_digest_delivery(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
         return {
             'ok': False,
             'error': str(e),
-            'execution_time': datetime.utcnow().isoformat()
+            'execution_time': datetime.now(timezone.utc).isoformat()
         }
 
 
@@ -653,7 +653,7 @@ def schedule_linkedin_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any
                     'status': 'success',
                     'processed_count': processed_count,
                     'result': str(result)[:1000],  # Truncate long results
-                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat()
+                    'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat()
                 })
 
                 results.append({
@@ -675,7 +675,7 @@ def schedule_linkedin_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any
                     'timestamp': firestore.SERVER_TIMESTAMP,
                     'status': 'failed',
                     'error': str(e),
-                    'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat()
+                    'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat()
                 })
 
                 results.append({
@@ -700,7 +700,7 @@ def schedule_linkedin_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any
 
         return {
             'ok': True,
-            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat(),
             'profiles_processed': len(results),
             'items_processed': total_processed,
             'errors': total_errors,
@@ -721,7 +721,7 @@ def schedule_linkedin_daily(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any
 
         return {
             'ok': False,
-            'run_id': event.id if hasattr(event, 'id') else datetime.utcnow().isoformat(),
+            'run_id': event.id if hasattr(event, 'id') else datetime.now(timezone.utc).isoformat(),
             'error': str(e)
         }
 
@@ -757,7 +757,7 @@ def _send_linkedin_summary(profiles_processed: int, items_processed: int,
                 {'label': 'Errors', 'value': str(errors)},
                 {'label': 'Success Rate', 'value': f"{((profiles_processed - errors) / profiles_processed * 100):.1f}%" if profiles_processed > 0 else "0%"}
             ],
-            'footer': f'LinkedIn ingestion completed at {datetime.utcnow().strftime("%Y-%m-%d %H:%M")} UTC'
+            'footer': f'LinkedIn ingestion completed at {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")} UTC'
         }
 
         # Add profile details if there are failures
@@ -838,8 +838,8 @@ def schedule_drive_ingestion(event: scheduler_fn.ScheduledEvent) -> Dict[str, An
             return {"ok": False, "error": "Drive agent initialization failed"}
 
         # Generate run ID
-        run_id = f"drive_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-        start_time = datetime.utcnow()
+        run_id = f"drive_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        start_time = datetime.now(timezone.utc)
 
         logger.info(f"Processing {len(targets)} Drive targets with run ID: {run_id}")
 
@@ -877,7 +877,7 @@ def schedule_drive_ingestion(event: scheduler_fn.ScheduledEvent) -> Dict[str, An
             result = drive_agent.run(workflow_message)
 
             # Calculate processing duration
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             processing_duration = (end_time - start_time).total_seconds()
 
             # Parse result for metrics (basic parsing)
@@ -935,7 +935,7 @@ def schedule_drive_ingestion(event: scheduler_fn.ScheduledEvent) -> Dict[str, An
 
         except Exception as workflow_error:
             # Calculate duration even for failed runs
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             processing_duration = (end_time - start_time).total_seconds()
 
             logger.error(f"Drive agent workflow failed: {str(workflow_error)}")
@@ -988,7 +988,7 @@ def schedule_drive_ingestion(event: scheduler_fn.ScheduledEvent) -> Dict[str, An
 
         return {
             'ok': False,
-            'run_id': f"failed_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+            'run_id': f"failed_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             'error': str(e)
         }
 

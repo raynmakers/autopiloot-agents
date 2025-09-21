@@ -8,7 +8,7 @@ import sys
 import json
 import re
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -182,7 +182,7 @@ class SynthesizeStrategyPlaybook(BaseTool):
                 "playbook_markdown": playbook_markdown,
                 "playbook_json": playbook_json,
                 "version": "1.0",
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "analysis_sources": {
                     "keywords_analyzed": len(self.keywords.get('keywords', [])),
                     "triggers_analyzed": len(self.triggers.get('trigger_phrases', [])),
@@ -567,7 +567,7 @@ class SynthesizeStrategyPlaybook(BaseTool):
         # Header
         md.append("# Content Strategy Playbook")
         md.append("")
-        md.append(f"*Generated on {datetime.utcnow().strftime('%Y-%m-%d')}*")
+        md.append(f"*Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d')}*")
         md.append("")
 
         # Executive Summary

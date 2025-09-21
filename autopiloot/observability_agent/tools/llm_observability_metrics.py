@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var, get_optional_var
+from env_loader import get_required_env_var, get_optional_env_var
 from loader import load_app_config
 from audit_logger import audit_logger
 
@@ -463,7 +463,7 @@ class LLMObservabilityMetrics(BaseTool):
     def _emit_to_langfuse(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Emit metrics to Langfuse for external observability."""
         try:
-            langfuse_api_key = get_optional_var("LANGFUSE_API_KEY")
+            langfuse_api_key = get_optional_env_var("LANGFUSE_API_KEY")
             if not langfuse_api_key:
                 return {"status": "skipped", "reason": "No Langfuse API key configured"}
             

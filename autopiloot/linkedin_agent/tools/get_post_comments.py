@@ -9,7 +9,7 @@ import json
 import time
 import requests
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -148,7 +148,7 @@ class GetPostComments(BaseTool):
                 "metadata": {
                     "total_posts": len(self.post_ids),
                     "total_comments": total_comments,
-                    "fetched_at": datetime.utcnow().isoformat() + "Z",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
                     "page": self.page,
                     "page_size": self.page_size,
                     "include_replies": self.include_replies

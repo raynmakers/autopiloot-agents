@@ -8,7 +8,7 @@ import re
 import math
 from typing import List, Dict, Any, Optional, Tuple, Set
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -507,7 +507,7 @@ class ExtractKeywordsAndPhrases(BaseTool):
             "language": self.language,
             "min_text_length": self.min_text_length,
             "processing_method": "tf_idf_ngram",
-            "processed_at": datetime.utcnow().isoformat() + "Z"
+            "processed_at": datetime.now(timezone.utc).isoformat()
         }
 
     def _get_stopwords(self) -> Set[str]:

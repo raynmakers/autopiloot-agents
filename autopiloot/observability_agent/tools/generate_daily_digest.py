@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var, get_config_value
-from loader import load_app_config
+from env_loader import get_required_env_var
+from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
 
 load_dotenv()

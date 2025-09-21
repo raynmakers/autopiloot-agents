@@ -10,7 +10,7 @@ import re
 import math
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -163,7 +163,7 @@ class MineTriggerPhrases(BaseTool):
                     "valid_items": len(valid_items),
                     "total_phrases_analyzed": len(trigger_phrases),
                     "top_phrases_returned": len(top_triggers),
-                    "processed_at": datetime.utcnow().isoformat() + "Z"
+                    "processed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 

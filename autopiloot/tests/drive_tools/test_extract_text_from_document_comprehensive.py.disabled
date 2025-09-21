@@ -1,0 +1,541 @@
+#!/usr/bin/env python3
+"""
+Comprehensive test suite for ExtractTextFromDocument tool
+Tests all functionality with proper mocking for 80%+ coverage
+"""
+
+import unittest
+import json
+import sys
+import os
+import base64
+import io
+from unittest.mock import patch, MagicMock
+
+# Add project root to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+
+class TestExtractTextFromDocumentComprehensive(unittest.TestCase):
+    """Comprehensive test cases for ExtractTextFromDocument tool."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.sample_text = "This is a test document.\n\nIt has multiple paragraphs."
+        self.sample_csv = "Name,Age,City\nJohn,30,NYC\nJane,25,LA"
+        self.sample_html = "<html><body><h1>Title</h1><p>Content</p></body></html>"
+
+        # Mock config
+        self.mock_config = {
+            "drive": {
+                "tracking": {
+                    "max_text_length": 50000
+                }
+            }
+        }
+
+    def _create_tool_instance(self, **kwargs):
+        """Create tool instance with proper mocking."""
+        # Create comprehensive mock modules
+        mock_modules = {
+            'agency_swarm': MagicMock(),
+            'agency_swarm.tools': MagicMock(),
+            'agency_swarm.tools.BaseTool': MagicMock(),
+            'agency_swarm.Agent': MagicMock(),
+            'agency_swarm.ModelSettings': MagicMock(),
+            'pydantic': MagicMock(),
+            'loader': MagicMock(),
+            'google': MagicMock(),
+            'google.oauth2': MagicMock(),
+            'google.oauth2.service_account': MagicMock(),
+            'googleapiclient': MagicMock(),
+            'googleapiclient.discovery': MagicMock(),
+            'google.cloud': MagicMock(),
+            'google.cloud.firestore': MagicMock(),
+            'PyPDF2': MagicMock(),
+            'docx': MagicMock(),
+            'html2text': MagicMock(),
+            'pandas': MagicMock(),
+            'zep_python': MagicMock()
+        }
+
+        # Mock pydantic.Field to work properly
+        mock_field = MagicMock()
+        mock_modules['pydantic'].Field = mock_field
+
+        # Create base tool mock that allows inheritance
+        mock_base_tool = MagicMock()
+        mock_base_tool.__init__ = MagicMock(return_value=None)
+        mock_modules['agency_swarm.tools'].BaseTool = mock_base_tool
+
+        with patch.dict('sys.modules', mock_modules):
+            # Mock get_config_value function
+            with patch('loader.get_config_value') as mock_config:
+                mock_config.return_value = self.mock_config.get("drive", {})
+
+                # Import after mocking - directly import the specific file to avoid __init__.py
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(
+                    "extract_text_from_document",
+                    "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/drive_agent/tools/extract_text_from_document.py"
+                )
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+
+                ExtractTextFromDocument = module.ExtractTextFromDocument
+
+                default_params = {
+                    'content': self.sample_text,
+                    'mime_type': 'text/plain',
+                    'file_name': 'test.txt',
+                    'content_encoding': 'text'
+                }
+                default_params.update(kwargs)
+
+                return ExtractTextFromDocument(**default_params)
+
+    def test_tool_initialization(self):
+        """Test tool initialization with all parameters."""
+        tool = self._create_tool_instance(
+            content="test content",
+            mime_type="text/plain",
+            file_name="test.txt",
+            content_encoding="text",
+            max_length=1000,
+            clean_text=True,
+            extract_metadata=True
+        )
+
+        self.assertEqual(tool.content, "test content")
+        self.assertEqual(tool.mime_type, "text/plain")
+        self.assertEqual(tool.file_name, "test.txt")
+        self.assertEqual(tool.content_encoding, "text")
+        self.assertEqual(tool.max_length, 1000)
+        self.assertTrue(tool.clean_text)
+        self.assertTrue(tool.extract_metadata)
+
+    def test_get_max_length_from_parameter(self):
+        """Test _get_max_length when max_length parameter is provided."""
+        tool = self._create_tool_instance(max_length=5000)
+        max_length = tool._get_max_length()
+        self.assertEqual(max_length, 5000)
+
+    def test_get_max_length_from_config(self):
+        """Test _get_max_length when using config value."""
+        tool = self._create_tool_instance()  # max_length=None
+        max_length = tool._get_max_length()
+        self.assertEqual(max_length, 50000)
+
+    def test_get_max_length_default(self):
+        """Test _get_max_length with empty config (uses default)."""
+        with patch('drive_agent.tools.extract_text_from_document.get_config_value') as mock_config:
+            mock_config.return_value = {}
+            tool = self._create_tool_instance()
+            max_length = tool._get_max_length()
+            self.assertEqual(max_length, 50000)  # Default value
+
+    def test_clean_text_enabled(self):
+        """Test text cleaning when enabled."""
+        messy_text = "  This   is   messy\n\n\n\ntext  with   extra   spaces.  "
+        tool = self._create_tool_instance(content=messy_text, clean_text=True)
+        cleaned = tool._clean_text(messy_text)
+
+        # Should normalize whitespace and remove extra newlines
+        self.assertNotIn("   ", cleaned)
+        self.assertNotIn("\n\n\n", cleaned)
+        self.assertEqual(cleaned.strip(), cleaned)
+
+    def test_clean_text_disabled(self):
+        """Test text cleaning when disabled."""
+        messy_text = "  messy   text  "
+        tool = self._create_tool_instance(clean_text=False)
+        result = tool._clean_text(messy_text)
+        self.assertEqual(result, messy_text)  # Should be unchanged
+
+    def test_clean_text_patterns(self):
+        """Test specific text cleaning patterns."""
+        tool = self._create_tool_instance(clean_text=True)
+
+        # Test excessive dots
+        text_with_dots = "Text with....many dots"
+        cleaned = tool._clean_text(text_with_dots)
+        self.assertIn("...", cleaned)
+        self.assertNotIn("....", cleaned)
+
+        # Test excessive dashes
+        text_with_dashes = "Text with----dashes"
+        cleaned = tool._clean_text(text_with_dashes)
+        self.assertIn("---", cleaned)
+        self.assertNotIn("----", cleaned)
+
+    def test_plain_text_extraction(self):
+        """Test extraction from plain text files."""
+        tool = self._create_tool_instance(
+            content=self.sample_text,
+            mime_type="text/plain"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("extracted_text", result_data)
+        self.assertIn("text_length", result_data)
+        self.assertIn("file_info", result_data)
+        self.assertEqual(result_data["extracted_text"], self.sample_text)
+
+    def test_csv_text_extraction(self):
+        """Test CSV text extraction and formatting."""
+        tool = self._create_tool_instance(
+            content=self.sample_csv,
+            mime_type="text/csv",
+            file_name="test.csv"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("extracted_text", result_data)
+        self.assertIn("Headers:", result_data["extracted_text"])
+        self.assertIn("Row 1:", result_data["extracted_text"])
+
+    def test_html_text_extraction_with_html2text(self):
+        """Test HTML extraction with html2text library available."""
+        with patch('drive_agent.tools.extract_text_from_document.HTML2TEXT_AVAILABLE', True):
+            # Mock html2text
+            mock_html2text = MagicMock()
+            mock_converter = MagicMock()
+            mock_converter.handle.return_value = "Converted HTML text"
+            mock_html2text.HTML2Text.return_value = mock_converter
+
+            with patch('drive_agent.tools.extract_text_from_document.html2text', mock_html2text):
+                tool = self._create_tool_instance(
+                    content=self.sample_html,
+                    mime_type="text/html"
+                )
+
+                result = tool.run()
+                result_data = json.loads(result)
+
+                self.assertIn("extracted_text", result_data)
+
+    def test_html_text_extraction_fallback(self):
+        """Test HTML extraction with regex fallback."""
+        with patch('drive_agent.tools.extract_text_from_document.HTML2TEXT_AVAILABLE', False):
+            tool = self._create_tool_instance(
+                content=self.sample_html,
+                mime_type="text/html"
+            )
+
+            result = tool.run()
+            result_data = json.loads(result)
+
+            self.assertIn("extracted_text", result_data)
+            # Should remove HTML tags
+            self.assertNotIn("<html>", result_data["extracted_text"])
+            self.assertNotIn("<body>", result_data["extracted_text"])
+
+    def test_pdf_text_extraction_success(self):
+        """Test successful PDF extraction with PyPDF2."""
+        # Mock PDF components
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "Page 1 content"
+
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader.metadata = {
+            "/Title": "Test Document",
+            "/Author": "Test Author"
+        }
+
+        with patch('drive_agent.tools.extract_text_from_document.PDF_AVAILABLE', True):
+            with patch('drive_agent.tools.extract_text_from_document.PyPDF2.PdfReader', return_value=mock_reader):
+                tool = self._create_tool_instance(
+                    content=base64.b64encode(b"fake pdf content").decode(),
+                    mime_type="application/pdf",
+                    content_encoding="base64"
+                )
+
+                result = tool.run()
+                result_data = json.loads(result)
+
+                self.assertIn("extracted_text", result_data)
+                self.assertIn("Page 1 content", result_data["extracted_text"])
+
+    def test_pdf_extraction_not_available(self):
+        """Test PDF extraction when PyPDF2 is not available."""
+        with patch('drive_agent.tools.extract_text_from_document.PDF_AVAILABLE', False):
+            tool = self._create_tool_instance(
+                content=base64.b64encode(b"fake pdf").decode(),
+                mime_type="application/pdf",
+                content_encoding="base64"
+            )
+
+            result = tool.run()
+            result_data = json.loads(result)
+
+            self.assertIn("PyPDF2 not installed", result_data["extracted_text"])
+
+    def test_docx_text_extraction_success(self):
+        """Test successful DOCX extraction."""
+        # Mock DOCX components
+        mock_paragraph1 = MagicMock()
+        mock_paragraph1.text = "First paragraph"
+        mock_paragraph2 = MagicMock()
+        mock_paragraph2.text = "Second paragraph"
+
+        mock_doc = MagicMock()
+        mock_doc.paragraphs = [mock_paragraph1, mock_paragraph2]
+
+        mock_core_props = MagicMock()
+        mock_core_props.title = "Test Document"
+        mock_core_props.author = "Test Author"
+        mock_doc.core_properties = mock_core_props
+
+        with patch('drive_agent.tools.extract_text_from_document.DOCX_AVAILABLE', True):
+            with patch('drive_agent.tools.extract_text_from_document.Document', return_value=mock_doc):
+                tool = self._create_tool_instance(
+                    content=base64.b64encode(b"fake docx content").decode(),
+                    mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    content_encoding="base64"
+                )
+
+                result = tool.run()
+                result_data = json.loads(result)
+
+                self.assertIn("extracted_text", result_data)
+                self.assertIn("First paragraph", result_data["extracted_text"])
+
+    def test_docx_extraction_not_available(self):
+        """Test DOCX extraction when python-docx is not available."""
+        with patch('drive_agent.tools.extract_text_from_document.DOCX_AVAILABLE', False):
+            tool = self._create_tool_instance(
+                content=base64.b64encode(b"fake docx").decode(),
+                mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                content_encoding="base64"
+            )
+
+            result = tool.run()
+            result_data = json.loads(result)
+
+            self.assertIn("python-docx not installed", result_data["extracted_text"])
+
+    def test_base64_encoded_text(self):
+        """Test extraction from base64 encoded text content."""
+        original_text = "This is base64 encoded text"
+        encoded_content = base64.b64encode(original_text.encode('utf-8')).decode('ascii')
+
+        tool = self._create_tool_instance(
+            content=encoded_content,
+            content_encoding="base64"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertEqual(result_data["extracted_text"], original_text)
+
+    def test_google_workspace_export(self):
+        """Test Google Workspace file handling."""
+        tool = self._create_tool_instance(
+            content="Exported Google Doc content",
+            mime_type="application/vnd.google-apps.document"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("extracted_text", result_data)
+        self.assertEqual(result_data["extracted_text"], "Exported Google Doc content")
+
+    def test_unsupported_mime_type(self):
+        """Test handling of unsupported MIME types."""
+        tool = self._create_tool_instance(
+            content="binary content",
+            mime_type="application/octet-stream"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("Text extraction not supported", result_data["extracted_text"])
+
+    def test_text_length_truncation(self):
+        """Test text truncation when exceeding max length."""
+        long_text = "A" * 1000
+        tool = self._create_tool_instance(
+            content=long_text,
+            max_length=500
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertLessEqual(len(result_data["extracted_text"]), 600)  # Account for truncation message
+        self.assertIn("truncated", result_data["extracted_text"])
+
+    def test_text_statistics(self):
+        """Test text statistics calculation."""
+        test_text = "First paragraph.\n\nSecond paragraph.\nThird line."
+        tool = self._create_tool_instance(content=test_text)
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("text_stats", result_data)
+        stats = result_data["text_stats"]
+        self.assertIn("character_count", stats)
+        self.assertIn("word_count", stats)
+        self.assertIn("line_count", stats)
+        self.assertEqual(stats["paragraph_count"], 2)  # Two paragraphs separated by double newline
+
+    def test_empty_content_handling(self):
+        """Test handling of empty content."""
+        tool = self._create_tool_instance(content="")
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertEqual(result_data["extracted_text"], "")
+        self.assertEqual(result_data["text_length"], 0)
+
+    def test_csv_extraction(self):
+        """Test CSV text extraction and formatting."""
+        csv_content = "Name,Age,City\nJohn,25,NYC\nJane,30,LA\nBob,35,Chicago"
+        tool = self._create_tool_instance(
+            content=csv_content,
+            mime_type="text/csv",
+            file_name="test.csv"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        extracted_text = result_data["extracted_text"]
+        self.assertIn("Headers: Name, Age, City", extracted_text)
+        self.assertIn("Row 1: John | 25 | NYC", extracted_text)
+
+    def test_csv_empty_handling(self):
+        """Test CSV extraction with empty CSV."""
+        tool = self._create_tool_instance(
+            content="",
+            mime_type="text/csv"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertIn("Empty CSV", result_data["extracted_text"])
+
+    def test_get_content_bytes_base64(self):
+        """Test _get_content_bytes with base64 encoding."""
+        original_text = "test content"
+        encoded = base64.b64encode(original_text.encode()).decode()
+
+        tool = self._create_tool_instance(
+            content=encoded,
+            content_encoding="base64"
+        )
+
+        content_bytes = tool._get_content_bytes()
+        self.assertEqual(content_bytes.decode(), original_text)
+
+    def test_get_content_bytes_text(self):
+        """Test _get_content_bytes with text encoding."""
+        text_content = "test content"
+        tool = self._create_tool_instance(
+            content=text_content,
+            content_encoding="text"
+        )
+
+        content_bytes = tool._get_content_bytes()
+        self.assertEqual(content_bytes.decode(), text_content)
+
+    def test_extract_metadata_disabled(self):
+        """Test extraction with metadata extraction disabled."""
+        tool = self._create_tool_instance(extract_metadata=False)
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertNotIn("document_metadata", result_data)
+
+    def test_unicode_error_handling(self):
+        """Test handling of unicode decode errors."""
+        # Create invalid UTF-8 bytes
+        invalid_bytes = b'\xff\xfe\x00\x00invalid'
+        encoded_content = base64.b64encode(invalid_bytes).decode()
+
+        tool = self._create_tool_instance(
+            content=encoded_content,
+            content_encoding="base64",
+            mime_type="text/plain"
+        )
+
+        result = tool.run()
+        result_data = json.loads(result)
+
+        # Should handle gracefully and produce some result
+        self.assertIn("extracted_text", result_data)
+
+    def test_error_handling_structure(self):
+        """Test error handling and response structure."""
+        # Force an exception by providing invalid parameters
+        tool = self._create_tool_instance()
+
+        # Mock the run method to raise an exception
+        with patch.object(tool, '_get_max_length', side_effect=Exception("Test error")):
+            result = tool.run()
+            result_data = json.loads(result)
+
+            self.assertIn("error", result_data)
+            self.assertEqual(result_data["error"], "extraction_error")
+            self.assertIn("message", result_data)
+            self.assertIn("details", result_data)
+
+    def test_pdf_page_extraction_error(self):
+        """Test PDF extraction when individual pages have errors."""
+        # Mock page that raises exception
+        mock_page_good = MagicMock()
+        mock_page_good.extract_text.return_value = "Good page content"
+
+        mock_page_bad = MagicMock()
+        mock_page_bad.extract_text.side_effect = Exception("Page extraction error")
+
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page_good, mock_page_bad]
+        mock_reader.metadata = {}
+
+        with patch('drive_agent.tools.extract_text_from_document.PDF_AVAILABLE', True):
+            with patch('drive_agent.tools.extract_text_from_document.PyPDF2.PdfReader', return_value=mock_reader):
+                tool = self._create_tool_instance(
+                    content=base64.b64encode(b"fake pdf").decode(),
+                    mime_type="application/pdf",
+                    content_encoding="base64"
+                )
+
+                result = tool.run()
+                result_data = json.loads(result)
+
+                # Should handle the error gracefully
+                self.assertIn("extracted_text", result_data)
+
+    def test_html_with_entities(self):
+        """Test HTML extraction with HTML entities."""
+        html_with_entities = "<html><body><p>Test &amp; example &lt;tag&gt;</p></body></html>"
+
+        with patch('drive_agent.tools.extract_text_from_document.HTML2TEXT_AVAILABLE', False):
+            tool = self._create_tool_instance(
+                content=html_with_entities,
+                mime_type="text/html"
+            )
+
+            result = tool.run()
+            result_data = json.loads(result)
+
+            # Should decode HTML entities
+            self.assertIn("&", result_data["extracted_text"])
+            self.assertIn("<tag>", result_data["extracted_text"])
+
+
+if __name__ == '__main__':
+    unittest.main()

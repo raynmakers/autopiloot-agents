@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from typing import List, Dict, Any, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -131,7 +131,7 @@ class FetchCorpusFromZep(BaseTool):
                     "filters_applied": self.filters if self.filters else {},
                     "limit_applied": self.limit
                 },
-                "retrieved_at": datetime.utcnow().isoformat() + "Z"
+                "retrieved_at": datetime.now(timezone.utc).isoformat()
             }
 
             return json.dumps(result)
@@ -416,7 +416,7 @@ class FetchCorpusFromZep(BaseTool):
                 "filters_applied": self.filters if self.filters else {},
                 "limit_applied": self.limit
             },
-            "retrieved_at": datetime.utcnow().isoformat() + "Z",
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
             "note": "Mock response - Zep not available in test environment"
         }
 

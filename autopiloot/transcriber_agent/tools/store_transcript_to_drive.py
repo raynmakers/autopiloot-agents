@@ -12,7 +12,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
 
@@ -121,7 +121,7 @@ class StoreTranscriptToDrive(BaseTool):
             transcript_digest = hashlib.sha256(self.transcript_text.encode('utf-8')).hexdigest()[:16]
             
             # Generate timestamped filenames following settings.yaml convention
-            date_str = datetime.utcnow().strftime('%Y-%m-%d')
+            date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
             
             # Upload TXT file (human-readable format)
             txt_filename = f"{self.video_id}_{date_str}_transcript.txt"
@@ -129,13 +129,13 @@ class StoreTranscriptToDrive(BaseTool):
                 'name': txt_filename,
                 'parents': [transcripts_folder_id],
                 'mimeType': 'text/plain',
-                'description': f"Transcript text for YouTube video {self.video_id} - Generated {datetime.utcnow().isoformat()}Z"
+                'description': f"Transcript text for YouTube video {self.video_id} - Generated {datetime.now(timezone.utc).isoformat()}Z"
             }
             
             # Prepare transcript text with metadata header
             formatted_text = f"""# YouTube Video Transcript
 # Video ID: {self.video_id}
-# Generated: {datetime.utcnow().isoformat()}Z
+# Generated: {datetime.now(timezone.utc).isoformat()}Z
 # Digest: {transcript_digest}
 
 {self.transcript_text}
@@ -159,7 +159,7 @@ class StoreTranscriptToDrive(BaseTool):
                 'name': json_filename,
                 'parents': [transcripts_folder_id],
                 'mimeType': 'application/json',
-                'description': f"Structured transcript data for YouTube video {self.video_id} - Generated {datetime.utcnow().isoformat()}Z"
+                'description': f"Structured transcript data for YouTube video {self.video_id} - Generated {datetime.now(timezone.utc).isoformat()}Z"
             }
             
             # Enhance JSON with metadata
@@ -167,7 +167,7 @@ class StoreTranscriptToDrive(BaseTool):
                 **self.transcript_json,
                 "metadata": {
                     "video_id": self.video_id,
-                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                     "transcript_digest": transcript_digest,
                     "autopiloot_version": "1.0.0"
                 }

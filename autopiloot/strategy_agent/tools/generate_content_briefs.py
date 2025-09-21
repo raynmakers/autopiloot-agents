@@ -9,7 +9,7 @@ import json
 import re
 import random
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -159,7 +159,7 @@ class GenerateContentBriefs(BaseTool):
                     "playbook_version": "1.0",
                     "generation_method": "llm" if self.use_llm else "template",
                     "focus_areas": self.focus_areas if self.focus_areas else "all",
-                    "generated_at": datetime.utcnow().isoformat() + "Z"
+                    "generated_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 

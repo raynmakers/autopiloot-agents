@@ -1,199 +1,388 @@
+#!/usr/bin/env python3
 """
-Test suite for ListTrackedTargetsFromConfig tool.
-Tests configuration loading and Drive target normalization.
+Comprehensive tests for list_tracked_targets_from_config.py
+Achieves high coverage through mocking and direct execution
 """
 
 import unittest
 import json
 import sys
 import os
-from unittest.mock import patch, MagicMock
-
-# Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
-# Mock environment and dependencies before importing
-with patch.dict('sys.modules', {
-    'agency_swarm': MagicMock(),
-    'agency_swarm.tools': MagicMock(),
-    'pydantic': MagicMock(),
-    'google.cloud': MagicMock(),
-    'google.cloud.firestore': MagicMock(),
-}):
-    # Mock the BaseTool and Field
-    from unittest.mock import MagicMock
-    mock_base_tool = MagicMock()
-    mock_field = MagicMock()
-
-    with patch('drive_agent.tools.list_tracked_targets_from_config.BaseTool', mock_base_tool):
-        with patch('drive_agent.tools.list_tracked_targets_from_config.Field', mock_field):
-            from drive_agent.tools.list_tracked_targets_from_config import ListTrackedTargetsFromConfig
+from unittest.mock import MagicMock, patch
+import importlib.util
 
 
 class TestListTrackedTargetsFromConfig(unittest.TestCase):
-    """Test cases for ListTrackedTargetsFromConfig tool."""
+    """Test ListTrackedTargetsFromConfig tool functionality"""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up test class with proper mocking"""
+        # Mock all external dependencies
+        cls.mock_modules = {
+            'agency_swarm': MagicMock(),
+            'agency_swarm.tools': MagicMock(),
+            'pydantic': MagicMock(),
+            'loader': MagicMock()
+        }
+
+        # Set up mocks
+        cls.mock_modules['agency_swarm.tools'].BaseTool = MagicMock()
+        cls.mock_modules['pydantic'].Field = MagicMock(side_effect=lambda **kwargs: kwargs.get('default'))
+
+        # Load the module
+        module_path = "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/drive_agent/tools/list_tracked_targets_from_config.py"
+        cls.module = cls._load_module_with_mocks(module_path)
+
+    @classmethod
+    def _load_module_with_mocks(cls, module_path):
+        """Load module with comprehensive mocking"""
+        with patch.dict('sys.modules', cls.mock_modules):
+            spec = importlib.util.spec_from_file_location("list_tracked_targets_from_config", module_path)
+            module = importlib.util.module_from_spec(spec)
+
+            # Mock the loader imports
+            module.load_app_config = MagicMock()
+            module.get_config_value = MagicMock()
+
+            spec.loader.exec_module(module)
+            return module
 
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_config = {
-            "drive_agent": {
-                "targets": [
-                    {
-                        "id": "folder_strategy_docs",
-                        "type": "folder",
-                        "name": "Strategy Documents",
-                        "include_patterns": ["*.pdf", "*.docx"],
-                        "exclude_patterns": ["**/archive/**"]
-                    },
-                    {
-                        "id": "file_master_doc",
-                        "type": "file",
-                        "name": "Master Document",
-                        "include_patterns": ["*"],
-                        "exclude_patterns": []
-                    }
-                ],
+        """Set up each test"""
+        # Reset mocks
+        self.module.load_app_config.reset_mock()
+        self.module.get_config_value.reset_mock()
+
+    def test_successful_targets_loading(self):
+        """Test successful loading of tracking targets"""
+        # Mock configuration
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {
+                            "id": "file_123",
+                            "type": "file",
+                            "name": "Test Document.pdf"
+                        },
+                        {
+                            "id": "folder_456",
+                            "type": "folder",
+                            "name": "Test Folder",
+                            "recursive": True,
+                            "include_patterns": ["*.pdf", "*.docx"],
+                            "exclude_patterns": ["~*", "*.tmp"]
+                        }
+                    ],
+                    "sync_interval_minutes": 30,
+                    "max_file_size_mb": 20,
+                    "supported_formats": [".pdf", ".docx", ".txt"]
+                }
+            },
+            "rag": {
                 "zep": {
-                    "namespace": "autopiloot_drive_content"
+                    "namespace": {
+                        "drive": "test_drive_namespace"
+                    }
                 }
             }
         }
 
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_successful_target_loading(self, mock_load_config, mock_load_env):
-        """Test successful configuration loading and target normalization."""
-        mock_load_config.return_value = self.mock_config
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
 
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
+        # Create tool instance with defaults
+        tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
+        result = tool.run()
+        result_data = json.loads(result)
 
-        self.assertEqual(result["status"], "loaded")
-        self.assertEqual(result["target_count"], 2)
-        self.assertEqual(result["zep_namespace"], "autopiloot_drive_content")
-        self.assertEqual(len(result["targets"]), 2)
+        # Verify results
+        self.assertEqual(len(result_data["targets"]), 2)
+        self.assertEqual(result_data["count"], 2)
+        self.assertEqual(result_data["zep_namespace"], "test_drive_namespace")
+        self.assertIn("defaults", result_data)
+        self.assertEqual(result_data["defaults"]["sync_interval_minutes"], 30)
 
-        # Check folder target normalization
-        folder_target = result["targets"][0]
-        self.assertEqual(folder_target["id"], "folder_strategy_docs")
-        self.assertEqual(folder_target["type"], "folder")
-        self.assertEqual(len(folder_target["include_patterns"]), 2)
+    def test_no_targets_configured(self):
+        """Test handling when no targets are configured"""
+        # Mock empty configuration
+        self.module.load_app_config.return_value = {}
+        self.module.get_config_value.return_value = {}
 
-        # Check file target normalization
-        file_target = result["targets"][1]
-        self.assertEqual(file_target["id"], "file_master_doc")
-        self.assertEqual(file_target["type"], "file")
+        tool = self.module.ListTrackedTargetsFromConfig(include_defaults=False)
+        result = tool.run()
+        result_data = json.loads(result)
 
-        mock_load_env.assert_called_once()
-        mock_load_config.assert_called_once()
+        self.assertEqual(result_data["targets"], [])
+        self.assertIn("No tracking targets configured", result_data["message"])
 
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_missing_drive_agent_config(self, mock_load_config, mock_load_env):
-        """Test handling of missing drive_agent configuration."""
-        mock_load_config.return_value = {}
-
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["error"], "config_missing")
-        self.assertIn("drive_agent configuration not found", result["message"])
-
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_empty_targets_list(self, mock_load_config, mock_load_env):
-        """Test handling of empty targets list."""
-        config = {"drive_agent": {"targets": [], "zep": {"namespace": "test"}}}
-        mock_load_config.return_value = config
-
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "loaded")
-        self.assertEqual(result["target_count"], 0)
-        self.assertEqual(len(result["targets"]), 0)
-
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_missing_zep_namespace(self, mock_load_config, mock_load_env):
-        """Test handling of missing Zep namespace configuration."""
-        config = {"drive_agent": {"targets": []}}
-        mock_load_config.return_value = config
-
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["error"], "config_invalid")
-        self.assertIn("Zep namespace not configured", result["message"])
-
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_target_validation_missing_fields(self, mock_load_config, mock_load_env):
-        """Test validation of targets with missing required fields."""
-        config = {
-            "drive_agent": {
-                "targets": [
-                    {"id": "missing_type", "name": "Test"},  # Missing type
-                    {"type": "folder", "name": "Test"}       # Missing id
-                ],
-                "zep": {"namespace": "test"}
-            }
+    def test_without_defaults(self):
+        """Test loading targets without default settings"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {
+                            "id": "test_file",
+                            "type": "file",
+                            "name": "Test File"
+                        }
+                    ]
+                }
+            },
+            "rag": {"zep": {"namespace": {"drive": "test_namespace"}}}
         }
-        mock_load_config.return_value = config
 
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
 
-        self.assertEqual(result["status"], "loaded")
-        self.assertEqual(result["target_count"], 0)  # Invalid targets filtered out
-        self.assertGreater(len(result["validation_warnings"]), 0)
+        tool = self.module.ListTrackedTargetsFromConfig(include_defaults=False)
+        result = tool.run()
+        result_data = json.loads(result)
 
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_pattern_normalization(self, mock_load_config, mock_load_env):
-        """Test pattern normalization for include/exclude patterns."""
-        config = {
-            "drive_agent": {
-                "targets": [
-                    {
-                        "id": "test_folder",
-                        "type": "folder",
-                        "name": "Test Folder",
-                        "include_patterns": "*.pdf",  # String instead of list
-                        "exclude_patterns": None      # None instead of list
+        self.assertNotIn("defaults", result_data)
+        self.assertEqual(len(result_data["targets"]), 1)
+
+    def test_invalid_target_filtering(self):
+        """Test filtering of invalid targets (missing required fields)"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {"id": "valid_file", "type": "file", "name": "Valid"},
+                        {"name": "Missing ID"},  # Invalid - missing id
+                        {"id": "missing_type"},  # Invalid - missing type
+                        "not_a_dict",  # Invalid - not a dict
+                        {"id": "valid_folder", "type": "folder"}
+                    ]
+                }
+            },
+            "rag": {"zep": {"namespace": {"drive": "test"}}}
+        }
+
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
+
+        tool = self.module.ListTrackedTargetsFromConfig()
+        result = tool.run()
+        result_data = json.loads(result)
+
+        # Should only include valid targets
+        self.assertEqual(len(result_data["targets"]), 2)
+        self.assertEqual(result_data["targets"][0]["id"], "valid_file")
+        self.assertEqual(result_data["targets"][1]["id"], "valid_folder")
+
+    def test_folder_recursive_handling(self):
+        """Test correct handling of recursive flag for folders"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {"id": "folder1", "type": "folder", "recursive": True},
+                        {"id": "folder2", "type": "folder", "recursive": False},
+                        {"id": "folder3", "type": "folder"},  # Should default to True
+                        {"id": "file1", "type": "file", "recursive": True}  # Should be False for files
+                    ]
+                }
+            },
+            "rag": {"zep": {"namespace": {"drive": "test"}}}
+        }
+
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
+
+        tool = self.module.ListTrackedTargetsFromConfig()
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertEqual(result_data["targets"][0]["recursive"], True)
+        self.assertEqual(result_data["targets"][1]["recursive"], False)
+        self.assertEqual(result_data["targets"][2]["recursive"], True)  # Default
+        self.assertEqual(result_data["targets"][3]["recursive"], False)  # Files never recursive
+
+    def test_pattern_preservation(self):
+        """Test that include/exclude patterns are preserved correctly"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {
+                            "id": "folder1",
+                            "type": "folder",
+                            "include_patterns": ["*.pdf", "*.doc*"],
+                            "exclude_patterns": ["~*", "*.tmp", "backup/*"]
+                        }
+                    ]
+                }
+            },
+            "rag": {"zep": {"namespace": {"drive": "test"}}}
+        }
+
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
+
+        tool = self.module.ListTrackedTargetsFromConfig()
+        result = tool.run()
+        result_data = json.loads(result)
+
+        target = result_data["targets"][0]
+        self.assertEqual(target["include_patterns"], ["*.pdf", "*.doc*"])
+        self.assertEqual(target["exclude_patterns"], ["~*", "*.tmp", "backup/*"])
+
+    def test_exception_handling(self):
+        """Test exception handling during configuration loading"""
+        # Mock configuration loading to raise exception
+        self.module.load_app_config.side_effect = Exception("Config loading failed")
+
+        tool = self.module.ListTrackedTargetsFromConfig()
+        result = tool.run()
+        result_data = json.loads(result)
+
+        self.assertEqual(result_data["error"], "configuration_error")
+        self.assertIn("Config loading failed", result_data["message"])
+        self.assertEqual(result_data["details"]["type"], "Exception")
+
+    def test_default_values_extraction(self):
+        """Test extraction of default values from configuration"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [{"id": "test", "type": "file"}],
+                    "sync_interval_minutes": 45,
+                    "max_file_size_mb": 15,
+                    "supported_formats": [".pdf", ".txt", ".md"]
+                }
+            },
+            "rag": {"zep": {"namespace": {"drive": "custom_namespace"}}}
+        }
+
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
+
+        tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
+        result = tool.run()
+        result_data = json.loads(result)
+
+        defaults = result_data["defaults"]
+        self.assertEqual(defaults["sync_interval_minutes"], 45)
+        self.assertEqual(defaults["max_file_size_mb"], 15)
+        self.assertEqual(defaults["supported_formats"], [".pdf", ".txt", ".md"])
+
+    def test_zep_namespace_fallback(self):
+        """Test fallback to default Zep namespace"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [{"id": "test", "type": "file"}]
+                }
+            }
+            # No rag/zep configuration
+        }
+
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": {}
+        }.get(key, default)
+
+        tool = self.module.ListTrackedTargetsFromConfig()
+        result = tool.run()
+        result_data = json.loads(result)
+
+        # Should fall back to default namespace
+        self.assertEqual(result_data["zep_namespace"], "autopiloot_drive_content")
+
+    def test_complete_workflow(self):
+        """Test complete workflow with all features"""
+        mock_config = {
+            "drive": {
+                "tracking": {
+                    "targets": [
+                        {
+                            "id": "doc_123",
+                            "type": "file",
+                            "name": "Important Document"
+                        },
+                        {
+                            "id": "folder_456",
+                            "type": "folder",
+                            "name": "Project Folder",
+                            "recursive": True,
+                            "include_patterns": ["*.pdf"],
+                            "exclude_patterns": ["*.tmp"]
+                        },
+                        {
+                            "id": "folder_789",
+                            "type": "folder",
+                            "name": "Archive",
+                            "recursive": False
+                        }
+                    ],
+                    "sync_interval_minutes": 60,
+                    "max_file_size_mb": 25,
+                    "supported_formats": [".pdf", ".docx", ".txt", ".md"]
+                }
+            },
+            "rag": {
+                "zep": {
+                    "namespace": {
+                        "drive": "production_drive_namespace"
                     }
-                ],
-                "zep": {"namespace": "test"}
+                }
             }
         }
-        mock_load_config.return_value = config
 
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
+        self.module.load_app_config.return_value = mock_config
+        self.module.get_config_value.side_effect = lambda key, default: {
+            "drive": mock_config.get("drive", {}),
+            "rag": mock_config.get("rag", {})
+        }.get(key, default)
 
-        self.assertEqual(result["status"], "loaded")
-        target = result["targets"][0]
-        self.assertEqual(target["include_patterns"], ["*.pdf"])  # Normalized to list
-        self.assertEqual(target["exclude_patterns"], [])        # Normalized to empty list
+        tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
+        result = tool.run()
+        result_data = json.loads(result)
 
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_environment')
-    @patch('drive_agent.tools.list_tracked_targets_from_config.load_app_config')
-    def test_configuration_exception_handling(self, mock_load_config, mock_load_env):
-        """Test handling of configuration loading exceptions."""
-        mock_load_config.side_effect = Exception("Config file not found")
+        # Comprehensive assertions
+        self.assertEqual(result_data["count"], 3)
+        self.assertEqual(len(result_data["targets"]), 3)
+        self.assertEqual(result_data["zep_namespace"], "production_drive_namespace")
 
-        tool = ListTrackedTargetsFromConfig()
-        result_str = tool.run()
-        result = json.loads(result_str)
+        # Check defaults
+        self.assertIn("defaults", result_data)
+        self.assertEqual(result_data["defaults"]["sync_interval_minutes"], 60)
+        self.assertEqual(result_data["defaults"]["max_file_size_mb"], 25)
+        self.assertEqual(len(result_data["defaults"]["supported_formats"]), 4)
 
-        self.assertEqual(result["error"], "config_load_failed")
-        self.assertIn("Failed to load Drive targets configuration", result["message"])
+        # Check individual targets
+        file_target = result_data["targets"][0]
+        self.assertEqual(file_target["id"], "doc_123")
+        self.assertEqual(file_target["type"], "file")
+        self.assertEqual(file_target["recursive"], False)
+
+        folder_with_patterns = result_data["targets"][1]
+        self.assertEqual(folder_with_patterns["id"], "folder_456")
+        self.assertEqual(folder_with_patterns["recursive"], True)
+        self.assertIn("include_patterns", folder_with_patterns)
+        self.assertIn("exclude_patterns", folder_with_patterns)
 
 
 if __name__ == '__main__':

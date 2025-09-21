@@ -8,7 +8,7 @@ import sys
 import json
 import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -237,7 +237,7 @@ class SaveStrategyArtifacts(BaseTool):
 
     def _prepare_artifacts(self) -> Dict[str, Any]:
         """Prepare artifacts for saving with metadata."""
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(timezone.utc)
         date_str = timestamp.strftime("%Y-%m-%d")
 
         artifacts = {

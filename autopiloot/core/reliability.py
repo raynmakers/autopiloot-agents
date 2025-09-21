@@ -7,7 +7,7 @@ for robust error handling and recovery across all agents.
 import os
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -259,3 +259,138 @@ def create_job_record(
         updated_at=datetime.now(timezone.utc),
         retry_policy=retry_policy
     )
+
+
+# Additional helper functions for test compatibility
+
+def create_dlq_entry(
+    job_type: str,
+    video_id: str,
+    reason: str,
+    retry_count: int = 0,
+    error_details: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Create a dead letter queue entry."""
+    return {
+        "job_type": job_type,
+        "video_id": video_id,
+        "reason": reason,
+        "retry_count": retry_count,
+        "error_details": error_details or {},
+        "last_error_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    }
+
+
+def should_retry_job(retry_count: int, max_retries: int = 3) -> bool:
+    """Check if a job should be retried based on retry count."""
+    return retry_count < max_retries
+
+
+def calculate_backoff_delay(attempt: int, base_delay: int = 60) -> int:
+    """Calculate exponential backoff delay."""
+    return min(base_delay * (2 ** attempt), 480)
+
+
+def create_quota_status(
+    service: str,
+    used: int,
+    limit: int,
+    reset_time: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """Create a quota status object."""
+    return {
+        "service": service,
+        "used": used,
+        "limit": limit,
+        "remaining": limit - used,
+        "exhausted": used >= limit,
+        "reset_time": (reset_time or datetime.now(timezone.utc)).isoformat()
+    }
+
+
+def is_quota_exhausted(quota_status: Dict[str, Any]) -> bool:
+    """Check if quota is exhausted."""
+    return quota_status.get("exhausted", False)
+
+
+def get_next_reset_time(service: str) -> datetime:
+    """Get the next quota reset time for a service."""
+    now = datetime.now(timezone.utc)
+    # YouTube resets at midnight PT (8 AM UTC)
+    next_reset = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    if now.hour >= 8:
+        next_reset += timedelta(days=1)
+    return next_reset
+
+
+def create_checkpoint(
+    checkpoint_id: str,
+    data: Dict[str, Any],
+    timestamp: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """Create a checkpoint for resumable operations."""
+    return {
+        "checkpoint_id": checkpoint_id,
+        "data": data,
+        "timestamp": (timestamp or datetime.now(timezone.utc)).isoformat()
+    }
+
+
+def should_pause_for_quota(quota_status: Dict[str, Any]) -> bool:
+    """Check if operations should pause due to quota."""
+    return quota_status.get("exhausted", False)
+
+
+def get_resume_time(quota_status: Dict[str, Any]) -> Optional[datetime]:
+    """Get the time when operations can resume."""
+    if not should_pause_for_quota(quota_status):
+        return None
+    reset_time = quota_status.get("reset_time")
+    return datetime.fromisoformat(reset_time) if reset_time else None
+
+
+def format_error_for_dlq(error: Exception, context: Dict[str, Any]) -> Dict[str, Any]:
+    """Format an error for dead letter queue storage."""
+    return {
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+        "context": context,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+# Type aliases for test compatibility
+DLQEntry = Dict[str, Any]
+QuotaStatus = Dict[str, Any]
+CheckpointData = Dict[str, Any]
+
+
+class QuotaManager:
+    """Manages quotas for various services."""
+
+    def __init__(self, service: str, daily_limit: int):
+        self.service = service
+        self.daily_limit = daily_limit
+        self.used = 0
+        self.reset_time = get_next_reset_time(service)
+
+    def consume(self, units: int = 1) -> bool:
+        """Consume quota units."""
+        if self.used + units > self.daily_limit:
+            return False
+        self.used += units
+        return True
+
+    def get_status(self) -> QuotaStatus:
+        """Get current quota status."""
+        return create_quota_status(
+            self.service,
+            self.used,
+            self.daily_limit,
+            self.reset_time
+        )
+
+    def reset(self):
+        """Reset quota usage."""
+        self.used = 0
+        self.reset_time = get_next_reset_time(self.service)

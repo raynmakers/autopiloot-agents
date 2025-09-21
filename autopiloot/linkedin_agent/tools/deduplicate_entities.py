@@ -5,7 +5,7 @@ Ensures clean data for storage and prevents duplicate processing.
 
 import json
 from typing import List, Dict, Any, Set, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -124,7 +124,7 @@ class DeduplicateEntities(BaseTool):
                     "entity_type": self.entity_type,
                     "key_fields_used": key_fields,
                     "merge_strategy": self.merge_strategy,
-                    "processed_at": datetime.utcnow().isoformat() + "Z"
+                    "processed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -289,7 +289,7 @@ class DeduplicateEntities(BaseTool):
         merged["_merge_metadata"] = {
             "merged_from": len(group),
             "merge_strategy": self.merge_strategy,
-            "merged_at": datetime.utcnow().isoformat() + "Z"
+            "merged_at": datetime.now(timezone.utc).isoformat()
         }
 
         return merged

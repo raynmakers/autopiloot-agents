@@ -9,7 +9,7 @@ import json
 import time
 import requests
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -174,7 +174,7 @@ class GetPostReactions(BaseTool):
                 },
                 "metadata": {
                     "posts_analyzed": len(self.post_ids),
-                    "fetched_at": datetime.utcnow().isoformat() + "Z",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
                     "include_details": self.include_details
                 }
             }

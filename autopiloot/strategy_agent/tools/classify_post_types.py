@@ -8,7 +8,7 @@ import sys
 import json
 import re
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -140,7 +140,7 @@ class ClassifyPostTypes(BaseTool):
                     "classification_method": "llm" if self.use_llm else "heuristic",
                     "model": self.model if self.use_llm else "heuristic_rules",
                     "batch_size": self.batch_size,
-                    "processed_at": datetime.utcnow().isoformat() + "Z"
+                    "processed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 

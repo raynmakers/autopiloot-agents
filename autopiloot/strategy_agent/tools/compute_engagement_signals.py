@@ -6,7 +6,7 @@ Processes LinkedIn content items to generate engagement scores and aggregate sta
 import json
 import math
 from typing import List, Dict, Any, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -137,7 +137,7 @@ class ComputeEngagementSignals(BaseTool):
                     "total_input_items": len(self.items),
                     "valid_items": len(valid_items),
                     "items_above_threshold": len(filtered_items),
-                    "computed_at": datetime.utcnow().isoformat() + "Z"
+                    "computed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 

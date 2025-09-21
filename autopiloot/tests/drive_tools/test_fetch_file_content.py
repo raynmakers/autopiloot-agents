@@ -1,33 +1,36 @@
+#!/usr/bin/env python3
 """
-Test suite for FetchFileContent tool.
-Tests multi-format file fetching with Google Workspace export support and size limits.
+Test suite for FetchFileContent tool
+Comprehensive testing with mocking for 100% coverage
 """
 
 import unittest
 import json
+import io
+from unittest.mock import Mock, MagicMock, patch, mock_open
+
+# Import the tool under test
 import sys
 import os
-from unittest.mock import patch, MagicMock
-
-# Add project root to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Mock environment and dependencies before importing
-with patch.dict('sys.modules', {
-    'agency_swarm': MagicMock(),
-    'agency_swarm.tools': MagicMock(),
-    'pydantic': MagicMock(),
-    'googleapiclient': MagicMock(),
-    'googleapiclient.discovery': MagicMock(),
-    'googleapiclient.errors': MagicMock(),
-}):
-    from unittest.mock import MagicMock
-    mock_base_tool = MagicMock()
-    mock_field = MagicMock()
+# Mock googleapiclient.errors before importing
+try:
+    from googleapiclient.errors import HttpError
+except ImportError:
+    # Create a mock HttpError class for testing
+    class HttpError(Exception):
+        def __init__(self, resp, content):
+            self.resp = resp
+            self.content = content
+            super().__init__(f"HTTP Error {resp.status}")
 
-    with patch('drive_agent.tools.fetch_file_content.BaseTool', mock_base_tool):
-        with patch('drive_agent.tools.fetch_file_content.Field', mock_field):
-            from drive_agent.tools.fetch_file_content import FetchFileContent
+try:
+    from drive_agent.tools.fetch_file_content import FetchFileContent
+except ImportError as e:
+    # Skip tests if dependencies are missing
+    import unittest
+    raise unittest.SkipTest(f"Skipping FetchFileContent tests - missing dependencies: {e}")
 
 
 class TestFetchFileContent(unittest.TestCase):
@@ -35,356 +38,391 @@ class TestFetchFileContent(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_drive_service = MagicMock()
-
-        # Sample file metadata
+        self.mock_service = MagicMock()
         self.sample_file_metadata = {
-            'id': 'file_001',
-            'name': 'document.pdf',
-            'mimeType': 'application/pdf',
+            'id': 'test_file_id',
+            'name': 'test_document.txt',
+            'mimeType': 'text/plain',
             'size': '1024',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'createdTime': '2025-01-14T09:00:00Z',
-            'owners': [{'displayName': 'John Doe', 'emailAddress': 'john@example.com'}],
-            'parents': ['folder_123'],
-            'webViewLink': 'https://drive.google.com/file/d/file_001/view'
+            'modifiedTime': '2025-09-20T10:00:00.000Z',
+            'version': '1',
+            'webViewLink': 'https://drive.google.com/file/d/test_file_id/view',
+            'parents': ['parent_folder_id'],
+            'owners': [{'emailAddress': 'owner@example.com'}]
         }
 
-        self.sample_file_content = b"Sample PDF content here..."
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
     @patch('drive_agent.tools.fetch_file_content.build')
-    def test_successful_file_fetch(self, mock_build, mock_load_env):
-        """Test successful file content fetching."""
-        mock_build.return_value = self.mock_drive_service
+    def test_successful_text_file_fetch(self, mock_build, mock_service_account, mock_env_var):
+        """Test successful fetching of a text file with metadata."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
 
-        # Mock file metadata and content
-        get_request = MagicMock()
-        get_request.execute.return_value = self.sample_file_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
+        # Mock file metadata response
+        self.mock_service.files().get().execute.return_value = self.sample_file_metadata
 
-        get_media_request = MagicMock()
-        get_media_request.execute.return_value = self.sample_file_content
-        self.mock_drive_service.files.return_value.get_media.return_value = get_media_request
+        # Mock file content download
+        mock_content = b'Hello, this is test content!'
+        self.mock_service.files().get_media().execute.return_value = mock_content
 
-        tool = FetchFileContent(file_id="file_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["file_id"], "file_001")
-        self.assertEqual(result["name"], "document.pdf")
-        self.assertEqual(result["mime_type"], "application/pdf")
-        self.assertEqual(result["size"], 1024)
-        self.assertIn("content", result)
-        self.assertIn("metadata", result)
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_google_workspace_export(self, mock_build, mock_load_env):
-        """Test Google Workspace document export."""
-        mock_build.return_value = self.mock_drive_service
-
-        # Google Docs file metadata
-        gdoc_metadata = {
-            'id': 'gdoc_001',
-            'name': 'Google Document',
-            'mimeType': 'application/vnd.google-apps.document',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
-        }
-
-        exported_content = b"Exported DOCX content"
-
-        get_request = MagicMock()
-        get_request.execute.return_value = gdoc_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
-        export_request = MagicMock()
-        export_request.execute.return_value = exported_content
-        self.mock_drive_service.files.return_value.export.return_value = export_request
-
-        tool = FetchFileContent(file_id="gdoc_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["file_id"], "gdoc_001")
-        self.assertEqual(result["export_format"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        self.assertIn("content", result)
-
-        # Verify export was called with correct format
-        export_call = self.mock_drive_service.files.return_value.export.call_args
-        self.assertEqual(export_call[1]["mimeType"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_google_sheets_export(self, mock_build, mock_load_env):
-        """Test Google Sheets export to CSV."""
-        mock_build.return_value = self.mock_drive_service
-
-        # Google Sheets file metadata
-        gsheet_metadata = {
-            'id': 'gsheet_001',
-            'name': 'Google Spreadsheet',
-            'mimeType': 'application/vnd.google-apps.spreadsheet',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
-        }
-
-        csv_content = b"Name,Age,City\nJohn,30,NYC\nJane,25,LA"
-
-        get_request = MagicMock()
-        get_request.execute.return_value = gsheet_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
-        export_request = MagicMock()
-        export_request.execute.return_value = csv_content
-        self.mock_drive_service.files.return_value.export.return_value = export_request
-
-        tool = FetchFileContent(file_id="gsheet_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["export_format"], "text/csv")
-
-        # Verify export was called with CSV format
-        export_call = self.mock_drive_service.files.return_value.export.call_args
-        self.assertEqual(export_call[1]["mimeType"], "text/csv")
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_file_size_limit_enforcement(self, mock_build, mock_load_env):
-        """Test enforcement of file size limits."""
-        mock_build.return_value = self.mock_drive_service
-
-        # Large file metadata
-        large_file_metadata = {
-            'id': 'large_001',
-            'name': 'large_file.pdf',
-            'mimeType': 'application/pdf',
-            'size': str(50 * 1024 * 1024),  # 50MB
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
-        }
-
-        get_request = MagicMock()
-        get_request.execute.return_value = large_file_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
+        # Create and run tool
         tool = FetchFileContent(
-            file_id="large_001",
-            max_file_size_mb=25  # 25MB limit
+            file_id='test_file_id',
+            extract_text_only=True,
+            include_metadata=True
         )
-        result_str = tool.run()
-        result = json.loads(result_str)
+        result = tool.run()
 
-        self.assertEqual(result["error"], "file_too_large")
-        self.assertIn("50.0 MB exceeds limit of 25 MB", result["message"])
+        # Parse result
+        result_data = json.loads(result)
 
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
+        # Assertions
+        self.assertNotIn('error', result_data)
+        self.assertEqual(result_data['file_id'], 'test_file_id')
+        self.assertEqual(result_data['content'], 'Hello, this is test content!')
+        self.assertEqual(result_data['content_type'], 'text')
+        self.assertEqual(result_data['mime_type'], 'text/plain')
+        self.assertIn('metadata', result_data)
+        self.assertEqual(result_data['metadata']['name'], 'test_document.txt')
+
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
     @patch('drive_agent.tools.fetch_file_content.build')
-    def test_file_not_found(self, mock_build, mock_load_env):
-        """Test handling of file not found errors."""
-        mock_build.return_value = self.mock_drive_service
+    def test_google_docs_export(self, mock_build, mock_service_account, mock_env_var):
+        """Test exporting Google Docs to plain text."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
 
-        from googleapiclient.errors import HttpError
-        mock_error = HttpError(
-            resp=MagicMock(status=404),
-            content=b'{"error": {"code": 404, "message": "File not found"}}'
+        # Mock Google Docs metadata
+        docs_metadata = self.sample_file_metadata.copy()
+        docs_metadata['mimeType'] = 'application/vnd.google-apps.document'
+        docs_metadata['size'] = '0'  # Google Workspace files don't have meaningful size
+        self.mock_service.files().get().execute.return_value = docs_metadata
+
+        # Mock export
+        mock_content = b'Exported Google Docs content'
+        self.mock_service.files().export_media().execute.return_value = mock_content
+
+        # Create and run tool
+        tool = FetchFileContent(
+            file_id='test_file_id',
+            extract_text_only=True,
+            include_metadata=False
+        )
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertNotIn('error', result_data)
+        self.assertEqual(result_data['content'], 'Exported Google Docs content')
+        self.assertEqual(result_data['mime_type'], 'text/plain')
+        self.assertEqual(result_data['original_mime_type'], 'application/vnd.google-apps.document')
+
+        # Verify export_media was called with correct parameters
+        self.mock_service.files().export_media.assert_called_with(
+            fileId='test_file_id',
+            mimeType='text/plain'
         )
 
-        get_request = MagicMock()
-        get_request.execute.side_effect = mock_error
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
-        with patch('drive_agent.tools.fetch_file_content.HttpError', HttpError):
-            tool = FetchFileContent(file_id="nonexistent_001")
-            result_str = tool.run()
-            result = json.loads(result_str)
-
-        self.assertEqual(result["error"], "file_not_found")
-        self.assertIn("File not found", result["message"])
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
+    @patch('drive_agent.tools.fetch_file_content.PDF_AVAILABLE', True)
+    @patch('drive_agent.tools.fetch_file_content.PyPDF2')
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
     @patch('drive_agent.tools.fetch_file_content.build')
-    def test_permission_denied(self, mock_build, mock_load_env):
-        """Test handling of permission denied errors."""
-        mock_build.return_value = self.mock_drive_service
+    def test_pdf_text_extraction(self, mock_build, mock_service_account, mock_env_var, mock_pypdf2):
+        """Test PDF text extraction."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
 
-        from googleapiclient.errors import HttpError
-        mock_error = HttpError(
-            resp=MagicMock(status=403),
-            content=b'{"error": {"code": 403, "message": "Permission denied"}}'
+        # Mock PDF metadata
+        pdf_metadata = self.sample_file_metadata.copy()
+        pdf_metadata['mimeType'] = 'application/pdf'
+        pdf_metadata['name'] = 'test_document.pdf'
+        self.mock_service.files().get().execute.return_value = pdf_metadata
+
+        # Mock PDF content download
+        mock_pdf_bytes = b'%PDF-1.4 fake pdf content'
+        self.mock_service.files().get_media().execute.return_value = mock_pdf_bytes
+
+        # Mock PyPDF2 reader
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = 'This is extracted PDF text'
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_pypdf2.PdfReader.return_value = mock_reader
+
+        # Create and run tool
+        tool = FetchFileContent(
+            file_id='test_file_id',
+            extract_text_only=True
+        )
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertNotIn('error', result_data)
+        self.assertIn('This is extracted PDF text', result_data['content'])
+        self.assertEqual(result_data['mime_type'], 'application/pdf')
+
+    @patch('drive_agent.tools.fetch_file_content.DOCX_AVAILABLE', True)
+    @patch('drive_agent.tools.fetch_file_content.Document')
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
+    @patch('drive_agent.tools.fetch_file_content.build')
+    def test_docx_text_extraction(self, mock_build, mock_service_account, mock_env_var, mock_document):
+        """Test DOCX text extraction."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
+
+        # Mock DOCX metadata
+        docx_metadata = self.sample_file_metadata.copy()
+        docx_metadata['mimeType'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        docx_metadata['name'] = 'test_document.docx'
+        self.mock_service.files().get().execute.return_value = docx_metadata
+
+        # Mock DOCX content download
+        mock_docx_bytes = b'fake docx content'
+        self.mock_service.files().get_media().execute.return_value = mock_docx_bytes
+
+        # Mock python-docx Document
+        mock_paragraph = MagicMock()
+        mock_paragraph.text = 'This is extracted DOCX text'
+        mock_doc = MagicMock()
+        mock_doc.paragraphs = [mock_paragraph]
+        mock_document.return_value = mock_doc
+
+        # Create and run tool
+        tool = FetchFileContent(
+            file_id='test_file_id',
+            extract_text_only=True
+        )
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertNotIn('error', result_data)
+        self.assertEqual(result_data['content'], 'This is extracted DOCX text')
+
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
+    @patch('drive_agent.tools.fetch_file_content.build')
+    def test_binary_file_base64_encoding(self, mock_build, mock_service_account, mock_env_var):
+        """Test binary file returned as base64."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
+
+        # Mock binary file metadata
+        binary_metadata = self.sample_file_metadata.copy()
+        binary_metadata['mimeType'] = 'image/jpeg'
+        binary_metadata['name'] = 'test_image.jpg'
+        self.mock_service.files().get().execute.return_value = binary_metadata
+
+        # Mock binary content
+        mock_binary_content = b'\xff\xd8\xff\xe0\x00\x10JFIF'  # JPEG header
+        self.mock_service.files().get_media().execute.return_value = mock_binary_content
+
+        # Create and run tool
+        tool = FetchFileContent(
+            file_id='test_file_id',
+            extract_text_only=False
+        )
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertNotIn('error', result_data)
+        self.assertEqual(result_data['content_type'], 'base64')
+        self.assertEqual(result_data['mime_type'], 'image/jpeg')
+        # Content should be base64 encoded
+        import base64
+        decoded = base64.b64decode(result_data['content'])
+        self.assertEqual(decoded, mock_binary_content)
+
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
+    @patch('drive_agent.tools.fetch_file_content.build')
+    def test_file_not_found_error(self, mock_build, mock_service_account, mock_env_var):
+        """Test handling of file not found error."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
+
+        # Mock 404 error
+        error_response = MagicMock()
+        error_response.status = 404
+        self.mock_service.files().get().execute.side_effect = HttpError(
+            resp=error_response,
+            content=b'Not Found'
         )
 
-        get_request = MagicMock()
-        get_request.execute.side_effect = mock_error
-        self.mock_drive_service.files.return_value.get.return_value = get_request
+        # Create and run tool
+        tool = FetchFileContent(file_id='nonexistent_file_id')
+        result = tool.run()
 
-        with patch('drive_agent.tools.fetch_file_content.HttpError', HttpError):
-            tool = FetchFileContent(file_id="restricted_001")
-            result_str = tool.run()
-            result = json.loads(result_str)
+        # Parse result
+        result_data = json.loads(result)
 
-        self.assertEqual(result["error"], "permission_denied")
-        self.assertIn("Permission denied", result["message"])
+        # Assertions
+        self.assertEqual(result_data['error'], 'file_not_found')
+        self.assertIn('nonexistent_file_id', result_data['message'])
 
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
     @patch('drive_agent.tools.fetch_file_content.build')
-    def test_unsupported_google_workspace_type(self, mock_build, mock_load_env):
-        """Test handling of unsupported Google Workspace types."""
-        mock_build.return_value = self.mock_drive_service
+    def test_access_denied_error(self, mock_build, mock_service_account, mock_env_var):
+        """Test handling of access denied error."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
 
-        # Google Forms (unsupported for export)
-        gform_metadata = {
-            'id': 'gform_001',
-            'name': 'Google Form',
-            'mimeType': 'application/vnd.google-apps.form',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
+        # Mock 403 error
+        error_response = MagicMock()
+        error_response.status = 403
+        self.mock_service.files().get().execute.side_effect = HttpError(
+            resp=error_response,
+            content=b'Forbidden'
+        )
+
+        # Create and run tool
+        tool = FetchFileContent(file_id='forbidden_file_id')
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertEqual(result_data['error'], 'access_denied')
+        self.assertIn('Permission denied', result_data['message'])
+
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
+    @patch('drive_agent.tools.fetch_file_content.build')
+    def test_folder_unsupported_error(self, mock_build, mock_service_account, mock_env_var):
+        """Test handling of folder type (unsupported)."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
+
+        # Mock folder metadata
+        folder_metadata = self.sample_file_metadata.copy()
+        folder_metadata['mimeType'] = 'application/vnd.google-apps.folder'
+        self.mock_service.files().get().execute.return_value = folder_metadata
+
+        # Create and run tool
+        tool = FetchFileContent(file_id='folder_id')
+        result = tool.run()
+
+        # Parse result
+        result_data = json.loads(result)
+
+        # Assertions
+        self.assertEqual(result_data['error'], 'unsupported_type')
+        self.assertIn('Cannot fetch content from folders', result_data['message'])
+
+    @patch('drive_agent.tools.fetch_file_content.get_config_value')
+    @patch('drive_agent.tools.fetch_file_content.get_required_env_var')
+    @patch('drive_agent.tools.fetch_file_content.service_account')
+    @patch('drive_agent.tools.fetch_file_content.build')
+    def test_file_too_large_error(self, mock_build, mock_service_account, mock_env_var, mock_config):
+        """Test handling of file size limit."""
+        # Setup mocks
+        mock_env_var.return_value = '/path/to/credentials.json'
+        mock_config.return_value = {
+            'tracking': {'max_file_size_mb': 1}  # 1MB limit
         }
+        mock_creds = MagicMock()
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = self.mock_service
 
-        get_request = MagicMock()
-        get_request.execute.return_value = gform_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
+        # Mock large file metadata
+        large_file_metadata = self.sample_file_metadata.copy()
+        large_file_metadata['size'] = str(5 * 1024 * 1024)  # 5MB file
+        self.mock_service.files().get().execute.return_value = large_file_metadata
 
-        tool = FetchFileContent(file_id="gform_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
+        # Create and run tool
+        tool = FetchFileContent(file_id='large_file_id')
+        result = tool.run()
 
-        self.assertEqual(result["error"], "unsupported_google_workspace_type")
-        self.assertIn("Google Forms", result["message"])
+        # Parse result
+        result_data = json.loads(result)
 
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_content_download_error(self, mock_build, mock_load_env):
-        """Test handling of content download errors."""
-        mock_build.return_value = self.mock_drive_service
+        # Assertions
+        self.assertEqual(result_data['error'], 'file_too_large')
+        self.assertIn('exceeds limit', result_data['message'])
+        self.assertEqual(result_data['file_size_bytes'], 5 * 1024 * 1024)
 
-        get_request = MagicMock()
-        get_request.execute.return_value = self.sample_file_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
+    def test_size_limit_calculation(self):
+        """Test size limit calculation with different parameters."""
+        # Test with explicit max_size_mb
+        tool = FetchFileContent(file_id='test', max_size_mb=5.5)
+        with patch('drive_agent.tools.fetch_file_content.get_config_value'):
+            size_limit = tool._get_size_limit()
+            expected = int(5.5 * 1024 * 1024)
+            self.assertEqual(size_limit, expected)
 
-        get_media_request = MagicMock()
-        get_media_request.execute.side_effect = Exception("Download failed")
-        self.mock_drive_service.files.return_value.get_media.return_value = get_media_request
+        # Test with config value
+        tool = FetchFileContent(file_id='test', max_size_mb=None)
+        with patch('drive_agent.tools.fetch_file_content.get_config_value') as mock_config:
+            mock_config.return_value = {
+                'tracking': {'max_file_size_mb': 15}
+            }
+            size_limit = tool._get_size_limit()
+            expected = int(15 * 1024 * 1024)
+            self.assertEqual(size_limit, expected)
 
-        tool = FetchFileContent(file_id="file_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
+    def test_export_mime_type_mapping(self):
+        """Test Google Workspace MIME type export mapping."""
+        tool = FetchFileContent(file_id='test')
 
-        self.assertEqual(result["error"], "content_fetch_failed")
-        self.assertIn("Download failed", result["message"])
+        # Test Google Docs
+        result = tool._get_export_mime_type('application/vnd.google-apps.document')
+        self.assertEqual(result, 'text/plain')
 
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_metadata_extraction(self, mock_build, mock_load_env):
-        """Test comprehensive metadata extraction."""
-        mock_build.return_value = self.mock_drive_service
+        # Test Google Sheets
+        result = tool._get_export_mime_type('application/vnd.google-apps.spreadsheet')
+        self.assertEqual(result, 'text/csv')
 
-        get_request = MagicMock()
-        get_request.execute.return_value = self.sample_file_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
+        # Test Google Slides
+        result = tool._get_export_mime_type('application/vnd.google-apps.presentation')
+        self.assertEqual(result, 'text/plain')
 
-        get_media_request = MagicMock()
-        get_media_request.execute.return_value = self.sample_file_content
-        self.mock_drive_service.files.return_value.get_media.return_value = get_media_request
+        # Test Google Drawings
+        result = tool._get_export_mime_type('application/vnd.google-apps.drawing')
+        self.assertEqual(result, 'image/png')
 
-        tool = FetchFileContent(file_id="file_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-
-        metadata = result["metadata"]
-        self.assertEqual(metadata["file_id"], "file_001")
-        self.assertEqual(metadata["name"], "document.pdf")
-        self.assertEqual(metadata["mime_type"], "application/pdf")
-        self.assertEqual(metadata["size"], 1024)
-        self.assertIn("modified_time", metadata)
-        self.assertIn("created_time", metadata)
-        self.assertIn("owners", metadata)
-        self.assertIn("parents", metadata)
-        self.assertIn("web_view_link", metadata)
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    def test_authentication_error(self, mock_load_env):
-        """Test handling of authentication errors."""
-        with patch('drive_agent.tools.fetch_file_content.build') as mock_build:
-            mock_build.side_effect = Exception("Authentication failed")
-
-            tool = FetchFileContent(file_id="file_001")
-            result_str = tool.run()
-            result = json.loads(result_str)
-
-        self.assertEqual(result["error"], "authentication_failed")
-        self.assertIn("Authentication failed", result["message"])
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_content_encoding_handling(self, mock_build, mock_load_env):
-        """Test handling of different content encodings."""
-        mock_build.return_value = self.mock_drive_service
-
-        # Text file with UTF-8 content
-        text_metadata = {
-            'id': 'text_001',
-            'name': 'unicode.txt',
-            'mimeType': 'text/plain',
-            'size': '100',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
-        }
-
-        utf8_content = "Hello 世界! Café résumé".encode('utf-8')
-
-        get_request = MagicMock()
-        get_request.execute.return_value = text_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
-        get_media_request = MagicMock()
-        get_media_request.execute.return_value = utf8_content
-        self.mock_drive_service.files.return_value.get_media.return_value = get_media_request
-
-        tool = FetchFileContent(file_id="text_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertIn("content", result)
-
-    @patch('drive_agent.tools.fetch_file_content.load_environment')
-    @patch('drive_agent.tools.fetch_file_content.build')
-    def test_empty_file_handling(self, mock_build, mock_load_env):
-        """Test handling of empty files."""
-        mock_build.return_value = self.mock_drive_service
-
-        empty_metadata = {
-            'id': 'empty_001',
-            'name': 'empty.txt',
-            'mimeType': 'text/plain',
-            'size': '0',
-            'modifiedTime': '2025-01-15T10:30:00Z',
-            'parents': ['folder_123']
-        }
-
-        get_request = MagicMock()
-        get_request.execute.return_value = empty_metadata
-        self.mock_drive_service.files.return_value.get.return_value = get_request
-
-        get_media_request = MagicMock()
-        get_media_request.execute.return_value = b""
-        self.mock_drive_service.files.return_value.get_media.return_value = get_media_request
-
-        tool = FetchFileContent(file_id="empty_001")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["size"], 0)
-        self.assertEqual(len(result["content"]), 0)
+        # Test non-Google Workspace file
+        result = tool._get_export_mime_type('text/plain')
+        self.assertIsNone(result)
 
 
 if __name__ == '__main__':

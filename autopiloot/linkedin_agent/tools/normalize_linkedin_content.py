@@ -6,7 +6,7 @@ Prepares content for Zep storage and strategy analysis with uniform structure.
 import json
 import hashlib
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -65,7 +65,7 @@ class NormalizeLinkedInContent(BaseTool):
                     "posts_processed": 0,
                     "comments_processed": 0,
                     "reactions_processed": 0,
-                    "normalization_timestamp": datetime.utcnow().isoformat() + "Z"
+                    "normalization_timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -164,7 +164,7 @@ class NormalizeLinkedInContent(BaseTool):
                 "mentions": post.get("mentions", []),
 
                 # Processing metadata
-                "normalized_at": datetime.utcnow().isoformat() + "Z"
+                "normalized_at": datetime.now(timezone.utc).isoformat()
             }
 
             normalized.append(normalized_post)
@@ -216,7 +216,7 @@ class NormalizeLinkedInContent(BaseTool):
                 },
 
                 # Processing metadata
-                "normalized_at": datetime.utcnow().isoformat() + "Z"
+                "normalized_at": datetime.now(timezone.utc).isoformat()
             }
 
             # Handle nested replies if present
@@ -256,7 +256,7 @@ class NormalizeLinkedInContent(BaseTool):
                         "breakdown": post_reactions.get("breakdown", {}),
                         "engagement_rate": post_reactions.get("engagement_rate", 0),
                         "top_reaction": post_reactions.get("top_reaction", ""),
-                        "normalized_at": datetime.utcnow().isoformat() + "Z"
+                        "normalized_at": datetime.now(timezone.utc).isoformat()
                     }
 
                     normalized["posts_with_reactions"].append(normalized_post_reactions)
@@ -373,7 +373,7 @@ class NormalizeLinkedInContent(BaseTool):
             "has_comments": "normalized_comments" in result,
             "has_reactions": "normalized_reactions" in result,
             "schema_version": result["schema_version"],
-            "processing_time": datetime.utcnow().isoformat() + "Z"
+            "processing_time": datetime.now(timezone.utc).isoformat()
         }
 
         # Add content statistics

@@ -9,7 +9,7 @@ import json
 import time
 import requests
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -157,7 +157,7 @@ class GetUserCommentActivity(BaseTool):
                 },
                 "metadata": {
                     "user_urn": self.user_urn,
-                    "fetched_at": datetime.utcnow().isoformat() + "Z",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
                     "include_post_context": self.include_post_context
                 }
             }

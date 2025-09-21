@@ -251,6 +251,129 @@ class TestDriveAgent(unittest.TestCase):
             self.assertEqual(temperature, 0.2)
             self.assertEqual(max_tokens, 25000)
 
+    def test_actual_drive_agent_import_exception_path(self):
+        """Import drive_agent.py directly to trigger exception path and achieve 100% coverage."""
+        import importlib
+
+        # Mock agency_swarm classes
+        mock_agent = MagicMock()
+        mock_model_settings = MagicMock()
+
+        # Mock agency_swarm to track calls
+        with patch('drive_agent.drive_agent.Agent', mock_agent):
+            with patch('drive_agent.drive_agent.ModelSettings', mock_model_settings):
+                # Patch the config loading to force exception path (lines 22-26)
+                with patch('drive_agent.drive_agent.load_app_config', side_effect=Exception("Config loading failed")):
+                    # Force reload of the module to trigger fresh execution
+                    if 'drive_agent.drive_agent' in sys.modules:
+                        importlib.reload(sys.modules['drive_agent.drive_agent'])
+                    else:
+                        import drive_agent.drive_agent
+
+                    # Verify that Agent was called (meaning the module was executed)
+                    mock_agent.assert_called()
+                    mock_model_settings.assert_called()
+
+                    # Check that the fallback values were used by examining the call
+                    model_settings_kwargs = mock_model_settings.call_args[1]
+                    self.assertEqual(model_settings_kwargs['model'], "gpt-4o")
+                    self.assertEqual(model_settings_kwargs['temperature'], 0.2)
+                    self.assertEqual(model_settings_kwargs['max_completion_tokens'], 25000)
+
+    def test_actual_drive_agent_import_success_path(self):
+        """Import drive_agent.py with successful config to cover success path and achieve 100% coverage."""
+        import importlib
+
+        # Mock agency_swarm classes
+        mock_agent = MagicMock()
+        mock_model_settings = MagicMock()
+
+        # Mock successful config
+        mock_config = {
+            "llm": {
+                "default": {
+                    "model": "gpt-4o-test",
+                    "temperature": 0.3,
+                    "max_output_tokens": 30000
+                }
+            }
+        }
+
+        # Mock agency_swarm to track calls
+        with patch('drive_agent.drive_agent.Agent', mock_agent):
+            with patch('drive_agent.drive_agent.ModelSettings', mock_model_settings):
+                # Patch the config loading to return mock config (success path lines 16-21)
+                with patch('drive_agent.drive_agent.load_app_config', return_value=mock_config):
+                    # Force reload of the module to trigger fresh execution
+                    if 'drive_agent.drive_agent' in sys.modules:
+                        importlib.reload(sys.modules['drive_agent.drive_agent'])
+                    else:
+                        import drive_agent.drive_agent
+
+                    # Verify that Agent was called (meaning the module was executed)
+                    mock_agent.assert_called()
+                    mock_model_settings.assert_called()
+
+                    # Check that the config values were used by examining the call
+                    model_settings_kwargs = mock_model_settings.call_args[1]
+                    self.assertEqual(model_settings_kwargs['model'], "gpt-4o-test")
+                    self.assertEqual(model_settings_kwargs['temperature'], 0.3)
+                    self.assertEqual(model_settings_kwargs['max_completion_tokens'], 30000)
+
+    def test_force_exception_path_lines_22_26(self):
+        """Force execution of lines 22-26 by creating conditions where config loading must fail."""
+        import importlib
+        import builtins
+
+        # Store original __import__ to restore later
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            # Force ImportError for the loader module to trigger exception path
+            if name == 'loader' or name.endswith('.loader'):
+                raise ImportError(f"No module named '{name}'")
+            return original_import(name, *args, **kwargs)
+
+        # Clear any cached drive_agent modules
+        modules_to_clear = [k for k in list(sys.modules.keys()) if 'drive_agent' in k]
+        for module in modules_to_clear:
+            del sys.modules[module]
+
+        # Mock agency_swarm classes to track calls
+        mock_agent = MagicMock()
+        mock_model_settings = MagicMock()
+
+        try:
+            # Replace __import__ globally to force loader import failure
+            builtins.__import__ = mock_import
+
+            # Mock agency_swarm components
+            with patch('agency_swarm.Agent', mock_agent):
+                with patch('agency_swarm.ModelSettings', mock_model_settings):
+                    # Now import the module - this should trigger the exception path (lines 22-26)
+                    import drive_agent.drive_agent as da_module
+
+                    # Verify the module imported successfully
+                    self.assertIsNotNone(da_module)
+
+                    # Verify that Agent was called (module executed)
+                    mock_agent.assert_called_once()
+                    mock_model_settings.assert_called_once()
+
+                    # Check that fallback values from lines 24-26 were used
+                    model_settings_call = mock_model_settings.call_args
+                    if model_settings_call and len(model_settings_call) > 1:
+                        model_settings_kwargs = model_settings_call[1]
+                        # These values should come from lines 24-26 (the fallback)
+                        self.assertEqual(model_settings_kwargs.get('model'), "gpt-4o")
+                        self.assertEqual(model_settings_kwargs.get('temperature'), 0.2)
+                        self.assertEqual(model_settings_kwargs.get('max_completion_tokens'), 25000)
+
+        finally:
+            # Always restore the original __import__
+            builtins.__import__ = original_import
+
+
     def test_config_loading_various_exceptions(self):
         """Test that various config loading exceptions trigger fallback values."""
         exception_types = [

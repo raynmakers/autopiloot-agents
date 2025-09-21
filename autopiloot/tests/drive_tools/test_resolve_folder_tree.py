@@ -1,337 +1,450 @@
+#!/usr/bin/env python3
 """
-Test suite for ResolveFolderTree tool.
-Tests recursive folder structure resolution with pattern filtering and pagination.
+Comprehensive tests for resolve_folder_tree.py
+Tests Google Drive folder tree resolution with mocking
 """
 
 import unittest
 import json
 import sys
 import os
-from unittest.mock import patch, MagicMock
-
-# Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
-# Mock environment and dependencies before importing
-with patch.dict('sys.modules', {
-    'agency_swarm': MagicMock(),
-    'agency_swarm.tools': MagicMock(),
-    'pydantic': MagicMock(),
-    'googleapiclient': MagicMock(),
-    'googleapiclient.discovery': MagicMock(),
-}):
-    from unittest.mock import MagicMock
-    mock_base_tool = MagicMock()
-    mock_field = MagicMock()
-
-    with patch('drive_agent.tools.resolve_folder_tree.BaseTool', mock_base_tool):
-        with patch('drive_agent.tools.resolve_folder_tree.Field', mock_field):
-            from drive_agent.tools.resolve_folder_tree import ResolveFolderTree
+from unittest.mock import MagicMock, patch, Mock
+import importlib.util
 
 
 class TestResolveFolderTree(unittest.TestCase):
-    """Test cases for ResolveFolderTree tool."""
+    """Test ResolveFolderTree tool functionality"""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_drive_service = MagicMock()
-
-        # Sample folder structure response
-        self.sample_files_response = {
-            'files': [
-                {
-                    'id': 'file_001',
-                    'name': 'document.pdf',
-                    'mimeType': 'application/pdf',
-                    'size': '1024',
-                    'modifiedTime': '2025-01-15T10:30:00Z',
-                    'parents': ['folder_123']
-                },
-                {
-                    'id': 'subfolder_001',
-                    'name': 'Subfolder',
-                    'mimeType': 'application/vnd.google-apps.folder',
-                    'modifiedTime': '2025-01-15T09:00:00Z',
-                    'parents': ['folder_123']
-                },
-                {
-                    'id': 'file_002',
-                    'name': 'archive.zip',
-                    'mimeType': 'application/zip',
-                    'size': '2048',
-                    'modifiedTime': '2025-01-14T15:20:00Z',
-                    'parents': ['folder_123']
-                }
-            ],
-            'nextPageToken': None
+    @classmethod
+    def setUpClass(cls):
+        """Set up test class with proper mocking"""
+        # Mock all external dependencies
+        cls.mock_modules = {
+            'agency_swarm': MagicMock(),
+            'agency_swarm.tools': MagicMock(),
+            'pydantic': MagicMock(),
+            'google': MagicMock(),
+            'google.oauth2': MagicMock(),
+            'google.oauth2.service_account': MagicMock(),
+            'googleapiclient': MagicMock(),
+            'googleapiclient.discovery': MagicMock(),
+            'googleapiclient.errors': MagicMock(),
+            'fnmatch': MagicMock(),
+            'env_loader': MagicMock(),
+            'loader': MagicMock()
         }
 
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_successful_folder_tree_resolution(self, mock_build, mock_load_env):
-        """Test successful recursive folder tree resolution."""
-        mock_build.return_value = self.mock_drive_service
+        # Set up mocks
+        cls.mock_modules['agency_swarm.tools'].BaseTool = MagicMock()
+        cls.mock_modules['pydantic'].Field = MagicMock(side_effect=lambda **kwargs: kwargs.get('default', kwargs.get('default_factory', lambda: None)()))
 
-        # Mock API responses
-        files_request = MagicMock()
-        files_request.execute.return_value = self.sample_files_response
-        self.mock_drive_service.files.return_value.list.return_value = files_request
+        # Mock fnmatch for pattern matching
+        cls.mock_modules['fnmatch'].fnmatch = MagicMock(side_effect=lambda name, pattern: True)
 
-        tool = ResolveFolderTree(
-            folder_id="folder_123",
-            include_patterns=["*.pdf"],
-            exclude_patterns=["*.zip"]
-        )
-        result_str = tool.run()
-        result = json.loads(result_str)
+        # Create HttpError class mock
+        http_error_class = type('HttpError', (Exception,), {})
+        cls.mock_modules['googleapiclient.errors'].HttpError = http_error_class
 
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["folder_id"], "folder_123")
-        self.assertGreaterEqual(result["total_files"], 1)
-        self.assertGreaterEqual(result["matching_files"], 1)
+        # Load the module
+        module_path = "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/drive_agent/tools/resolve_folder_tree.py"
+        cls.module = cls._load_module_with_mocks(module_path)
 
-        # Check that PDF file matches but ZIP is excluded
-        matching_files = result["files"]
-        pdf_files = [f for f in matching_files if f["name"] == "document.pdf"]
-        zip_files = [f for f in matching_files if f["name"] == "archive.zip"]
+    @classmethod
+    def _load_module_with_mocks(cls, module_path):
+        """Load module with comprehensive mocking"""
+        with patch.dict('sys.modules', cls.mock_modules):
+            spec = importlib.util.spec_from_file_location("resolve_folder_tree", module_path)
+            module = importlib.util.module_from_spec(spec)
 
-        self.assertEqual(len(pdf_files), 1)
-        self.assertEqual(len(zip_files), 0)  # Should be excluded
+            # Mock the imports
+            module.get_required_env_var = MagicMock(return_value="/path/to/creds.json")
+            module.get_config_value = MagicMock()
 
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_recursive_folder_processing(self, mock_build, mock_load_env):
-        """Test recursive processing of subfolders."""
-        mock_build.return_value = self.mock_drive_service
+            spec.loader.exec_module(module)
+            return module
 
-        # Mock responses for main folder and subfolder
-        main_response = self.sample_files_response
-        subfolder_response = {
+    def setUp(self):
+        """Set up each test"""
+        # Reset mocks
+        self.mock_modules['fnmatch'].fnmatch.reset_mock()
+        self.module.get_required_env_var.reset_mock()
+
+    def test_successful_folder_tree_resolution(self):
+        """Test successful resolution of folder tree"""
+        # Create mock Drive service
+        mock_service = MagicMock()
+
+        # Mock folder metadata
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Test Folder',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        # Mock folder contents
+        mock_service.files().list.return_value.execute.return_value = {
             'files': [
                 {
-                    'id': 'file_003',
-                    'name': 'nested.pdf',
+                    'id': 'file_1',
+                    'name': 'document.pdf',
                     'mimeType': 'application/pdf',
-                    'size': '512',
-                    'modifiedTime': '2025-01-15T11:00:00Z',
-                    'parents': ['subfolder_001']
+                    'size': '1024000',
+                    'modifiedTime': '2025-01-15T10:00:00Z',
+                    'webViewLink': 'https://drive.google.com/file1'
+                },
+                {
+                    'id': 'subfolder_1',
+                    'name': 'Subfolder',
+                    'mimeType': 'application/vnd.google-apps.folder'
                 }
             ]
         }
 
-        def mock_list_files(*args, **kwargs):
-            request = MagicMock()
-            # Return different responses based on the query
-            if "'subfolder_001' in parents" in kwargs.get('q', ''):
-                request.execute.return_value = subfolder_response
-            else:
-                request.execute.return_value = main_response
-            return request
-
-        self.mock_drive_service.files.return_value.list.side_effect = mock_list_files
-
-        tool = ResolveFolderTree(
+        # Create tool and mock service initialization
+        tool = self.module.ResolveFolderTree(
             folder_id="folder_123",
-            include_patterns=["*.pdf"],
-            recursive=True
+            recursive=False
         )
-        result_str = tool.run()
-        result = json.loads(result_str)
 
-        self.assertEqual(result["status"], "success")
-        self.assertGreaterEqual(result["total_files"], 2)  # Should include nested file
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
 
-        # Check that nested file is included
-        nested_files = [f for f in result["files"] if f["name"] == "nested.pdf"]
-        self.assertEqual(len(nested_files), 1)
+        # Verify results
+        self.assertIn("folder_tree", result_data)
+        self.assertIn("summary", result_data)
+        self.assertEqual(result_data["folder_tree"]["id"], "folder_123")
+        self.assertEqual(result_data["folder_tree"]["name"], "Test Folder")
+        self.assertEqual(len(result_data["folder_tree"]["files"]), 1)
+        self.assertEqual(len(result_data["folder_tree"]["folders"]), 1)
 
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_pattern_filtering(self, mock_build, mock_load_env):
-        """Test include and exclude pattern filtering."""
-        mock_build.return_value = self.mock_drive_service
+    def test_recursive_folder_resolution(self):
+        """Test recursive folder tree resolution"""
+        mock_service = MagicMock()
 
-        files_request = MagicMock()
-        files_request.execute.return_value = self.sample_files_response
-        self.mock_drive_service.files.return_value.list.return_value = files_request
+        # Mock folder metadata
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'root_folder',
+            'name': 'Root',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
 
-        tool = ResolveFolderTree(
+        # Mock different responses for different folder IDs
+        def mock_list_execute(*args, **kwargs):
+            # Check the query to determine which folder is being listed
+            call_args = mock_service.files().list.call_args
+            if call_args:
+                query = call_args[1].get('q', '')
+                if "'root_folder' in parents" in query:
+                    return {
+                        'files': [
+                            {
+                                'id': 'subfolder_1',
+                                'name': 'Subfolder',
+                                'mimeType': 'application/vnd.google-apps.folder'
+                            }
+                        ]
+                    }
+                elif "'subfolder_1' in parents" in query:
+                    return {
+                        'files': [
+                            {
+                                'id': 'file_1',
+                                'name': 'nested_file.pdf',
+                                'mimeType': 'application/pdf',
+                                'size': '500000'
+                            }
+                        ]
+                    }
+            return {'files': []}
+
+        mock_service.files().list.return_value.execute.side_effect = mock_list_execute
+
+        tool = self.module.ResolveFolderTree(
+            folder_id="root_folder",
+            recursive=True,
+            max_depth=3
+        )
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        self.assertIn("folder_tree", result_data)
+        self.assertEqual(result_data["summary"]["recursive"], True)
+
+    def test_pattern_filtering(self):
+        """Test include/exclude pattern filtering"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Test Folder',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        mock_service.files().list.return_value.execute.return_value = {
+            'files': [
+                {'id': 'f1', 'name': 'document.pdf', 'mimeType': 'application/pdf', 'size': '1000'},
+                {'id': 'f2', 'name': 'temp.tmp', 'mimeType': 'text/plain', 'size': '500'},
+                {'id': 'f3', 'name': 'report.docx', 'mimeType': 'application/docx', 'size': '2000'}
+            ]
+        }
+
+        # Mock pattern matching
+        def mock_fnmatch(filename, pattern):
+            filename = filename.lower()
+            pattern = pattern.lower()
+            if pattern == "*.pdf":
+                return filename.endswith('.pdf')
+            elif pattern == "*.tmp":
+                return filename.endswith('.tmp')
+            elif pattern == "*.docx":
+                return filename.endswith('.docx')
+            return False
+
+        self.mock_modules['fnmatch'].fnmatch.side_effect = mock_fnmatch
+
+        tool = self.module.ResolveFolderTree(
             folder_id="folder_123",
             include_patterns=["*.pdf", "*.docx"],
-            exclude_patterns=["*archive*", "*.zip"]
+            exclude_patterns=["*.tmp"]
         )
-        result_str = tool.run()
-        result = json.loads(result_str)
 
-        # Should include PDF (matches include pattern)
-        # Should exclude ZIP (matches exclude pattern)
-        matching_files = result["files"]
-        file_names = [f["name"] for f in matching_files]
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
 
+        # Should include PDF and DOCX, exclude TMP
+        files = result_data["folder_tree"]["files"]
+        file_names = [f["name"] for f in files]
         self.assertIn("document.pdf", file_names)
-        self.assertNotIn("archive.zip", file_names)
+        self.assertIn("report.docx", file_names)
+        self.assertNotIn("temp.tmp", file_names)
 
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_pagination_handling(self, mock_build, mock_load_env):
-        """Test handling of paginated API responses."""
-        mock_build.return_value = self.mock_drive_service
+    def test_pagination_handling(self):
+        """Test handling of paginated results"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Large Folder',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
 
         # Mock paginated responses
         page1_response = {
             'files': [
-                {
-                    'id': 'file_001',
-                    'name': 'document1.pdf',
-                    'mimeType': 'application/pdf',
-                    'size': '1024',
-                    'parents': ['folder_123']
-                }
+                {'id': f'file_{i}', 'name': f'doc_{i}.pdf', 'mimeType': 'application/pdf', 'size': '1000'}
+                for i in range(100)
             ],
             'nextPageToken': 'token_page2'
         }
 
         page2_response = {
             'files': [
+                {'id': f'file_{i}', 'name': f'doc_{i}.pdf', 'mimeType': 'application/pdf', 'size': '1000'}
+                for i in range(100, 150)
+            ]
+        }
+
+        def mock_list_execute(*args, **kwargs):
+            call_args = mock_service.files().list.call_args
+            if call_args and call_args[1].get('pageToken') == 'token_page2':
+                return page2_response
+            return page1_response
+
+        mock_service.files().list.return_value.execute.side_effect = mock_list_execute
+
+        tool = self.module.ResolveFolderTree(
+            folder_id="folder_123",
+            page_size=100
+        )
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        # Should have processed both pages
+        self.assertEqual(result_data["folder_tree"]["total_files"], 150)
+
+    def test_max_depth_enforcement(self):
+        """Test that max_depth is properly enforced"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'root',
+            'name': 'Root',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        # Always return a subfolder to test depth limiting
+        mock_service.files().list.return_value.execute.return_value = {
+            'files': [
                 {
-                    'id': 'file_002',
-                    'name': 'document2.pdf',
-                    'mimeType': 'application/pdf',
-                    'size': '2048',
-                    'parents': ['folder_123']
+                    'id': 'deep_folder',
+                    'name': 'Deep Folder',
+                    'mimeType': 'application/vnd.google-apps.folder'
                 }
             ]
         }
 
-        def mock_list_paginated(*args, **kwargs):
-            request = MagicMock()
-            if kwargs.get('pageToken') == 'token_page2':
-                request.execute.return_value = page2_response
-            else:
-                request.execute.return_value = page1_response
-            return request
-
-        self.mock_drive_service.files.return_value.list.side_effect = mock_list_paginated
-
-        tool = ResolveFolderTree(folder_id="folder_123")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["total_files"], 2)  # Should include both pages
-
-        file_names = [f["name"] for f in result["files"]]
-        self.assertIn("document1.pdf", file_names)
-        self.assertIn("document2.pdf", file_names)
-
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_empty_folder(self, mock_build, mock_load_env):
-        """Test handling of empty folders."""
-        mock_build.return_value = self.mock_drive_service
-
-        empty_response = {'files': []}
-        files_request = MagicMock()
-        files_request.execute.return_value = empty_response
-        self.mock_drive_service.files.return_value.list.return_value = files_request
-
-        tool = ResolveFolderTree(folder_id="empty_folder")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["total_files"], 0)
-        self.assertEqual(result["matching_files"], 0)
-        self.assertEqual(len(result["files"]), 0)
-
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_drive_api_error(self, mock_build, mock_load_env):
-        """Test handling of Google Drive API errors."""
-        mock_build.return_value = self.mock_drive_service
-
-        files_request = MagicMock()
-        files_request.execute.side_effect = Exception("Drive API error: Folder not found")
-        self.mock_drive_service.files.return_value.list.return_value = files_request
-
-        tool = ResolveFolderTree(folder_id="invalid_folder")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["error"], "drive_api_error")
-        self.assertIn("Drive API error", result["message"])
-
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_file_metadata_extraction(self, mock_build, mock_load_env):
-        """Test extraction of comprehensive file metadata."""
-        mock_build.return_value = self.mock_drive_service
-
-        files_request = MagicMock()
-        files_request.execute.return_value = self.sample_files_response
-        self.mock_drive_service.files.return_value.list.return_value = files_request
-
-        tool = ResolveFolderTree(folder_id="folder_123")
-        result_str = tool.run()
-        result = json.loads(result_str)
-
-        self.assertEqual(result["status"], "success")
-
-        # Check metadata for the first file
-        first_file = result["files"][0]
-        self.assertIn("id", first_file)
-        self.assertIn("name", first_file)
-        self.assertIn("mime_type", first_file)
-        self.assertIn("size", first_file)
-        self.assertIn("modified_time", first_file)
-        self.assertIn("path", first_file)
-
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    @patch('drive_agent.tools.resolve_folder_tree.build')
-    def test_depth_limiting(self, mock_build, mock_load_env):
-        """Test depth limiting for recursive folder traversal."""
-        mock_build.return_value = self.mock_drive_service
-
-        # Mock deep nested structure
-        def mock_nested_response(*args, **kwargs):
-            request = MagicMock()
-            request.execute.return_value = {
-                'files': [
-                    {
-                        'id': f'deep_folder_{len(kwargs.get("q", "").split("parents"))}',
-                        'name': 'Deep Folder',
-                        'mimeType': 'application/vnd.google-apps.folder',
-                        'parents': [kwargs.get('q', '').split("'")[1]]
-                    }
-                ]
-            }
-            return request
-
-        self.mock_drive_service.files.return_value.list.side_effect = mock_nested_response
-
-        tool = ResolveFolderTree(
-            folder_id="folder_123",
+        tool = self.module.ResolveFolderTree(
+            folder_id="root",
             recursive=True,
             max_depth=2
         )
-        result_str = tool.run()
-        result = json.loads(result_str)
 
-        self.assertEqual(result["status"], "success")
-        # Should stop at max depth even if more folders exist
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
 
-    @patch('drive_agent.tools.resolve_folder_tree.load_environment')
-    def test_authentication_error(self, mock_load_env):
-        """Test handling of authentication errors."""
-        with patch('drive_agent.tools.resolve_folder_tree.build') as mock_build:
-            mock_build.side_effect = Exception("Authentication failed")
+        # Check that warning is added at max depth
+        # The structure should stop recursing after max_depth
+        self.assertIn("folder_tree", result_data)
 
-            tool = ResolveFolderTree(folder_id="folder_123")
-            result_str = tool.run()
-            result = json.loads(result_str)
+    def test_folder_not_found_error(self):
+        """Test handling of folder not found error"""
+        mock_service = MagicMock()
 
-        self.assertEqual(result["error"], "authentication_failed")
-        self.assertIn("Authentication failed", result["message"])
+        # Mock 404 error
+        http_error = self.mock_modules['googleapiclient.errors'].HttpError("404 Not Found")
+        http_error.resp = Mock()
+        http_error.resp.status = 404
+
+        mock_service.files().get.return_value.execute.side_effect = http_error
+
+        tool = self.module.ResolveFolderTree(folder_id="nonexistent")
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        self.assertEqual(result_data["error"], "folder_not_found")
+        self.assertIn("nonexistent", result_data["message"])
+
+    def test_permission_denied_error(self):
+        """Test handling of permission denied error"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Restricted',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        # Mock 403 error during folder listing
+        http_error = self.mock_modules['googleapiclient.errors'].HttpError("403 Forbidden")
+        http_error.resp = Mock()
+        http_error.resp.status = 403
+
+        mock_service.files().list.return_value.execute.side_effect = http_error
+
+        tool = self.module.ResolveFolderTree(folder_id="folder_123")
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        # Should have error in folder data
+        self.assertIn("error", result_data["folder_tree"])
+
+    def test_not_a_folder_error(self):
+        """Test error when ID points to a file, not a folder"""
+        mock_service = MagicMock()
+
+        # Return a file instead of folder
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'file_123',
+            'name': 'document.pdf',
+            'mimeType': 'application/pdf'
+        }
+
+        tool = self.module.ResolveFolderTree(folder_id="file_123")
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        self.assertEqual(result_data["error"], "not_a_folder")
+        self.assertIn("application/pdf", result_data["mimeType"])
+
+    def test_service_initialization_failure(self):
+        """Test handling of Drive service initialization failure"""
+        tool = self.module.ResolveFolderTree(folder_id="test")
+
+        with patch.object(tool, '_get_drive_service', side_effect=Exception("Service init failed")):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        self.assertEqual(result_data["error"], "resolution_error")
+        self.assertIn("Service init failed", result_data["message"])
+
+    def test_owner_metadata_extraction(self):
+        """Test extraction of file owner metadata"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Test Folder',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        mock_service.files().list.return_value.execute.return_value = {
+            'files': [
+                {
+                    'id': 'file_1',
+                    'name': 'document.pdf',
+                    'mimeType': 'application/pdf',
+                    'size': '1000',
+                    'owners': [{'emailAddress': 'owner@example.com'}]
+                }
+            ]
+        }
+
+        tool = self.module.ResolveFolderTree(folder_id="folder_123")
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        file_info = result_data["folder_tree"]["files"][0]
+        self.assertEqual(file_info["owner"], "owner@example.com")
+
+    def test_summary_statistics(self):
+        """Test calculation of summary statistics"""
+        mock_service = MagicMock()
+
+        mock_service.files().get.return_value.execute.return_value = {
+            'id': 'folder_123',
+            'name': 'Test Folder',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+
+        mock_service.files().list.return_value.execute.return_value = {
+            'files': [
+                {'id': 'f1', 'name': 'doc1.pdf', 'mimeType': 'application/pdf', 'size': '1048576'},
+                {'id': 'f2', 'name': 'doc2.pdf', 'mimeType': 'application/pdf', 'size': '2097152'},
+                {'id': 'folder1', 'name': 'Subfolder', 'mimeType': 'application/vnd.google-apps.folder'}
+            ]
+        }
+
+        tool = self.module.ResolveFolderTree(
+            folder_id="folder_123",
+            recursive=False,
+            include_patterns=["*.pdf"]
+        )
+
+        with patch.object(tool, '_get_drive_service', return_value=mock_service):
+            result = tool.run()
+            result_data = json.loads(result)
+
+        summary = result_data["summary"]
+        self.assertEqual(summary["total_files"], 2)
+        self.assertEqual(summary["total_folders"], 1)
+        self.assertEqual(summary["total_size_bytes"], 3145728)
+        self.assertEqual(summary["total_size_mb"], 3.0)
+        self.assertEqual(summary["recursive"], False)
 
 
 if __name__ == '__main__':

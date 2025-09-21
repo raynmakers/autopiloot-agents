@@ -8,7 +8,7 @@ import sys
 import json
 import hashlib
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -121,7 +121,7 @@ class UpsertToZepGroup(BaseTool):
                 "metadata": {
                     "collection_name": collection_name,
                     "content_type": self.content_type,
-                    "processed_at": datetime.utcnow().isoformat() + "Z"
+                    "processed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -210,7 +210,7 @@ class UpsertToZepGroup(BaseTool):
                     metadata={
                         "content_type": self.content_type,
                         "source": "linkedin",
-                        "created_at": datetime.utcnow().isoformat() + "Z"
+                        "created_at": datetime.now(timezone.utc).isoformat()
                     }
                 )
                 return {

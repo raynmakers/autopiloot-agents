@@ -9,7 +9,7 @@ import json
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict, Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -165,7 +165,7 @@ class ClusterTopicsEmbeddings(BaseTool):
                     "clustering_method": self.clustering_method,
                     "embedding_model": self.embedding_model,
                     "num_clusters": len(clusters_with_topics),
-                    "processed_at": datetime.utcnow().isoformat()
+                    "processed_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 

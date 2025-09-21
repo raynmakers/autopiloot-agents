@@ -13,8 +13,50 @@ Autopiloot is a production-ready Agency Swarm v1.0.0 multi-agent system for auto
 ### Testing
 
 ```bash
-# Run all tests (comprehensive test suite)
-python -m unittest discover tests -v
+# Run all tests with coverage (comprehensive test suite)
+cd autopiloot
+export PYTHONPATH=.
+coverage run --source=. -m unittest discover tests -v
+coverage report
+coverage html  # Generate HTML report in htmlcov/index.html
+
+# Run agent-specific tests with coverage
+# Replace [AGENT_NAME] with the agent to test (e.g., drive_agent, scraper_agent, etc.)
+# Replace [TEST_DIR] with the test directory (e.g., drive_tools, scraper_tools, etc.)
+export PYTHONPATH=.
+coverage run --source=[AGENT_NAME] -m unittest discover tests/[TEST_DIR] -p "test_*.py"
+coverage report --include="[AGENT_NAME]/*"
+coverage html --include="[AGENT_NAME]/*" -d coverage/[AGENT_NAME]
+
+# Example: Drive Agent (85% coverage achieved)
+export PYTHONPATH=.
+coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py"
+coverage report --include="drive_agent/*"
+coverage html --include="drive_agent/*" -d coverage/drive_agent
+
+# Example: Scraper Agent
+export PYTHONPATH=.
+coverage run --source=scraper_agent -m unittest discover tests/scraper_tools -p "test_*.py"
+coverage report --include="scraper_agent/*"
+coverage html --include="scraper_agent/*" -d coverage/scraper_agent
+
+# Example: Observability Agent
+export PYTHONPATH=.
+coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py"
+coverage report --include="observability_agent/*"
+coverage html --include="observability_agent/*" -d coverage/observability_agent
+
+# Example: Transcriber Agent
+export PYTHONPATH=.
+coverage run --source=transcriber_agent -m unittest discover tests/transcriber_tools -p "test_*.py"
+coverage report --include="transcriber_agent/*"
+coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent
+
+# Example: Summarizer Agent
+export PYTHONPATH=.
+coverage run --source=summarizer_agent -m unittest discover tests/summarizer_tools -p "test_*.py"
+coverage report --include="summarizer_agent/*"
+coverage html --include="summarizer_agent/*" -d coverage/summarizer_agent
 
 # Run specific test modules
 python -m unittest tests.test_config -v           # Configuration tests
@@ -153,6 +195,28 @@ All tools return consistent JSON error structures:
     "details": {...}  # Optional additional context
 }
 ```
+
+## Test Coverage Achievements
+
+### Drive Agent Module (85% Coverage)
+The drive_agent module has comprehensive test coverage across all 7 tools:
+
+- **Perfect Coverage (100%)**:
+  - `list_tracked_targets_from_config.py` - Configuration tracking
+  - `save_drive_ingestion_record.py` - Audit record management
+  - `drive_agent.py` - Agent initialization
+  - `__init__.py` - Module imports
+
+- **Excellent Coverage (80%+)**:
+  - `resolve_folder_tree.py` - 89% coverage
+  - `extract_text_from_document.py` - 88% coverage
+  - `upsert_drive_docs_to_zep.py` - 83% coverage
+
+- **Good Coverage (70%+)**:
+  - `fetch_file_content.py` - 78% coverage
+  - `list_drive_changes.py` - 74% coverage
+
+**Test Suite**: 268 tests across 37 test files in `tests/drive_tools/`
 
 ## ADR and Documentation Maintenance
 

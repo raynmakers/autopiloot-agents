@@ -19,7 +19,7 @@ pip install coverage
 # Run tests with coverage measurement
 coverage run --source=<module_name> -m unittest discover tests -v
 
-# Generate HTML coverage report
+# MANDATORY: Generate HTML coverage report (ALWAYS update index.html)
 coverage html --directory=coverage/<module_name>
 
 # Generate text coverage summary
@@ -39,9 +39,33 @@ coverage report --show-missing > coverage_summary.txt
    - Configuration validation
 
 3. **Test Coverage Documentation**: Always create
-   - HTML coverage reports for visual analysis
+   - **HTML coverage reports for visual analysis (MANDATORY)**
    - Text summaries with line-by-line details
    - Coverage analysis markdown documenting gaps and improvements
+
+### CRITICAL: HTML Coverage Report Requirements
+
+**MANDATORY for ALL coverage work**: The HTML coverage report (`coverage/[module]/index.html`) MUST always be updated to reflect current coverage data.
+
+#### Required HTML Report Update Process:
+1. **After Running Tests**: ALWAYS regenerate HTML report
+2. **Before Completing Coverage Work**: Verify index.html shows current data
+3. **Documentation Updates**: HTML report must match text coverage reports
+
+```bash
+# REQUIRED: Always regenerate HTML after test coverage work
+coverage run --source=<module_name> [test_commands]
+coverage html --directory=coverage/<module_name> --include="<module_name>/*"
+
+# VERIFY: Check that index.html contains updated coverage percentages
+```
+
+#### HTML Report Verification Checklist:
+- [ ] Overall module coverage percentage updated in index.html
+- [ ] Individual file coverage percentages reflect recent improvements
+- [ ] Timestamp shows fresh generation (not stale data)
+- [ ] Coverage data matches text reports (`coverage report` output)
+- [ ] All improved files show correct coverage percentages
 
 ### Coverage Report Structure
 
@@ -112,6 +136,86 @@ Create `coverage_analysis.md` with:
 3. **Pull Request Requirements**: Include coverage reports in commits
 4. **Documentation Updates**: Update coverage analysis when adding new modules
 
+## MANDATORY: Complete Module Coverage Analysis
+
+**CRITICAL REQUIREMENT**: At the end of any test coverage work, you MUST run comprehensive coverage for ALL files in the entire module/agent being tested.
+
+### Required Final Coverage Process
+
+```bash
+# Final step: Test ALL files in the module together
+coverage run --source=<entire_module> -m unittest discover tests.<module_tests> -v
+
+# Generate complete module coverage report
+coverage report --include="<module>/*" --show-missing
+
+# MANDATORY: Generate updated HTML report for all files
+coverage html --directory=coverage/<module> --include="<module>/*"
+
+# VERIFY: Ensure index.html shows current coverage data
+# Check that overall module % and individual file % are updated
+
+# Create comprehensive analysis
+# Document coverage for EVERY file in the module
+```
+
+### Complete Module Analysis Requirements
+
+When testing any individual file, you MUST conclude with:
+
+1. **Full Module Coverage Report**: Run coverage on entire module (not just individual files)
+2. **File-by-File Analysis**: Document coverage for every single file in the module
+3. **Gap Identification**: Identify all files below coverage standards
+4. **Priority Action Plan**: Create improvement plan for low-coverage files
+5. **Overall Module Health**: Report overall module coverage percentage
+
+### Module Coverage Report Template
+
+```markdown
+# Complete [Module Name] Coverage Analysis
+
+## Overall Module Coverage: X% (covered/total statements)
+
+### File-by-File Breakdown:
+- file1.py: X% (Y/Z statements)
+- file2.py: X% (Y/Z statements)
+- [ALL FILES LISTED]
+
+### Coverage Categories:
+#### ✅ Excellent (80%+):
+- List files meeting standards
+
+#### ⚠️ Needs Improvement (50-79%):
+- List files below standards
+
+#### ❌ Critical Gaps (<50%):
+- List files requiring immediate attention
+
+### Action Plan:
+1. Priority files for improvement
+2. Specific coverage targets
+3. Timeline for improvements
+
+### Test Results Summary:
+- Total tests run: X
+- Passed: Y
+- Failed: Z
+- Overall success rate: X%
+```
+
+### Enforcement for Complete Coverage
+
+**MANDATORY**: Every test coverage session MUST end with complete module analysis.
+
+- ✅ **Individual file coverage**: Test specific files as needed
+- ✅ **Module-wide coverage**: ALWAYS run final comprehensive coverage
+- ✅ **HTML report update**: MANDATORY regeneration of coverage/[module]/index.html
+- ✅ **All files documented**: Every file in module must be reported
+- ✅ **Gap analysis**: Identify all coverage deficiencies
+- ✅ **Action plan**: Create improvement roadmap
+
+**NO EXCEPTIONS**: This complete module coverage analysis is required for all test coverage work.
+
 ### Examples of High Coverage Achievement
 
 **Drive Agent Example (100% coverage achieved):**
@@ -135,3 +239,335 @@ Create `coverage_analysis.md` with:
 - Coverage percentage must meet minimum standards
 - Gaps must be documented with improvement plans
 - Critical modules must achieve 100% coverage
+
+## CRITICAL: Test Interference Prevention
+
+**MANDATORY**: All test coverage work must prevent test interference that can cause false coverage regressions.
+
+### Test Interference Symptoms
+
+**Warning Signs of Test Interference:**
+- Previously 100% covered files dropping to lower percentages
+- High error counts (50+ errors) when running comprehensive test discovery
+- Module import errors when tests run together but not individually
+- False coverage drops in files that haven't been modified
+
+### Test Isolation Requirements
+
+**MANDATORY practices to prevent test interference:**
+
+#### 1. **Module-Level Mocking Restrictions**
+```python
+# ❌ NEVER DO - Global module mocking causes interference
+sys.modules['agency_swarm'] = MagicMock()  # At module level
+
+# ✅ ALWAYS DO - Context-scoped mocking
+def test_something(self):
+    with patch.dict('sys.modules', {
+        'agency_swarm': MagicMock(),
+        'agency_swarm.tools': MagicMock()
+    }):
+        # Test code here
+```
+
+#### 2. **Module Cache Management**
+```python
+def setUp(self):
+    """Clear module cache to prevent contamination."""
+    modules_to_clear = [k for k in list(sys.modules.keys())
+                       if 'target_module' in k]
+    for module in modules_to_clear:
+        del sys.modules[module]
+```
+
+#### 3. **Import Chain Isolation**
+```python
+# ❌ AVOID - Triggers __init__.py import chains
+from drive_agent.tools.specific_tool import SpecificTool
+
+# ✅ PREFER - Direct file import for complex tools
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "specific_tool", "/path/to/specific_tool.py"
+)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+SpecificTool = module.SpecificTool
+```
+
+### Three-Tier Testing Strategy
+
+**Proven approach to avoid interference while achieving coverage:**
+
+#### **Tier 1: Logic Testing**
+- **Purpose**: Test pure algorithms and logic without imports
+- **Technique**: Replicate tool logic in test methods
+- **Benefits**: No import issues, no interference
+- **Coverage**: Internal algorithms, text processing, calculations
+
+```python
+def test_text_cleaning_logic(self):
+    """Test text cleaning without importing tool."""
+    messy_text = "Text   with    excessive   whitespace"
+    cleaned = self._replicate_cleaning_logic(messy_text)
+    self.assertNotIn("   ", cleaned)
+```
+
+#### **Tier 2: Integration Testing**
+- **Purpose**: Test actual tool import and execution
+- **Technique**: Isolated mocking with direct file import
+- **Benefits**: Real tool testing without interference
+- **Coverage**: Tool class, run() methods, integration points
+
+```python
+def test_tool_execution(self):
+    """Test actual tool with isolated mocking."""
+    with patch.dict('sys.modules', {...}):
+        # Import and test actual tool
+```
+
+#### **Tier 3: Package Testing**
+- **Purpose**: Test package structure and imports
+- **Technique**: Proven patterns from successful tests
+- **Benefits**: Package-level coverage without tool complexity
+- **Coverage**: __init__.py, package exports, module structure
+
+### Test File Organization
+
+**MANDATORY file naming and organization:**
+
+```
+tests/module_tools/
+├── test_module_init.py                    # Package testing (Tier 3)
+├── test_specific_tool_isolated.py         # Logic testing (Tier 1)
+├── test_specific_tool_integration.py      # Integration testing (Tier 2)
+└── test_other_tool_isolated.py           # Additional tools
+```
+
+**File Isolation Rules:**
+1. **Separate complex tools** into individual test files
+2. **Use descriptive suffixes** (_isolated, _integration, _init)
+3. **Avoid importing multiple complex tools** in same test file
+4. **Test discovery-safe naming** (all files start with test_)
+
+### Coverage Verification Protocol
+
+**MANDATORY steps to verify no interference:**
+
+#### **Step 1: Individual Test Verification**
+```bash
+# Test each file individually first
+python -m unittest tests.module_tools.test_specific_tool_isolated -v
+python -m unittest tests.module_tools.test_specific_tool_integration -v
+python -m unittest tests.module_tools.test_module_init -v
+```
+
+#### **Step 2: Combined Non-Interfering Tests**
+```bash
+# Test known-good tests together
+python -m unittest tests.module_tools.test_module_init tests.module_tools.test_specific_tool_integration -v
+```
+
+#### **Step 3: Full Discovery Validation**
+```bash
+# Full test discovery should not cause regressions
+coverage run --source=module -m unittest discover tests.module_tools -v
+```
+
+**Expected Results:**
+- ✅ All individual tests pass
+- ✅ Combined tests pass without errors
+- ✅ Full discovery shows same coverage as individual runs
+- ✅ No false coverage regressions in previously covered files
+
+### Coverage Regression Investigation
+
+**When coverage drops unexpectedly:**
+
+#### **Diagnostic Steps:**
+1. **Check Error Count**: >20 errors indicates likely interference
+2. **Test Files Individually**: Identify which combinations cause issues
+3. **Compare Coverage Reports**: Individual vs combined coverage
+4. **Inspect Module Imports**: Look for global mocking or import chains
+
+#### **Resolution Steps:**
+1. **Isolate Interfering Test**: Move complex tests to separate files
+2. **Fix Mocking Scope**: Replace global mocks with context-scoped mocks
+3. **Use Direct Imports**: Bypass problematic __init__.py chains
+4. **Verify Restoration**: Confirm coverage returns to expected levels
+
+### Quality Gates for Test Coverage Work
+
+**MANDATORY verification before considering test coverage work complete:**
+
+- ✅ **No Test Interference**: All existing tests maintain their coverage levels
+- ✅ **Error-Free Execution**: <5 test errors in comprehensive runs
+- ✅ **Reproducible Results**: Same coverage when tests run individually vs together
+- ✅ **HTML Report Current**: coverage/[module]/index.html reflects latest coverage data
+- ✅ **Documentation Updated**: Coverage analysis reflects accurate measurements
+- ✅ **Pattern Documentation**: Testing approaches documented for future work
+
+### Test Interference Prevention Checklist
+
+**Before submitting test coverage work, verify:**
+
+- [ ] New tests run individually without errors
+- [ ] Existing high-coverage tests still achieve same coverage
+- [ ] Full test discovery runs with <5 errors total
+- [ ] No module-level mocking that affects other tests
+- [ ] Complex tools use direct file import approach
+- [ ] Module cache clearing in setUp() for stateful tests
+- [ ] Coverage measurements are consistent across runs
+- [ ] HTML coverage report (index.html) updated and shows current data
+- [ ] Documentation accurately reflects real (not interference-affected) coverage
+
+**ENFORCEMENT**: Test coverage work that causes interference must be fixed before completion. False coverage regressions are not acceptable and indicate test isolation problems that must be resolved.
+
+## MANDATORY: Complete Module Coverage Analysis and HTML Report Generation
+
+**CRITICAL REQUIREMENT**: At the conclusion of ANY test coverage work, you MUST perform a complete module-wide coverage analysis and generate a comprehensive HTML coverage report.
+
+### Required Final Steps for ALL Coverage Work
+
+**MANDATORY completion process - NO EXCEPTIONS:**
+
+#### Step 1: Complete Module Coverage Analysis
+```bash
+# Run comprehensive coverage for the ENTIRE module
+coverage run --source=<entire_module> -m unittest discover tests.<module_tests> -v
+
+# Generate complete coverage report for all files in module
+coverage report --include="<module>/*" --show-missing
+```
+
+#### Step 2: MANDATORY HTML Report Generation
+```bash
+# REQUIRED: Generate/update HTML coverage report for entire module
+coverage html --directory=coverage/<module> --include="<module>/*"
+
+# VERIFY: Ensure index.html reflects ALL current coverage data
+# Check that overall module percentage and individual file percentages are current
+```
+
+#### Step 3: Verify Complete Module Status
+```bash
+# Confirm index.html shows:
+# - Updated timestamp (current session)
+# - Correct overall module coverage percentage
+# - All individual file coverage percentages reflect latest test runs
+# - No stale data from previous sessions
+```
+
+### Complete Module Analysis Documentation Requirements
+
+**MANDATORY: Document coverage for EVERY file in the module being tested**
+
+Create comprehensive analysis covering:
+
+```markdown
+# Complete [Module Name] Coverage Analysis
+
+## Overall Module Coverage: X% (Y/Z statements)
+
+### File-by-File Breakdown:
+- file1.py: X% (Y/Z statements) - [Status: ✅/⚠️/❌]
+- file2.py: X% (Y/Z statements) - [Status: ✅/⚠️/❌]
+- [EVERY SINGLE FILE IN MODULE MUST BE LISTED]
+
+### Coverage Categories:
+#### ✅ Excellent Coverage (80%+):
+- [List all files meeting excellent standards]
+
+#### ⚠️ Needs Improvement (50-79%):
+- [List all files below standards with improvement plans]
+
+#### ❌ Critical Coverage Gaps (<50%):
+- [List all files requiring immediate attention]
+
+### Module-Wide Analysis:
+- Total Statements: X
+- Covered Statements: Y
+- Coverage Trend: Previous X% → Current Y%
+- Files Improved This Session: [List with before/after percentages]
+
+### HTML Report Status:
+- Location: coverage/[module]/index.html
+- Timestamp: [Current session timestamp]
+- Overall Module Coverage: X%
+- Individual File Coverage: [Verify all files show current data]
+
+### Action Plan for Module Improvement:
+1. Priority files for next coverage session
+2. Specific coverage targets for each file
+3. Estimated effort for reaching 80%+ coverage across module
+```
+
+### Enforcement for Complete Module Coverage
+
+**ABSOLUTELY MANDATORY - NO EXCEPTIONS:**
+
+Every test coverage session MUST conclude with:
+
+1. ✅ **Complete Module Coverage Run**: Test entire module, not just individual files
+2. ✅ **Full HTML Report Generation**: Update coverage/[module]/index.html with ALL current data
+3. ✅ **All Files Documented**: Every single file in the module must be analyzed and reported
+4. ✅ **Module Status Assessment**: Overall module health and improvement priorities
+5. ✅ **HTML Report Verification**: Confirm index.html shows current timestamp and accurate coverage data
+6. ✅ **Comprehensive Documentation**: Analysis covering every file with specific improvement plans
+
+### HTML Report Verification Checklist
+
+**MANDATORY before completing ANY coverage work:**
+
+- [ ] index.html exists in coverage/[module]/ directory
+- [ ] Timestamp shows current session (not stale data)
+- [ ] Overall module coverage percentage is current
+- [ ] ALL files in module are listed with current coverage percentages
+- [ ] No "No data collected" warnings for any files
+- [ ] Individual file percentages match text coverage report output
+- [ ] All improved files show their new coverage percentages
+- [ ] HTML report is accessible and renders properly
+
+### Complete Module Coverage Examples
+
+**Example 1: Drive Agent Module**
+```bash
+# Individual file testing (allowed during development)
+coverage run --source=drive_agent/tools/fetch_file_content.py -m unittest tests.drive_tools.test_fetch_file_content_* -v
+
+# MANDATORY: Complete module coverage analysis at end
+coverage run --source=drive_agent -m unittest discover tests.drive_tools -v
+coverage html --directory=coverage/drive_agent --include="drive_agent/*"
+coverage report --include="drive_agent/*" --show-missing
+
+# Result: index.html shows ALL drive_agent files with current coverage
+```
+
+**Example 2: LinkedIn Agent Module**
+```bash
+# MANDATORY: Complete module coverage analysis
+coverage run --source=linkedin_agent -m unittest discover tests.linkedin_tools -v
+coverage html --directory=coverage/linkedin_agent --include="linkedin_agent/*"
+
+# Verify: index.html shows coverage for ALL linkedin_agent files
+```
+
+### Quality Gates for Complete Module Coverage
+
+**MANDATORY verification before considering ANY test coverage work complete:**
+
+- ✅ **Complete Module Tested**: All files in module included in final coverage run
+- ✅ **HTML Report Generated**: coverage/[module]/index.html updated with current data
+- ✅ **All Files Documented**: Every file in module analyzed and reported
+- ✅ **No Stale Data**: HTML report timestamp matches current session
+- ✅ **Comprehensive Analysis**: Module-wide improvement plan documented
+- ✅ **Actionable Next Steps**: Clear priorities for future coverage work
+
+**ABSOLUTE ENFORCEMENT**:
+
+- Test coverage work is NOT complete without full module coverage analysis
+- HTML index.html MUST be updated to reflect all current coverage data
+- ALL files in the module MUST be documented with current coverage status
+- Module-wide improvement plans MUST be created
+
+This ensures consistent, comprehensive coverage tracking across the entire codebase and prevents incomplete coverage analysis.

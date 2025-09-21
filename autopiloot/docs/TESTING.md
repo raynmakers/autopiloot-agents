@@ -10,7 +10,8 @@ The Autopiloot project uses Python's `unittest` framework for comprehensive test
 
 - **Deterministic testing**: All external APIs mocked for consistent CI results
 - **Comprehensive mocking**: External services (Slack, Firestore, AssemblyAI, YouTube) mocked by default
-- **Coverage tracking**: 80%+ coverage for core modules, 70%+ for tools
+- **Coverage tracking**: Minimum 80% coverage for all modules; ideal 100%
+- **Exception coverage**: Always include tests that trigger and assert exceptions and error paths
 - **Fast execution**: Test suite optimized for CI with parallel execution
 - **Security validation**: No secrets in tests, secure mock patterns
 
@@ -28,6 +29,60 @@ tests/
 ├── test_send_error_alert.py
 └── ... (additional agent tool tests)
 ```
+
+## Coverage Standards
+
+- **Minimum coverage (required): 80%** per module and per PR.
+- **Ideal coverage (target): 100%**. Strive for full coverage where practical.
+- **Critical modules** (agent initialization files, configuration loaders, core initialization paths): **100% required**.
+- **Tools and integrations**: **≥ 80% required**, 100% ideal.
+- **Stability rule**: If a module’s tests achieve **100% coverage**, do not modify those tests unless the implementation or requirements change.
+- **Reporting**: Always generate HTML and text coverage reports and commit them under the appropriate coverage folder (e.g., `coverage/<area>/`).
+- **CI policy**: Pull requests should fail if any touched module falls below **80%** coverage.
+
+## Exception Testing Requirements
+
+Exceptions and error paths must be explicitly tested. Every public function, tool `run()` method, and critical code path requires at least one negative test case that asserts the expected failure behavior.
+
+### What to Test
+
+- Invalid inputs and boundary values (empty strings, `None`, out-of-range numbers)
+- Missing configuration or environment variables
+- External dependency failures (HTTP errors, SDK exceptions, timeouts)
+- Permission/authorization failures
+- Serialization/parsing errors (YAML/JSON)
+- Retry/backoff and DLQ routing conditions (where applicable)
+
+### How to Test
+
+- Use `unittest.TestCase.assertRaises` (or context managers) to assert the exact exception type
+- Assert exception message contains actionable context with `self.assertIn("expected", str(cm.exception))`
+- For tools that return error payloads (JSON), assert the schema:
+  - keys: `error`, `message`, `details`
+  - details include context (e.g., `file_name`, `mime_type`, `type`)
+- Verify side-effects do not occur on failure (no writes, no state changes)
+- For retry flows, assert number of attempts/backoff boundaries using mocks
+
+### Example Patterns
+
+```python
+with self.assertRaises(ConfigValidationError) as cm:
+    load_app_config("/bad/path.yaml")
+self.assertIn("not found", str(cm.exception))
+
+# Tool error schema validation
+result = json.loads(tool.run())
+self.assertIn("error", result)
+self.assertIn("message", result)
+self.assertIn("details", result)
+self.assertEqual(result["error"], "extraction_error")
+```
+
+### Policy
+
+- PRs introducing new logic must include both success and failure tests
+- Refactors must preserve existing exception tests; if behavior changes, update tests accordingly
+- Modules at **100% coverage**: do not modify tests unless implementation or requirements change
 
 ## Setup for Testing
 
@@ -72,11 +127,13 @@ PYTHONPATH=. python -m unittest tests.test_observability_ops -v
 ### CI/CD Testing
 
 The CI workflow automatically runs on:
+
 - **Push to main/develop branches**
-- **Pull requests** 
+- **Pull requests**
 - **Multiple Python versions** (3.9, 3.10, 3.11)
 
 CI pipeline includes:
+
 - **Unit tests** with external service mocking
 - **Linting** with ruff
 - **Type checking** with mypy
@@ -443,13 +500,15 @@ class TestYourModule(unittest.TestCase):
 All external integrations are automatically mocked in CI to ensure deterministic test results:
 
 #### API Services Mocked
+
 - **OpenAI API**: LLM calls mocked with sample responses and token usage
 - **AssemblyAI API**: Transcription jobs mocked with status progression
-- **YouTube Data API**: Video metadata mocked with sample data  
+- **YouTube Data API**: Video metadata mocked with sample data
 - **Slack API**: Message sending mocked with success responses
 - **Zep API**: GraphRAG operations mocked with acknowledgments
 
 #### Google Cloud Services Mocked
+
 - **Firestore**: Document operations mocked with in-memory storage
 - **Google Drive**: File uploads mocked with generated IDs
 - **Google Sheets**: Spreadsheet operations mocked with sample data
@@ -461,7 +520,7 @@ import unittest
 from unittest.mock import patch, Mock
 
 class TestExternalIntegration(unittest.TestCase):
-    
+
     @patch('requests.post')
     def test_api_call_success(self, mock_post):
         # Mock successful API response
@@ -469,22 +528,22 @@ class TestExternalIntegration(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "success", "id": "test_123"}
         mock_post.return_value = mock_response
-        
+
         # Test the tool with mocked external service
         tool = ExternalServiceTool()
         result = tool.run()
-        
+
         # Verify mock was called and result is correct
         mock_post.assert_called_once()
         self.assertIn("success", result)
-        
+
     @patch('google.cloud.firestore.Client')
     def test_firestore_operation(self, mock_client):
         # Mock Firestore operations
         mock_doc = Mock()
         mock_doc.get.return_value.to_dict.return_value = {"field": "value"}
         mock_client.return_value.collection.return_value.document.return_value = mock_doc
-        
+
         # Test Firestore-dependent functionality
         result = firestore_tool.run()
         self.assertIsNotNone(result)
@@ -509,6 +568,7 @@ export GOOGLE_DRIVE_FOLDER_ID_SUMMARIES="test-folder-summaries"
 ### Security Testing
 
 The CI pipeline includes security validation:
+
 - **Secret scanning**: Prevents API keys from being committed
 - **Bandit security analysis**: Identifies security vulnerabilities
 - **Safety dependency checking**: Validates dependencies for known CVEs

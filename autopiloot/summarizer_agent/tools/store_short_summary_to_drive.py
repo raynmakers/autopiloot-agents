@@ -5,7 +5,7 @@ from pydantic import Field
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 from google.oauth2 import service_account
-from datetime import datetime
+from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 
 
@@ -56,7 +56,7 @@ class StoreShortSummaryToDrive(BaseTool):
             )
             drive = build('drive', 'v3', credentials=credentials)
             
-            date_str = datetime.utcnow().strftime('%Y-%m-%d')
+            date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
             
             # Create Markdown content for human readability
             markdown_content = f"# Video Summary: {self.video_id}\n\n"
