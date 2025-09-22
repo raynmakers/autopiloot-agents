@@ -234,32 +234,176 @@ The drive_agent module has comprehensive test coverage across all 7 tools:
 4. Update index table (sorted by ID descending)
 5. Mark superseded ADRs if applicable
 
-## Testing Strategy
+## Testing Strategy & Coverage Standards
 
-### Tool Testing
+### Coverage Requirements
 
-- Each tool has standalone test in `if __name__ == "__main__":` block
-- Integration tests in `tests/` directory using unittest framework
-- Mock external services where appropriate, but prefer real API testing
+**Minimum Standards:**
+- Overall project coverage: 85%
+- Individual file coverage: 80%
+- Target per file: 90%
+- Critical business logic files: 95%
 
-### Configuration Testing
+**Coverage Commands:**
+```bash
+# Generate coverage reports with missing line analysis
+export PYTHONPATH=.
+coverage run --source=[AGENT_NAME] -m unittest discover tests/[TEST_DIR] -p "test_*.py" -v
+coverage report --include="[AGENT_NAME]/*" --show-missing
+coverage html --include="[AGENT_NAME]/*" -d coverage/[AGENT_NAME]
 
+# Examples for each agent
+coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py"
+coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py"
+coverage run --source=transcriber_agent -m unittest discover tests/transcriber_tools -p "test_*.py"
+```
+
+### Test Organization Standards
+
+**File Naming Convention:**
+- `test_[module_name]_minimal.py` - Basic functionality tests
+- `test_[module_name]_coverage_boost.py` - Target missing coverage lines
+- `test_[module_name]_integration.py` - End-to-end workflow tests
+- `test_[module_name]_error_handling.py` - Exception path testing
+
+**Test Method Naming:**
+```python
+def test_[functionality]_[scenario]_lines_[X_Y](self):
+    """Test [description] (lines X-Y)."""
+    # Example: test_pdf_page_extraction_error_lines_142_143
+```
+
+### Missing Coverage Analysis & Targeting
+
+**Required Before Implementation:**
+1. Line-by-line analysis of missing coverage using `coverage report --show-missing`
+2. Categorization of gaps: High/Medium/Low priority based on:
+   - Error handling paths (High priority)
+   - External library integration failures (High priority)
+   - Edge cases and boundary conditions (Medium priority)
+   - Alternative workflow paths (Medium priority)
+   - Simple conditional branches (Low priority)
+3. Expected coverage improvement estimates
+
+**Must Target Coverage Gaps:**
+- HTTP error scenarios (403, 404, 500 status codes)
+- External API failures and timeouts
+- File encoding and decoding errors
+- Invalid input data and malformed content
+- Permission and access denied scenarios
+- Fallback mechanisms and alternative code paths
+
+### Comprehensive Mocking Standards
+
+**External Dependencies:**
+```python
+# Module-level mocking for import issues
+with patch.dict('sys.modules', {
+    'agency_swarm': MagicMock(),
+    'agency_swarm.tools': MagicMock(),
+    'googleapiclient': MagicMock(),
+    'googleapiclient.discovery': MagicMock(),
+    'googleapiclient.errors': MagicMock(),
+    'PyPDF2': MagicMock(),
+    'docx': MagicMock()
+}):
+    pass
+```
+
+**HTTP Error Mocking:**
+```python
+# Create realistic HTTP error scenarios
+class MockHttpError(Exception):
+    def __init__(self, resp, content):
+        self.resp = resp
+        self.content = content
+        super().__init__()
+
+http_error_403 = MockHttpError(
+    Mock(status=403, reason="Forbidden"),
+    b'{"error": {"code": 403, "message": "Permission denied"}}'
+)
+```
+
+### Agency Swarm Testing Requirements
+
+**Tool Testing Standards:**
+- Every tool must have standalone test with `if __name__ == "__main__":` block
+- Test `run()` method return format (JSON strings, not Dict objects)
+- Mock BaseTool inheritance: `sys.modules['agency_swarm.tools'].BaseTool = MagicMock()`
+- Test Pydantic Field validation and parameter handling
+- Validate error response structure consistency
+
+**Agent Testing Standards:**
+- Test agent initialization and configuration loading
+- Test tool imports and availability in agent context
+- Test communication patterns between agents
+- Mock external service dependencies comprehensively
+
+### Error Path & Edge Case Coverage
+
+**Mandatory Error Scenarios:**
+- Network failures and API timeouts
+- Invalid authentication and authorization
+- Malformed data and encoding issues
+- File system errors and permission denials
+- External service unavailability
+- Configuration loading failures
+
+**Edge Case Requirements:**
+- Empty inputs and responses
+- Maximum size limits and truncation
+- Invalid file types and formats
+- Concurrent access scenarios
+- Resource exhaustion conditions
+
+### Test Quality & Documentation Standards
+
+**Test Documentation:**
+```python
+def test_pdf_extraction_error_handling_lines_142_143(self):
+    """
+    Test PDF page extraction error handling (lines 142-143).
+
+    Covers scenario where PyPDF2 page.extract_text() raises exception.
+    Should gracefully handle error and include error message in output.
+    """
+```
+
+**Assertion Standards:**
+- Use specific assertions: `assertIn`, `assertEqual`, not just `assertTrue`
+- Validate both success and error response structures
+- Check error messages contain meaningful information
+- Verify proper JSON structure in tool responses
+
+### Configuration & Environment Testing
+
+**Core Configuration Tests:**
 - `test_config.py`: YAML loading, validation, nested key access
 - `test_env_loader.py`: Environment variable validation, API key getters
 - Run `python config/env_loader.py` to validate current environment
 
-### Observability Suite Testing (TASK-OBS-0040/0041)
+**Agent-Specific Test Suites:**
+- **Observability Agent**: Error alerting, budget monitoring, digest generation
+- **Transcriber Agent**: AssemblyAI integration, exponential backoff, Drive storage
+- **Summarizer Agent**: LLM integration, content processing, Zep storage
+- **Drive Agent**: File processing, text extraction, change monitoring
+- **Orchestrator Agent**: Workflow coordination, policy enforcement
 
-- `test_observability_ops.py`: Comprehensive suite testing all 6 observability tools
-- `test_send_error_alert.py`: Error alerting with throttling, module-level imports, mocking patterns
-- `test_llm_observability.py`: LLM configuration, token usage tracking, Langfuse integration
-- `test_monitor_transcription_budget.py`: Budget monitoring with 80% threshold alerts
+### Performance & Execution Standards
 
-### TASK-TRN-0022 Tool Testing
+**Test Performance Requirements:**
+- Individual tests complete in <5 seconds
+- Full agent test suite completes in <2 minutes
+- Use parallel test execution where possible
+- Mock file operations to avoid disk I/O
+- Mock network calls to prevent external dependencies
 
-- `test_poll_transcription_job.py`: Tests exponential backoff, timeout handling, status progression
-- `test_store_transcript_to_drive.py`: Tests file upload, metadata enhancement, Drive API integration
-- `test_save_transcript_record.py`: Tests Firestore transactions, status updates, validation
+**Resource Management:**
+- Clean up mocks in tearDown() methods
+- Use in-memory data structures for testing
+- Avoid creating temporary files on disk
+- Reset module state between test classes
 
 ## Firebase Deployment
 

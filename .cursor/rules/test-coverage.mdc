@@ -6,9 +6,9 @@ alwaysApply: true
 
 # Test Coverage Requirements
 
-## MANDATORY Coverage Generation
+## MANDATORY Coverage Generation & Testing Standards
 
-**Every time you write, update, or modify tests, you MUST generate comprehensive test coverage reports.**
+**Every time you write, update, or modify tests, you MUST generate comprehensive test coverage reports and follow standardized testing practices.**
 
 ### Required Coverage Commands
 
@@ -16,32 +16,72 @@ alwaysApply: true
 # Install coverage if not available
 pip install coverage
 
-# Run tests with coverage measurement
-coverage run --source=<module_name> -m unittest discover tests -v
+# Agent-specific coverage with missing line analysis
+export PYTHONPATH=.
+coverage run --source=[AGENT_NAME] -m unittest discover tests/[TEST_DIR] -p "test_*.py" -v
+coverage report --include="[AGENT_NAME]/*" --show-missing
+coverage html --include="[AGENT_NAME]/*" -d coverage/[AGENT_NAME]
 
-# MANDATORY: Generate HTML coverage report (ALWAYS update index.html)
-coverage html --directory=coverage/<module_name>
-
-# Generate text coverage summary
-coverage report --show-missing > coverage_summary.txt
+# Examples for each agent
+coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py"
+coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py"
+coverage run --source=transcriber_agent -m unittest discover tests/transcriber_tools -p "test_*.py"
 ```
 
-### Coverage Standards
+### Coverage Standards & Requirements
 
-1. **Critical Modules**: 100% line coverage required
-   - Agent initialization files (e.g., `agent.py`, `drive_agent.py`)
-   - Configuration loading modules
-   - Core initialization logic
+**Minimum Coverage Standards:**
+- **Overall project coverage**: 85%
+- **Individual file coverage**: 80%
+- **Target per file**: 90%
+- **Critical business logic files**: 95%
 
-2. **Tool Modules**: Minimum 80% line coverage required
-   - All tool classes and methods
-   - Error handling paths
-   - Configuration validation
+**Critical Modules (100% required):**
+- Agent initialization files (e.g., `agent.py`, `drive_agent.py`)
+- Configuration loading modules
+- Core initialization logic
+- Error handling and reliability modules
 
-3. **Test Coverage Documentation**: Always create
-   - **HTML coverage reports for visual analysis (MANDATORY)**
-   - Text summaries with line-by-line details
-   - Coverage analysis markdown documenting gaps and improvements
+**Tool Modules (80% minimum required):**
+- All tool classes and methods
+- Error handling paths
+- Configuration validation
+- External API integration points
+
+### Test Organization & Naming Standards
+
+**File Naming Convention:**
+- `test_[module_name]_minimal.py` - Basic functionality tests
+- `test_[module_name]_coverage_boost.py` - Target missing coverage lines
+- `test_[module_name]_integration.py` - End-to-end workflow tests
+- `test_[module_name]_error_handling.py` - Exception path testing
+
+**Test Method Naming:**
+```python
+def test_[functionality]_[scenario]_lines_[X_Y](self):
+    """Test [description] (lines X-Y)."""
+    # Example: test_pdf_page_extraction_error_lines_142_143
+```
+
+### Missing Coverage Analysis & Targeting (MANDATORY)
+
+**Required Before Implementation:**
+1. **Line-by-line analysis** using `coverage report --show-missing`
+2. **Categorization of gaps**: High/Medium/Low priority based on:
+   - Error handling paths (High priority)
+   - External library integration failures (High priority)
+   - Edge cases and boundary conditions (Medium priority)
+   - Alternative workflow paths (Medium priority)
+   - Simple conditional branches (Low priority)
+3. **Expected coverage improvement estimates**
+
+**Must Target Coverage Gaps:**
+- HTTP error scenarios (403, 404, 500 status codes)
+- External API failures and timeouts
+- File encoding and decoding errors
+- Invalid input data and malformed content
+- Permission and access denied scenarios
+- Fallback mechanisms and alternative code paths
 
 ### CRITICAL: HTML Coverage Report Requirements
 
@@ -77,26 +117,107 @@ coverage/<module_name>/
 └── <module>_coverage.html     # Module-specific coverage details
 ```
 
-### Mocking for Coverage
+### Comprehensive Mocking Standards (MANDATORY)
 
-To achieve high coverage, properly mock external dependencies:
-
+**External Dependencies - Module-Level Mocking:**
 ```python
-# Mock agency_swarm dependencies
+# Module-level mocking for import issues
 with patch.dict('sys.modules', {
     'agency_swarm': MagicMock(),
-    'agency_swarm.Agent': mock_agent_class,
-    'agency_swarm.ModelSettings': mock_model_settings_class
+    'agency_swarm.tools': MagicMock(),
+    'googleapiclient': MagicMock(),
+    'googleapiclient.discovery': MagicMock(),
+    'googleapiclient.errors': MagicMock(),
+    'google': MagicMock(),
+    'google.oauth2': MagicMock(),
+    'google.oauth2.service_account': MagicMock(),
+    'PyPDF2': MagicMock(),
+    'docx': MagicMock(),
+    'pydantic': MagicMock()
 }):
-    import module_under_test
+    pass
 ```
+
+**HTTP Error Mocking - Realistic Error Scenarios:**
+```python
+# Create realistic HTTP error scenarios
+class MockHttpError(Exception):
+    def __init__(self, resp, content):
+        self.resp = resp
+        self.content = content
+        super().__init__()
+
+# Usage examples
+http_error_403 = MockHttpError(
+    Mock(status=403, reason="Forbidden"),
+    b'{"error": {"code": 403, "message": "Permission denied"}}'
+)
+
+http_error_404 = MockHttpError(
+    Mock(status=404, reason="Not Found"),
+    b'{"error": {"code": 404, "message": "File not found"}}'
+)
+```
+
+**Agency Swarm Testing Requirements:**
+
+**Tool Testing Standards:**
+- Every tool must have standalone test with `if __name__ == "__main__":` block
+- Test `run()` method return format (JSON strings, not Dict objects)
+- Mock BaseTool inheritance: `sys.modules['agency_swarm.tools'].BaseTool = MagicMock()`
+- Test Pydantic Field validation and parameter handling
+- Validate error response structure consistency
+
+**Agent Testing Standards:**
+- Test agent initialization and configuration loading
+- Test tool imports and availability in agent context
+- Test communication patterns between agents
+- Mock external service dependencies comprehensively
 
 **Common Dependencies to Mock:**
 - `agency_swarm.Agent` and `agency_swarm.ModelSettings`
-- External API clients (OpenAI, AssemblyAI, YouTube, LinkedIn)
-- File system operations
+- External API clients (OpenAI, AssemblyAI, YouTube, LinkedIn, Google APIs)
+- File system operations and encoding libraries
 - Database connections (Firestore)
 - Environment variables (when testing fallback paths)
+- PDF/DOCX processing libraries (PyPDF2, python-docx)
+- HTML processing libraries (html2text)
+
+### Error Path & Edge Case Coverage (MANDATORY)
+
+**Mandatory Error Scenarios:**
+- Network failures and API timeouts
+- Invalid authentication and authorization (403, 404, 500 errors)
+- Malformed data and encoding issues
+- File system errors and permission denials
+- External service unavailability
+- Configuration loading failures
+
+**Edge Case Requirements:**
+- Empty inputs and responses
+- Maximum size limits and truncation
+- Invalid file types and formats
+- Concurrent access scenarios
+- Resource exhaustion conditions
+
+**Test Quality & Documentation Standards:**
+
+**Test Documentation:**
+```python
+def test_pdf_extraction_error_handling_lines_142_143(self):
+    """
+    Test PDF page extraction error handling (lines 142-143).
+
+    Covers scenario where PyPDF2 page.extract_text() raises exception.
+    Should gracefully handle error and include error message in output.
+    """
+```
+
+**Assertion Standards:**
+- Use specific assertions: `assertIn`, `assertEqual`, not just `assertTrue`
+- Validate both success and error response structures
+- Check error messages contain meaningful information
+- Verify proper JSON structure in tool responses
 
 ### Coverage Analysis Documentation
 
@@ -119,9 +240,25 @@ Create `coverage_analysis.md` with:
 - Line X-Y: [Reason and plan for coverage]
 - Line Z: [Justification if intentionally excluded]
 
+## Priority Coverage Gaps
+### High Priority (Error Handling):
+- HTTP error scenarios (403, 404, 500)
+- External API failures and timeouts
+- File encoding/decoding errors
+
+### Medium Priority (Edge Cases):
+- Invalid input validation
+- Size limits and truncation
+- Alternative workflow paths
+
+### Low Priority (Conditional Branches):
+- Simple conditional logic
+- Configuration variations
+
 ## Improvement Plan
 1. [Specific steps to improve coverage]
 2. [Mock strategies for uncovered external dependencies]
+3. [Expected coverage improvement estimates]
 
 ## Coverage Trend
 - Previous: XX%
@@ -129,12 +266,29 @@ Create `coverage_analysis.md` with:
 - Target: 100% for critical, 80% minimum overall
 ```
 
+### Performance & Execution Standards
+
+**Test Performance Requirements:**
+- Individual tests complete in <5 seconds
+- Full agent test suite completes in <2 minutes
+- Use parallel test execution where possible
+- Mock file operations to avoid disk I/O
+- Mock network calls to prevent external dependencies
+
+**Resource Management:**
+- Clean up mocks in tearDown() methods
+- Use in-memory data structures for testing
+- Avoid creating temporary files on disk
+- Reset module state between test classes
+
 ### Integration with Development Workflow
 
-1. **After Writing Tests**: Immediately run coverage analysis
-2. **Before Committing**: Ensure coverage standards are met
-3. **Pull Request Requirements**: Include coverage reports in commits
+1. **After Writing Tests**: Immediately run coverage analysis with missing line targeting
+2. **Before Committing**: Ensure coverage standards are met (85% overall, 80% per file)
+3. **Pull Request Requirements**: Include coverage reports and analysis in commits
 4. **Documentation Updates**: Update coverage analysis when adding new modules
+5. **Continuous Integration**: Fail builds if coverage drops below minimums
+6. **HTML Report Updates**: Always regenerate index.html after coverage improvements
 
 ## MANDATORY: Complete Module Coverage Analysis
 
