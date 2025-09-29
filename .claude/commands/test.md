@@ -1,158 +1,117 @@
-# Test coverage
+# Test Coverage Commands
 
-Use this command in Claude (or any shell) to run comprehensive test coverage for agents or specific tools, generate HTML reports, and achieve 100% coverage targets.
+Simple commands to run comprehensive test coverage for agents and tools.
 
 ## Prerequisites
 
-- Virtual env present at `.venv/` (or adjust to `venv/`)
-- Run from repo root or let the command `cd` into the correct folder
+- Virtual environment at `.venv/` (or `venv/`)
+- Run from repo root or let commands handle directory changes
+- Install packages: `pip install coverage pytest unittest-mock`
 
-## Universal Commands
+## Quick Commands
 
-### Agent-Level Coverage (slash-style argument)
-
-You can run this as a Claude command like:
-
-```
-/test @drive_agent/
-/test @linkedin_agent/
-/test @observability_agent/
-```
-
-### Tool-Level Coverage (COVER pattern)
-
-For comprehensive tool coverage (preferred approach):
-
-```
-COVER @autopiloot/linkedin_agent/tools/get_post_reactions.py
-COVER @autopiloot/drive_agent/tools/save_drive_ingestion_record.py
-```
-
-The command below accepts a single argument (e.g., `@drive_agent/`, `linkedin_agent`, or a path like `./agents/autopiloot/drive_agent`). It locates the agent directory, derives the correct working directory, detects the matching tests folder, and runs coverage.
-
-**CRITICAL CHANGE: Multi-Test Pattern for 100% Coverage**
+### Agent Coverage
 
 ```bash
-ARG="${1:-@linkedin_agent/}" && \
-# Normalize argument → agent name only (strip leading @, trailing slashes, and path prefixes)
-AGENT_NAME=$(printf "%s" "$ARG" | sed -E 's#^@##; s#/*$##; s#.*/##') && \
-
-# Find agent directory anywhere in repo
-AGENT_DIR=$(find . -type d -name "$AGENT_NAME" | head -n 1) && \
-if [ -z "$AGENT_DIR" ]; then echo "Agent directory not found: $AGENT_NAME" >&2; exit 1; fi && \
-
-# Derive working directory (parent of the agent dir; typically the module root with tests/)
-WORKDIR=$(dirname "$AGENT_DIR") && \
-cd "$WORKDIR" && \
-
-# Activate virtualenv if present
-if [ -f .venv/bin/activate ]; then . .venv/bin/activate; elif [ -f venv/bin/activate ]; then . venv/bin/activate; fi && \
-export PYTHONPATH=. && \
-
-# Prefer coverage CLI if available; fallback to python -m coverage
-if command -v coverage >/dev/null 2>&1; then COV="coverage"; else COV="python -m coverage"; fi && \
-
-# Clear existing coverage data for clean run
-$COV erase && \
-
-# Detect tests folder based on agent name (e.g., drive_agent → tests/drive_tools)
-BASE_NAME="${AGENT_NAME%_agent}" && \
-if   [ -d "tests/${BASE_NAME}_tools" ]; then TEST_DIR="tests/${BASE_NAME}_tools"; \
-elif [ -d "tests/${AGENT_NAME}_tools" ]; then TEST_DIR="tests/${AGENT_NAME}_tools"; \
-elif [ -d "tests/${AGENT_NAME}" ]; then TEST_DIR="tests/${AGENT_NAME}"; \
-else TEST_DIR="tests"; fi && \
-
-# CRITICAL: Run comprehensive tests in sequence for maximum coverage
-echo "Running comprehensive test sequence for maximum coverage..." && \
-
-# 1. Run fixed/comprehensive tests first (these achieve highest coverage)
-if ls "$TEST_DIR"/*fixed.py >/dev/null 2>&1; then
-  echo "Step 1: Running *fixed.py comprehensive tests..." && \
-  $COV run --source="$AGENT_NAME" -m unittest discover "$TEST_DIR" -p "*fixed.py" -v
-fi && \
-
-# 2. Add coverage from comprehensive boost tests
-if ls test_*_comprehensive.py >/dev/null 2>&1; then
-  echo "Step 2: Adding comprehensive boost tests..." && \
-  for test_file in test_*_comprehensive.py; do
-    if [[ "$test_file" == *"$AGENT_NAME"* ]] || [[ "$test_file" == *"${BASE_NAME}"* ]]; then
-      echo "Running: $test_file" && \
-      $COV run --append --source="$AGENT_NAME" "$test_file"
-    fi
-  done
-fi && \
-
-# 3. Add coverage from main block executions
-echo "Step 3: Adding main block executions..." && \
-find "$AGENT_NAME/tools" -name "*.py" -not -name "__init__.py" -exec $COV run --append --source="$AGENT_NAME" {} \; 2>/dev/null && \
-
-# 4. Add any remaining standard tests
-echo "Step 4: Adding remaining standard tests..." && \
-$COV run --append --source="$AGENT_NAME" -m unittest discover "$TEST_DIR" -p "test_*.py" -v 2>/dev/null && \
-
-# Generate final reports
-echo "Generating coverage reports..." && \
-$COV html --directory="coverage/$AGENT_NAME" --include="$AGENT_NAME/*" && \
-
-# Show comprehensive agent-level coverage report
-echo "" && \
-echo "=== COMPREHENSIVE AGENT COVERAGE REPORT ===" && \
-$COV report --include="$AGENT_NAME/*" --show-missing | cat && \
-
-# Show summary statistics
-echo "" && \
-echo "=== AGENT COVERAGE SUMMARY ===" && \
-TOTAL_FILES=$($COV report --include="$AGENT_NAME/*" | grep -c "^$AGENT_NAME/") && \
-OVERALL_PCT=$($COV report --include="$AGENT_NAME/*" | tail -1 | awk '{print $NF}') && \
-echo "Agent: $AGENT_NAME" && \
-echo "Total Files: $TOTAL_FILES" && \
-echo "Overall Coverage: $OVERALL_PCT" && \
-echo "HTML Report: coverage/$AGENT_NAME/index.html" && \
-
-echo "\nCoverage analysis complete. Check coverage/$AGENT_NAME/index.html for detailed results."
+/test @<agent>/
 ```
 
-### What this does (ENHANCED for 100% Coverage)
-
-- **Clears existing coverage data** for clean measurement
-- **Runs comprehensive tests first** (*fixed.py files with 100% coverage)
-- **Adds boost tests** (custom comprehensive test files)
-- **Includes main block execution** (standalone tool testing)
-- **Appends standard tests** (remaining test coverage)
-- **Generates combined HTML report** at `coverage/$AGENT/index.html`
-- **Shows missing lines analysis** for further improvement
-
-## Critical Success Factors for 100% Coverage
-
-### Test File Naming Convention (REQUIRED)
-
-For LinkedIn Agent specifically, ensure these test files exist:
+### Focused Tool Analysis
 
 ```bash
-tests/linkedin_tools/test_deduplicate_entities_fixed.py     # 100% coverage (15 tests)
-test_compute_linkedin_stats_comprehensive.py               # Comprehensive boost tests
-test_upsert_to_zep_group_comprehensive.py                 # Comprehensive boost tests
-test_coverage_boost.py                                     # Additional coverage boost
+/test @<agent>/tools/<tool>.py
 ```
 
-### Agency Swarm v1.0.0 Mock Pattern (CRITICAL)
+### Autonomous Coverage Loop (no manual approvals)
 
-All comprehensive tests must use this exact mock configuration:
+```bash
+/test @<agent>/ --auto
+```
+
+When run with `--auto`, Claude repeatedly:
+
+1. Runs agent coverage and parses the report
+2. Identifies the lowest-coverage tool (below 80% or your configured threshold)
+3. Executes `/test @<agent>/tools/<tool>.py` for that tool
+4. Re-runs the agent coverage to verify improvement
+5. Stops only when all tools meet the threshold or the iteration limit is reached
+
+## What These Do
+
+- **Agent Coverage**: Runs all tests for an agent, generates HTML report at `coverage/{agent}/index.html`
+- **Tool Coverage**: Runs full agent coverage with focus on specific tool analysis
+- **Auto-Improvement**: If coverage < 80%, runs deep analysis to find suggestions for test fixes or code improvements and executes them
+- **HTML Reports**: Interactive coverage reports for visual analysis
+
+## Coverage Expectations
+
+- **Perfect (100%)**: Tool fully covered and production ready
+- **Excellent (90%+)**: High confidence, minimal risk
+- **Good (80%+)**: Meets minimum threshold for production
+- **Needs Improvement (<80%)**: Add tests before shipping
+- **Overall Project**: Maintain 80%+ minimum across all agents
+- **Critical Modules**: Initialization/config files must stay at 100%
+
+## Test File Organization
+
+```
+tests/{agent}_tools/
+└── test_{tool}.py                 # One comprehensive test file per tool
+```
+
+**Simple rule:**
+
+- One test file per tool that achieves 100% coverage
+- No confusing naming schemes or multiple files
+- Just `test_{tool}.py` - clear and simple
+
+## Comprehensive Mocking Strategy
+
+**Always mock external dependencies** to prevent real API calls and ensure reliable tests:
+
+### Required Mocks (All Tests)
 
 ```python
 import sys
-import json
 from unittest.mock import patch, MagicMock
 
-# Mock Agency Swarm before importing
+# Mock ALL external dependencies before any imports
 mock_modules = {
+    # Agency Swarm Framework
     'agency_swarm': MagicMock(),
     'agency_swarm.tools': MagicMock(),
     'pydantic': MagicMock(),
+
+    # Google Cloud Services
+    'google': MagicMock(),
+    'google.cloud': MagicMock(),
+    'google.cloud.firestore': MagicMock(),
+    'googleapiclient': MagicMock(),
+    'googleapiclient.discovery': MagicMock(),
+    'googleapiclient.errors': MagicMock(),
+
+    # External APIs
+    'slack_sdk': MagicMock(),
+    'slack_sdk.web': MagicMock(),
+    'requests': MagicMock(),
+    'assemblyai': MagicMock(),
+    'openai': MagicMock(),
+
+    # Utilities
+    'pytz': MagicMock(),
+    'tiktoken': MagicMock(),
+    'zep_python': MagicMock(),
+
+    # Internal modules
+    'config': MagicMock(),
+    'config.env_loader': MagicMock(),
+    'config.loader': MagicMock(),
+    'core': MagicMock(),
+    'core.audit_logger': MagicMock(),
 }
 
 with patch.dict('sys.modules', mock_modules):
-    # Create proper mocks
+    # Mock BaseTool and Field properly
     class MockBaseTool:
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
@@ -164,216 +123,286 @@ with patch.dict('sys.modules', mock_modules):
     sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
     sys.modules['pydantic'].Field = mock_field
 
-    # Now import the tool
-    from linkedin_agent.tools.deduplicate_entities import DeduplicateEntities
+    # Now import the tool safely
+    from {agent}_agent.tools.{tool} import {ToolClass}
 ```
 
-## Quick Examples
+### Mocking Strategy by Tool Type
 
-### Agent-Level Coverage (NEW Multi-Test Pattern)
+**Always Mock (External APIs):**
 
-LinkedIn Agent (100% for deduplicate_entities.py):
+- `googleapiclient` - YouTube API, Drive API, Sheets API (quota limits, network calls)
+- `slack_sdk` - Slack API (rate limits, requires tokens)
+- `assemblyai` - Transcription API (costs money, network calls)
+- `openai` - GPT API (costs money, rate limits)
+- `requests` - HTTP calls (network dependency)
+
+**Mock for Reliability (Internal but External Dependencies):**
+
+- `google.cloud.firestore` - Database calls (requires credentials, network)
+- `pytz` - Timezone handling (can be flaky in CI)
+- `tiktoken` - Token counting (external library, can be slow)
+
+**Optional Mocking (Framework Dependencies):**
+
+- `agency_swarm` - Framework (can run without, but mocking ensures consistency)
+- `pydantic` - Validation (can run without, but mocking prevents import issues)
+- `zep_python` - GraphRAG (optional dependency, mock for safety)
+
+**Can Run Without Mocking:**
+
+- Pure Python logic tools (math, string processing, data transformation)
+- Tools that only use standard library
+- Configuration loading tools (if no external calls)
+
+### When to Mock vs Not Mock
+
+**Mock When:**
+
+- Tool makes external API calls
+- Tool requires credentials/tokens
+- Tool has network dependencies
+- Tool costs money to run
+- Tool has rate limits
+
+**Don't Mock When:**
+
+- Pure logic/calculation tools
+- File system operations (use temp files)
+- Standard library only tools
+- Configuration parsing tools
+
+## Pre-Work Checklist (CRITICAL)
+
+**Before making ANY changes to tests or code:**
+
+1. **Run current coverage** to identify which tools already have 100%
+2. **Document 100% tools** - list them and mark as "DO NOT TOUCH"
+3. **Focus only on tools < 100%** - never modify files that already work
+4. **Backup existing tests** - save working test files before changes
+5. **Verify current state** - ensure you understand what's already working
+
+**Example workflow:**
+
+```bash
+# 1. Check current coverage
+/test @drive_agent/
+# → Identifies: save_drive_ingestion_record.py (100%), extract_text_from_document.py (73%)
+
+# 2. Document what NOT to touch
+# ✅ DO NOT TOUCH: save_drive_ingestion_record.py (already 100%)
+# 🎯 FOCUS ON: extract_text_from_document.py (needs improvement)
+
+# 3. Only work on the 73% tool, leave 100% tool alone
+```
+
+## Preventing Coverage Measurement Failures
+
+Infrastructure issues (bad imports, missing mocks, broken HTTP fakes) can make coverage look low even when business logic is tested. Apply these generic safeguards before writing new tests:
+
+1. **Reuse proven templates** – copy patterns from a known good tool test (e.g., `deduplicate_entities`) so imports and mocks stay consistent.
+2. **Import real source code** – use `importlib.util.spec_from_file_location` inside tests when direct imports fail, ensuring coverage tracks actual lines executed.
+3. **Patch every external module before import** – mock SDKs/clients in `sys.modules` (see comprehensive mocking section) so the tool file imports cleanly.
+4. **Standardize HTTP mocks** – build mocked responses with `status_code`, `json()`, `text`, and error raising helpers to exercise success/error paths without network calls.
+5. **Validate test execution** – temporarily log or assert inside the tool to confirm the test reaches the real `run()` method (remove after verification).
+6. **Run smoke coverage** – execute `/test @<agent>/ --analyze` after infrastructure fixes; if coverage stays near zero, re-check steps 2–4 before adding new tests.
+
+Following this checklist keeps the testing infrastructure healthy so coverage numbers stay trustworthy.
+
+## Diagnosing Low Coverage (Generic Workflow)
+
+Use the same sequence for any agent or tool:
+
+1. **Run a dry analysis**
+   ```bash
+   /test @<agent>/ --analyze
+   ```
+   - Lists current coverage percentage per tool
+   - Flags anything below the 80% threshold
+2. **Target the lowest tool first**
+   ```bash
+   /test @<agent>/tools/<tool>.py
+   ```
+   - Generates focused suggestions for missing scenarios
+   - Produces an updated coverage report for the parent agent
+3. **Iterate** until all tools meet or exceed the target
+4. **Re-run the full agent** to confirm
+   ```bash
+   /test @<agent>/ --comprehensive
+   ```
+
+### Common Root Causes (apply to any tool)
+
+- External API dependencies without mocks (HTTP requests, SDK calls)
+- Untested error handling (HTTP status codes, retries, timeouts)
+- Over-mocking that prevents real source code execution
+- Missing test files or incomplete success-path coverage
+- Data processing edge cases (empty payloads, pagination, rate limits)
+
+### Generic Improvement Checklist
+
+- Cover **success** paths with realistic sample payloads
+- Cover **error** paths (400, 401, 403, 404, 429, 500+)
+- Simulate **network failures** (timeouts, connection errors)
+- Exercise **retry logic** and **rate limiting** branches
+- Validate **data transformations** and edge inputs
+- Assert that the tool returns the documented JSON structure
+
+## Tool-Level Coverage Analysis
+
+Use targeted coverage commands whenever a single tool needs deeper inspection:
+
+```bash
+coverage run --source=<agent>/tools/<tool>.py \
+  -m unittest tests.<agent>_tools.test_<tool> -v
+coverage report --include="<agent>/tools/<tool>.py" --show-missing
+coverage html --include="<agent>/tools/<tool>.py" -d coverage/<agent>
+```
+
+## Coverage Report Validation
+
+Always confirm the reports are meaningful:
+
+1. HTML report exists: `coverage/<agent>/index.html`
+2. No "module-not-imported" or "no data collected" warnings
+3. Coverage percentage aligns with expectations
+4. Missing-line listings identify remaining gaps
+
+## Coverage Testing Best Practices
+
+- Reuse known-good test files as templates for new tools
+- Generate HTML reports (`coverage html`) for visual inspection
+- Target error handling and edge cases for missing lines
+- Use `importlib.util.spec_from_file_location` when standard imports fail
+- Mock external dependencies, not the tool modules themselves
+
+## Coverage Troubleshooting
+
+- **0% coverage reported**: Revisit import strategy; avoid global module mocking that skips real execution
+- **"No data collected" warnings**: Ensure `--source` paths and tests are correct
+- **Import errors**: Confirm `patch.dict('sys.modules')` patches all dependencies before import
+- **Unexpected percentages**: Clear old `.coverage` files (`coverage erase`) and rerun
+
+## Coverage Analysis
+
+The commands automatically analyze results and take action:
+
+- **< 80%**: Runs deep analysis to identify issues:
+  - **Test Problems**: Missing test cases, incorrect mocks, wrong assertions
+  - **Code Problems**: Dead code, unreachable branches, missing error handling
+  - **Auto-Fix**: Creates/updates test files, refactors code, adds missing error paths
+  - **Re-runs**: Automatically re-tests after fixes to verify improvements
+- **≥ 80%**: Primary threshold satisfied
+- **≥ 90%**: Considered production-ready
+- **100%**: Maintain and protect this status
+
+## Coverage Success Criteria
+
+- ✅ **Perfect (100%)** – fully covered, production ready
+- ✅ **Excellent (90%+)** – small gaps remain, acceptable risk
+- ✅ **Good (80%+)** – meets minimum bar, monitor uncovered lines
+- ⚠️ **Needs Improvement (<80%)** – prioritize additional testing
+
+## Automatic Low-Coverage Detection
+
+When you ask Claude to "pick up low-coverage tests" or "fix low-coverage files," Claude will:
+
+1. **Scan the coverage HTML report** at `coverage/{agent}/index.html`
+2. **Identify all tools below 80% coverage**
+3. **Automatically create comprehensive test suites** targeting 100% coverage
+4. **Iterate through each low-coverage tool** until all reach 80%+ or 100%
+5. **Generate final HTML report** showing overall improvement
+
+### Example Workflow
+
+```bash
+# User: "I see a few low coverage tests, can these be picked up?"
+
+# Claude automatically:
+# 1. Reads coverage/orchestrator_agent/index.html
+# 2. Finds: dispatch_scraper.py (32%), query_dlq.py (25%), emit_run_events.py (23%)
+# 3. Creates test_dispatch_scraper_100_coverage.py → 100% ✅
+# 4. Creates test_query_dlq_100_coverage.py → 100% ✅
+# 5. Creates test_emit_run_events_100_coverage.py → 100% ✅
+# 6. Runs all tests together
+# 7. Overall coverage: 47% → 99% 🎉
+```
+
+### Triggering Automatic Improvement
+
+Simply ask in natural language:
+- "Can you pick up the low coverage tests?"
+- "Fix the low-coverage files"
+- "Improve coverage for tools below 80%"
+- "Continue with remaining low-coverage tools"
+
+Claude will:
+- ✅ Read the HTML coverage report
+- ✅ Identify tools < 80%
+- ✅ Create comprehensive test files (targeting 100%)
+- ✅ Run tests and verify coverage
+- ✅ Iterate until all tools meet threshold
+- ✅ Provide final summary with metrics
+
+### What Claude Tests
+
+Each comprehensive test file covers:
+- ✅ Success paths with realistic data
+- ✅ All validation checks and error messages
+- ✅ Edge cases (empty inputs, invalid types, missing fields)
+- ✅ Exception handling paths
+- ✅ External API mocking (Firestore, HTTP, etc.)
+- ✅ Business logic calculations
+- ✅ Configuration overrides
+- ✅ Integration points
+
+### Coverage Improvement Standards
+
+- **Target**: 100% coverage per tool
+- **Minimum acceptable**: 80% coverage
+- **Test count**: Typically 15-30 tests per tool
+- **Naming**: `test_{tool}_100_coverage.py`
+- **Pattern**: One comprehensive test file per tool
+
+## Examples
+
+### Agent Coverage (Full Agent)
 
 ```bash
 /test @linkedin_agent/
+# → Runs ALL tests for linkedin_agent
+# → Generates coverage/linkedin_agent/index.html
+# → Shows overall agent coverage percentage
 ```
 
-This will now run:
-1. `test_deduplicate_entities_fixed.py` (15 tests, 100% coverage)
-2. `test_compute_linkedin_stats_comprehensive.py` (10 comprehensive tests)
-3. `test_upsert_to_zep_group_comprehensive.py` (10 comprehensive tests)
-4. Main block executions for all tools
-5. Any remaining standard tests
-
-Drive Agent:
+### Tool Coverage (Specific Tool Focus)
 
 ```bash
-/test @drive_agent/
+/test @autopiloot/drive_agent/tools/save_drive_ingestion_record.py
+# → Runs ALL drive_agent tests (full agent coverage)
+# → Generates coverage/drive_agent/index.html
+# → Provides detailed analysis of the specific tool mentioned
+# → Shows missing lines for that specific tool
 ```
 
-Observability Agent:
+**What's the difference?**
 
-```bash
-/test @observability_agent/
-```
+- **Agent Coverage**: Focus on the entire agent's coverage
+- **Tool Coverage**: Still runs full agent, but gives extra detail about one specific tool
 
-### Tool-Level Comprehensive Coverage (Preferred)
+## Verification Checklist
 
-LinkedIn Agent Tools (100% Coverage Achieved):
+- [ ] Clear coverage data with `coverage erase` before starting
+- [ ] Run all tests for the agent (one test file per tool)
+- [ ] Check HTML report for 0 missing lines in `coverage/{agent}/index.html`
+- [ ] Mock external dependencies (APIs, databases, external services)
+- [ ] Test all paths: error handling, edge cases, alternative workflows
+- [ ] Verify each tool achieves 100% coverage
 
-```bash
-COVER @autopiloot/linkedin_agent/tools/deduplicate_entities.py        # 100% (126/126 lines)
-COVER @autopiloot/linkedin_agent/tools/compute_linkedin_stats.py      # 73% (156/213 lines)
-COVER @autopiloot/linkedin_agent/tools/upsert_to_zep_group.py         # 82% (82/122 lines)
-```
+## Maintenance
 
-Drive Agent Tools (100% Coverage Achieved):
-
-```bash
-COVER @autopiloot/drive_agent/tools/save_drive_ingestion_record.py    # 100% (72/72 lines)
-```
-
-### Verified 100% Coverage Results
-
-After running `/test @linkedin_agent/`, expect to see in `coverage/linkedin_agent/index.html`:
-
-```html
-<tr class="region">
-    <td class="name left">linkedin_agent/tools/deduplicate_entities.py</td>
-    <td>126</td>
-    <td>0</td>      <!-- 0 missing lines -->
-    <td>6</td>
-    <td class="right">100%</td>  <!-- 100% coverage -->
-</tr>
-```
-
-### Coverage Report Generation (ENHANCED)
-
-Generate comprehensive HTML coverage reports with multiple test sources:
-
-```bash
-cd /Users/maarten/Projects/16\ -\ autopiloot/agents/autopiloot && \
-source .venv/bin/activate && \
-export PYTHONPATH=. && \
-
-# Clear and run comprehensive test sequence
-coverage erase && \
-coverage run --source=linkedin_agent -m unittest tests.linkedin_tools.test_deduplicate_entities_fixed -v && \
-coverage run --append --source=linkedin_agent test_compute_linkedin_stats_comprehensive.py && \
-coverage run --append --source=linkedin_agent test_upsert_to_zep_group_comprehensive.py && \
-coverage run --append --source=linkedin_agent test_coverage_boost.py && \
-
-# Generate reports
-coverage html --include="linkedin_agent/*" -d coverage/linkedin_agent && \
-coverage report --include="linkedin_agent/*" --show-missing
-```
-
-## Iterative Single‑Test Coverage Workflow (Steps 1–7)
-
-Use this when you want to iterate test‑by‑test, analyze why coverage is <100%, update code or tests, and re‑run until thresholds are met.
-
-### Slash Command Examples
-
-```
-/cover @drive_agent/ tests/drive_tools/test_extract_text_from_document.py
-/cover @observability_agent/ tests/observability_tools/test_send_error_alert.py
-```
-
-### What this does (mapping to your 7 steps)
-
-1. Analyze test by test (run only the specified test module)
-2. Analyze coverage gaps (show missing lines for the agent's files)
-3. Update the code if needed (Claude edits files based on missing lines and failures)
-4. Update the test if needed (Claude augments tests for uncovered/error paths)
-5. Run the test again and check if coverage ≥ 75%
-6. If still < 75%, analyze why and repeat
-7. Repeat until thresholds are met (then aim for 100%)
-
-### Universal Single‑Test Command
-
-```bash
-# Args:
-#  $1 = agent (e.g., @drive_agent/ or drive_agent or a path to the agent dir)
-#  $2 = test file path (e.g., tests/drive_tools/test_extract_text_from_document.py)
-
-ARG_AGENT="${1:-@drive_agent/}" && \
-ARG_TEST="${2:-tests/test_config.py}" && \
-
-# Normalize argument → agent name only (strip leading @, trailing slashes, and path prefixes)
-AGENT_NAME=$(printf "%s" "$ARG_AGENT" | sed -E 's#^@##; s#/*$##; s#.*/##') && \
-
-# Find agent directory anywhere in repo
-AGENT_DIR=$(find . -type d -name "$AGENT_NAME" | head -n 1) && \
-if [ -z "$AGENT_DIR" ]; then echo "Agent directory not found for: $AGENT_NAME" >&2; exit 1; fi && \
-
-# Derive working directory (parent of the agent dir; typically the module root with tests/)
-WORKDIR=$(dirname "$AGENT_DIR") && \
-cd "$WORKDIR" && \
-
-# Activate virtualenv if present
-if [ -f .venv/bin/activate ]; then . .venv/bin/activate; elif [ -f venv/bin/activate ]; then . venv/bin/activate; fi && \
-export PYTHONPATH=. && \
-
-# Prefer coverage CLI if available; fallback to python -m coverage
-if command -v coverage >/dev/null 2>&1; then COV="coverage"; else COV="python -m coverage"; fi && \
-
-# 1) Run just the specified test module with coverage limited to the agent
-$COV run --source="$AGENT_NAME" -m unittest "$ARG_TEST" -v || true && \
-
-# 2) Show missing lines (analysis target for Claude to propose edits)
-$COV report --include="$AGENT_NAME/*" --show-missing | cat && \
-
-# Generate/refresh HTML for visual inspection
-$COV html --directory="coverage/$AGENT_NAME" --include="$AGENT_NAME/*" && \
-
-# 5) Extract overall percent for quick threshold check (>= 75%)
-PCT=$($COV report --include="$AGENT_NAME/*" | awk 'END{print $NF}' | tr -d '%') && \
-if [ -z "$PCT" ]; then echo "Coverage percent not detected" >&2; exit 0; fi && \
-if [ "$PCT" -lt 75 ]; then \
-  echo "\nCoverage is below 75% ($PCT%). Analyze the missing lines above and update code/tests, then re-run."; \
-else \
-  echo "\nCoverage is >= 75% ($PCT%). Continue iterating toward 100%."; \
-fi
-```
-
-### How to Use with Claude (recommended loop)
-
-1. Run the command above with your agent and test file.
-2. Claude reviews the missing lines (from the text report) and proposes edits:
-   - If uncovered lines are error paths → add negative tests (exception cases)
-   - If missing branches are unreachable → refactor code or adjust tests
-   - If return schema not asserted → strengthen assertions
-3. Claude applies edits to code/tests.
-4. Re‑run the same command.
-5. If coverage < 75%, Claude adds focused tests for the exact missing lines.
-6. Repeat until 100% is achieved or justified.
-
-## Testing Standards (enforced via docs)
-
-### Coverage Requirements
-
-- **Target Coverage**: 100% for all tools (preferred standard)
-- **Minimum Coverage**: 90% (acceptable); 80% (threshold)
-- **Critical modules** (init/config/core): 100% required
-- **Agency Swarm tools**: 100% coverage expected
-
-### Tool-Specific Coverage Approach
-
-- Use `COVER @path/to/tool.py` pattern for targeted comprehensive coverage
-- Create enhanced test files: `test_[tool_name]_fixed.py` with 100% coverage
-- Include all business logic, error handling, and edge cases
-- Test Agency Swarm BaseTool inheritance and Pydantic Field validation
-- Mock external dependencies (APIs, Firestore, Drive) comprehensively
-
-### Test File Organization (UPDATED for 100% Coverage)
-
-- `test_[tool]_minimal.py` - Basic functionality tests
-- `test_[tool]_fixed.py` - **Comprehensive 100% coverage tests (PRIORITY)**
-- `test_[tool]_comprehensive.py` - **Boost tests for missing lines**
-- `test_[tool]_integration.py` - End-to-end workflow tests
-- `test_[tool]_error_handling.py` - Exception path testing
-
-### Enhanced Testing Features
-
-- **Pydantic Field Mocking**: Proper Agency Swarm v1.0.0 compatibility
-- **HTTP Error Scenarios**: 403, 404, 429, 500 status code handling
-- **Retry Logic Testing**: Exponential backoff and rate limiting
-- **JSON Return Format**: Validate tool return structures
-- **Main Block Execution**: Test standalone tool execution
-- **Multi-Test Sequencing**: Run tests in order for maximum coverage combination
-
-### Coverage Maintenance
-
+- **CRITICAL**: If a tool already has 100% coverage, DO NOT touch its test file
 - When a tool reaches 100% coverage, maintain through comprehensive test files
-- Do not modify tests unless requirements or implementation change
+- Don't modify tests unless requirements change
 - Create documentation for achieved coverage milestones
-- Ensure test command runs all comprehensive tests together for accurate results
-
-### 100% Coverage Verification Checklist
-
-- **Run multi-test sequence**: Fixed tests + comprehensive tests + main blocks
-- **Clear coverage data**: `coverage erase` before starting
-- **Use --append flag**: Accumulate coverage across multiple test runs
-- **Check HTML report**: Verify 0 missing lines in coverage/agent/index.html
-- **Mock dependencies**: Use proven Agency Swarm v1.0.0 mock pattern
-- **Test all paths**: Error handling, edge cases, alternative workflows
+- Ensure test commands run all comprehensive tests together for accurate results
