@@ -24,21 +24,32 @@ mock_modules = {
 for module_name, mock_module in mock_modules.items():
     sys.modules[module_name] = mock_module
 
-# Mock BaseTool and Field
+# Create BaseTool mock
 class MockBaseTool:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-def mock_field(*args, **kwargs):
-    return kwargs.get('default', None)
+    pass
 
 sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
+
+# Create Field mock
+def mock_field(default=None, **kwargs):
+    return default
+
 sys.modules['pydantic'].Field = mock_field
+
+# Mock SERVER_TIMESTAMP
 sys.modules['google.cloud.firestore'].SERVER_TIMESTAMP = 'SERVER_TIMESTAMP'
 
-# Now import the tool
+# Import the tool after mocking
 from orchestrator_agent.tools.handle_dlq import HandleDLQ
+
+# Patch HandleDLQ __init__ to accept kwargs
+def patched_init(self, **kwargs):
+    self.job_id = kwargs.get('job_id')
+    self.job_type = kwargs.get('job_type')
+    self.failure_context = kwargs.get('failure_context', {})
+    self.recovery_hints = kwargs.get('recovery_hints', None)
+
+HandleDLQ.__init__ = patched_init
 
 
 class TestHandleDLQ100Coverage(unittest.TestCase):

@@ -21,20 +21,28 @@ mock_modules = {
 for module_name, mock_module in mock_modules.items():
     sys.modules[module_name] = mock_module
 
-# Mock BaseTool and Field
+# Create BaseTool mock
 class MockBaseTool:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-def mock_field(*args, **kwargs):
-    return kwargs.get('default', None)
+    pass
 
 sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
+
+# Create Field mock
+def mock_field(default=None, **kwargs):
+    return default
+
 sys.modules['pydantic'].Field = mock_field
 
-# Now import the tool
+# Import the tool after mocking
 from orchestrator_agent.tools.enforce_policies import EnforcePolicies
+
+# Patch EnforcePolicies __init__ to accept kwargs
+def patched_init(self, **kwargs):
+    self.job_context = kwargs.get('job_context', {})
+    self.current_state = kwargs.get('current_state', {})
+    self.policy_overrides = kwargs.get('policy_overrides', None)
+
+EnforcePolicies.__init__ = patched_init
 
 
 class TestEnforcePolicies100Coverage(unittest.TestCase):
