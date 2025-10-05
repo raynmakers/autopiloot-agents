@@ -168,11 +168,11 @@ Configure digest behavior in `config/settings.yaml`:
 notifications:
   slack:
     digest:
-      enabled: true                    # Enable/disable digest
-      time: "07:00"                   # Delivery time (fixed at deployment)
-      timezone: "Europe/Amsterdam"    # Timezone for date calculations
-      channel: "ops-autopiloot"       # Target Slack channel
-      sections:                       # Customize digest sections
+      enabled: true # Enable/disable digest
+      time: "07:00" # Delivery time (fixed at deployment)
+      timezone: "Europe/Amsterdam" # Timezone for date calculations
+      channel: "ops-autopiloot" # Target Slack channel
+      sections: # Customize digest sections
         - "summary"
         - "budgets"
         - "issues"
@@ -183,12 +183,12 @@ notifications:
 
 ### Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Digest not delivered | Check Firebase Functions logs, verify SLACK_BOT_TOKEN |
-| Wrong channel | Update `notifications.slack.digest.channel` in settings.yaml |
-| Missing data | Verify Firestore permissions and collection structure |
-| Timezone issues | Ensure `notifications.slack.digest.timezone` is valid IANA timezone |
+| Issue                | Solution                                                            |
+| -------------------- | ------------------------------------------------------------------- |
+| Digest not delivered | Check Firebase Functions logs, verify SLACK_BOT_TOKEN               |
+| Wrong channel        | Update `notifications.slack.digest.channel` in settings.yaml        |
+| Missing data         | Verify Firestore permissions and collection structure               |
+| Timezone issues      | Ensure `notifications.slack.digest.timezone` is valid IANA timezone |
 
 ## Project Structure
 
@@ -670,6 +670,17 @@ python scripts/new_agent.py \
 4. **Documentation**: Update ADRs for architectural decisions
 5. **Configuration**: Use settings.yaml + environment variables
 6. **Modular Design**: Follow scaffold-generated patterns
+
+## 🔧 Development Scripts
+
+- `scripts/new_agent.py`: CLI scaffold to generate a new agent (folders, tools, instructions). Example:
+  ```bash
+  python scripts/new_agent.py --name "Content Analyzer" --description "AI-powered content analysis and insights"
+  ```
+- `scripts/check_tool_filenames_snake_case.sh`: Enforces snake_case tool filenames. Run locally or in CI:
+  ```bash
+  bash scripts/check_tool_filenames_snake_case.sh
+  ```
 
 ## 📄 License
 

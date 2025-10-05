@@ -77,7 +77,7 @@ class GenerateDailyDigest(BaseTool):
             slack_blocks = self._format_slack_blocks(digest_content)
 
             # Audit log the digest generation
-            audit_logger.log(
+            audit_logger.write_audit_log(
                 actor="ObservabilityAgent",
                 action="generate_daily_digest",
                 entity="daily_digest",
@@ -102,7 +102,7 @@ class GenerateDailyDigest(BaseTool):
 
         except Exception as e:
             error_msg = f"Failed to generate daily digest for {self.date}: {str(e)}"
-            audit_logger.log(
+            audit_logger.write_audit_log(
                 actor="ObservabilityAgent",
                 action="generate_daily_digest_error",
                 entity="daily_digest",

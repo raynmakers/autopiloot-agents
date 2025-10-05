@@ -7,8 +7,8 @@ from .send_slack_message import SendSlackMessage
 from .monitor_transcription_budget import MonitorTranscriptionBudget
 from .send_error_alert import SendErrorAlert
 from .alert_engine import AlertEngine
-from .llm_observability_metrics import LlmObservabilityMetrics
-from .monitor_dlq_trends import MonitorDlqTrends
+from .llm_observability_metrics import LLMObservabilityMetrics
+from .monitor_dlq_trends import MonitorDLQTrends
 from .monitor_quota_state import MonitorQuotaState
 from .report_daily_summary import ReportDailySummary
 from .stuck_job_scanner import StuckJobScanner
@@ -20,8 +20,8 @@ __all__ = [
     "MonitorTranscriptionBudget",
     "SendErrorAlert",
     "AlertEngine",
-    "LlmObservabilityMetrics",
-    "MonitorDlqTrends",
+    "LLMObservabilityMetrics",
+    "MonitorDLQTrends",
     "MonitorQuotaState",
     "ReportDailySummary",
     "StuckJobScanner"

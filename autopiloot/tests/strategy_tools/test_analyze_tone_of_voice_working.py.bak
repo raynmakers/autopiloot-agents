@@ -1,0 +1,362 @@
+"""
+Working test for analyze_tone_of_voice.py with proper coverage tracking.
+Uses module-level mocking pattern for coverage.py compatibility.
+"""
+
+import unittest
+from unittest.mock import patch, MagicMock, Mock
+import sys
+import json
+
+
+# Mock ALL external dependencies BEFORE import
+class MockBaseTool:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+def mock_field(*args, **kwargs):
+    return kwargs.get('default', None)
+
+sys.modules['agency_swarm'] = MagicMock()
+sys.modules['agency_swarm.tools'] = MagicMock()
+sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
+sys.modules['pydantic'] = MagicMock()
+sys.modules['pydantic'].Field = mock_field
+sys.modules['openai'] = MagicMock()
+sys.modules['config'] = MagicMock()
+sys.modules['config.env_loader'] = MagicMock()
+sys.modules['config.loader'] = MagicMock()
+sys.modules['env_loader'] = MagicMock()
+sys.modules['env_loader'].get_required_env_var = MagicMock(return_value='test-api-key')
+sys.modules['env_loader'].load_environment = MagicMock()
+sys.modules['loader'] = MagicMock()
+sys.modules['loader'].load_app_config = MagicMock(return_value={'test': 'config'})
+sys.modules['loader'].get_config_value = MagicMock(return_value='test-value')
+
+# Import the tool at module level for coverage tracking
+from strategy_agent.tools.analyze_tone_of_voice import (
+    AnalyzeToneOfVoice,
+    EmotionAnalyzer,
+    StyleAnalyzer,
+    AuthorityAnalyzer
+)
+
+
+class TestAnalyzeToneOfVoiceWorking(unittest.TestCase):
+    """Working tests with proper coverage tracking."""
+
+    def setUp(self):
+        """Set up common test data."""
+        self.sample_items = [
+            {
+                "text": "I'm excited to share this amazing insight about business growth!",
+                "engagement": {"reaction_count": 50, "comment_count": 10}
+            },
+            {
+                "text": "Here's what I learned from 10 years of experience in leadership.",
+                "engagement": {"reaction_count": 100, "comment_count": 20}
+            }
+        ]
+
+    def test_empty_items_error(self):
+        """Test error with empty items list."""
+        tool = AnalyzeToneOfVoice(items=[], use_llm=False)
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('error', data)
+
+    def test_invalid_items_error(self):
+        """Test error with invalid items."""
+        tool = AnalyzeToneOfVoice(items=[{"no_text": "missing text field"}], use_llm=False)
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('error', data)
+
+    def test_heuristic_analysis_without_llm(self):
+        """Test heuristic-based tone analysis."""
+        tool = AnalyzeToneOfVoice(
+            items=self.sample_items,
+            use_llm=False,
+            analyze_emotions=True,
+            analyze_style=True,
+            analyze_authority=True
+        )
+
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('overall_tone', data)
+        self.assertIn('analysis_metadata', data)
+
+    def test_emotion_analysis_disabled(self):
+        """Test with emotion analysis disabled."""
+        tool = AnalyzeToneOfVoice(
+            items=self.sample_items,
+            use_llm=False,
+            analyze_emotions=False
+        )
+
+        result = tool.run()
+        data = json.loads(result)
+
+        # Should still return valid result
+        self.assertIn('overall_tone', data)
+
+    def test_style_analysis_disabled(self):
+        """Test with style analysis disabled."""
+        tool = AnalyzeToneOfVoice(
+            items=self.sample_items,
+            use_llm=False,
+            analyze_style=False
+        )
+
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('overall_tone', data)
+
+    def test_authority_analysis_disabled(self):
+        """Test with authority analysis disabled."""
+        tool = AnalyzeToneOfVoice(
+            items=self.sample_items,
+            use_llm=False,
+            analyze_authority=False
+        )
+
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('overall_tone', data)
+
+    def test_extract_engagement_metrics(self):
+        """Test engagement metrics extraction."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        metrics = tool._extract_engagement_metrics(self.sample_items[0])
+
+        self.assertIn('total_engagement', metrics)
+        self.assertIsInstance(metrics['total_engagement'], (int, float))
+
+    def test_emotion_analyzer(self):
+        """Test emotion analyzer."""
+        analyzer = EmotionAnalyzer()
+
+        content = ["This is exciting news!", "I'm concerned about this issue."]
+        result = analyzer.analyze(content)
+
+        self.assertIsInstance(result, dict)
+
+    def test_style_analyzer(self):
+        """Test style analyzer."""
+        analyzer = StyleAnalyzer()
+
+        content = ["This is a test sentence.", "Another test with more words."]
+        result = analyzer.analyze(content)
+
+        self.assertIsInstance(result, dict)
+
+    def test_authority_analyzer(self):
+        """Test authority analyzer."""
+        analyzer = AuthorityAnalyzer()
+
+        content = ["Based on data, we can conclude...", "In my experience of 10 years..."]
+        result = analyzer.analyze(content)
+
+        self.assertIsInstance(result, dict)
+
+    def test_llm_analysis_with_mock(self):
+        """Test LLM-based analysis with mocked client."""
+        tool = AnalyzeToneOfVoice(
+            items=self.sample_items,
+            use_llm=True,
+            model="gpt-4o"
+        )
+
+        result = tool.run()
+        data = json.loads(result)
+
+        # Should work with or without real LLM
+        self.assertIn('overall_tone', data)
+
+    def test_engagement_correlation_analysis(self):
+        """Test engagement correlation analysis."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        content_list = [item['text'] for item in self.sample_items]
+        engagement_data = [tool._extract_engagement_metrics(item) for item in self.sample_items]
+
+        correlation = tool._analyze_engagement_correlation(content_list, engagement_data)
+
+        self.assertIsInstance(correlation, dict)
+
+    def test_recommendations_generation(self):
+        """Test tone recommendations generation."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        analysis_result = {
+            'overall_tone': {'primary_characteristics': ['confident']},
+            'emotional_analysis': {'sentiment_distribution': {'positive': 0.8}},
+            'style_analysis': {'writing_style': {'formality_level': 'casual'}},
+            'authority_markers': {'authority_score': 0.7}
+        }
+
+        recommendations = tool._generate_recommendations(analysis_result)
+
+        self.assertIsInstance(recommendations, list)
+
+    def test_exception_handling(self):
+        """Test general exception handling."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        with patch.object(tool, '_extract_engagement_metrics', side_effect=Exception("Test error")):
+            result = tool.run()
+            data = json.loads(result)
+
+            self.assertIn('error', data)
+
+    def test_overall_tone_analysis_comprehensive(self):
+        """Test overall tone analysis with various content."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        content_list = [item['text'] for item in self.sample_items]
+
+        tone_analysis = tool._analyze_overall_tone(content_list)
+
+        self.assertIn('primary_characteristics', tone_analysis)
+        self.assertIsInstance(tone_analysis, dict)
+
+    def test_engagement_correlation_with_tone(self):
+        """Test correlation between tone and engagement."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        content_list = [item['text'] for item in self.sample_items]
+        engagement_data = [
+            {'total_engagement': 60},
+            {'total_engagement': 120}
+        ]
+
+        correlation = tool._analyze_engagement_correlation(content_list, engagement_data)
+
+        self.assertIsInstance(correlation, dict)
+
+    def test_recommendations_with_various_analysis(self):
+        """Test recommendation generation with various analysis results."""
+        tool = AnalyzeToneOfVoice(items=self.sample_items, use_llm=False)
+
+        # Test with different tone profiles
+        analysis_confident = {
+            'overall_tone': {'primary_characteristics': ['confident', 'authoritative']},
+            'emotional_analysis': {'sentiment_distribution': {'positive': 0.9}},
+            'style_analysis': {'writing_style': {'formality_level': 'professional'}},
+            'authority_markers': {'authority_score': 0.9}
+        }
+
+        recommendations = tool._generate_recommendations(analysis_confident)
+        self.assertIsInstance(recommendations, list)
+        self.assertGreater(len(recommendations), 0)
+
+    def test_llm_tone_analyzer_initialization(self):
+        """Test LLM tone analyzer initialization."""
+        from strategy_agent.tools.analyze_tone_of_voice import LLMToneAnalyzer
+
+        analyzer = LLMToneAnalyzer(model="gpt-4o")
+
+        self.assertIsNotNone(analyzer)
+
+    def test_llm_tone_analyzer_with_mock_client(self):
+        """Test LLM tone analyzer with mock client."""
+        from strategy_agent.tools.analyze_tone_of_voice import LLMToneAnalyzer, MockLLMClient
+
+        analyzer = LLMToneAnalyzer()
+        analyzer.client = MockLLMClient()
+
+        content_list = ["Test content"]
+        result = analyzer.analyze_overall_tone(content_list)
+
+        self.assertIsInstance(result, dict)
+
+    def test_emotion_analyzer_various_emotions(self):
+        """Test emotion analyzer with various emotional content."""
+        analyzer = EmotionAnalyzer()
+
+        content_variations = [
+            ["I'm so excited about this opportunity!"],
+            ["This is concerning and worrisome."],
+            ["I'm grateful for this experience."],
+            ["This is frustrating and disappointing."]
+        ]
+
+        for content in content_variations:
+            result = analyzer.analyze(content)
+            self.assertIsInstance(result, dict)
+
+    def test_style_analyzer_complexity_detection(self):
+        """Test style analyzer detects writing complexity."""
+        analyzer = StyleAnalyzer()
+
+        # Simple content
+        simple = ["This is simple. Short sentences. Easy words."]
+        simple_result = analyzer.analyze(simple)
+
+        # Complex content
+        complex_text = [
+            "The multifaceted implications of strategic organizational transformation "
+            "necessitate comprehensive analytical frameworks to effectively evaluate "
+            "the ramifications of implementation methodologies."
+        ]
+        complex_result = analyzer.analyze(complex_text)
+
+        self.assertIsInstance(simple_result, dict)
+        self.assertIsInstance(complex_result, dict)
+
+    def test_authority_analyzer_credibility_markers(self):
+        """Test authority analyzer detects various credibility markers."""
+        analyzer = AuthorityAnalyzer()
+
+        content_with_markers = [
+            "Based on 10 years of data from our research...",
+            "According to recent studies published in...",
+            "In my 15 years of experience as CEO...",
+            "The statistics clearly show that 85% of..."
+        ]
+
+        result = analyzer.analyze(content_with_markers)
+
+        self.assertIsInstance(result, dict)
+        self.assertIn('credibility_indicators', result)
+
+    def test_items_without_engagement_field(self):
+        """Test handling items without engagement field."""
+        items_no_engagement = [
+            {"text": "Content without engagement data"}
+        ]
+
+        tool = AnalyzeToneOfVoice(items=items_no_engagement, use_llm=False)
+
+        result = tool.run()
+        data = json.loads(result)
+
+        # Should handle gracefully
+        self.assertTrue('overall_tone' in data or 'error' in data)
+
+    def test_mixed_content_quality(self):
+        """Test analysis with mixed quality content."""
+        mixed_items = [
+            {"text": "High quality professional business content", "engagement": {"reaction_count": 100}},
+            {"text": "short", "engagement": {"reaction_count": 5}},
+            {"text": "A" * 500, "engagement": {"reaction_count": 50}}
+        ]
+
+        tool = AnalyzeToneOfVoice(items=mixed_items, use_llm=False)
+
+        result = tool.run()
+        data = json.loads(result)
+
+        self.assertIn('overall_tone', data)
+
+
+if __name__ == "__main__":
+    unittest.main()

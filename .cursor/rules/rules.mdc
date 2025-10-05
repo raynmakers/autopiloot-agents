@@ -611,6 +611,35 @@ The final step is to test each tool and the agency itself, to ensure they are wo
    - Document any uncovered lines with justification
    - Create coverage analysis documentation explaining coverage gaps and improvement plans
 
+   **CRITICAL: Proper Coverage Measurement Strategy:**
+
+   To ensure coverage tools properly measure source code execution, follow these guidelines:
+
+   1. **Import Real Source Code**: Always import actual source files, not mocked modules
+   2. **Use Direct File Imports**: When dependencies like `agency_swarm` are missing, use `importlib.util.spec_from_file_location()` to import specific tool files directly
+   3. **Mock Dependencies, Not Source**: Mock external dependencies (APIs, libraries) but import and execute the actual tool source code
+   4. **Verify Coverage Data**: If coverage reports show 0%, it means tests aren't executing real source code - fix the import strategy
+
+   **Example of Correct Import Pattern for Coverage:**
+   ```python
+   # WRONG: Module-level mocking that prevents source execution
+   sys.modules['agency_swarm'] = MagicMock()  # Prevents real imports
+
+   # RIGHT: Direct file import with dependency mocking
+   import importlib.util
+   tool_path = os.path.join(os.path.dirname(__file__), '..', '..', 'agent_name', 'tools', 'tool_name.py')
+   spec = importlib.util.spec_from_file_location("tool_name", tool_path)
+   module = importlib.util.module_from_spec(spec)
+
+   # Mock only the dependencies in sys.modules BEFORE executing
+   sys.modules['agency_swarm'] = mock_agency_swarm
+   sys.modules['external_api'] = mock_external_api
+
+   # Execute the real source code
+   spec.loader.exec_module(module)
+   ToolClass = module.ToolClassName
+   ```
+
    **Coverage Report Structure:**
    ```
    coverage/agency_name/

@@ -7,12 +7,10 @@ import os
 import sys
 import json
 import re
-import requests
 from typing import Optional, List, Dict, Any
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from dotenv import load_dotenv
-from bs4 import BeautifulSoup
 import time
 
 # Add core and config directories to path
@@ -179,25 +177,29 @@ class ReadSheetLinks(BaseTool):
     def _extract_youtube_urls_from_page(self, page_url: str) -> List[str]:
         """
         Extract YouTube URLs from a web page using multiple methods.
-        
+
         Args:
             page_url: URL of the page to fetch and parse
-            
+
         Returns:
             List of unique YouTube URLs found on the page
         """
+        # Import requests and BeautifulSoup inside method for better testability
+        import requests
+        from bs4 import BeautifulSoup
+
         try:
             # Fetch page content
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
-            
+
             response = requests.get(page_url, headers=headers, timeout=self.timeout_sec)
             response.raise_for_status()
-            
+
             html_content = response.text
             youtube_urls = set()
-            
+
             # Method 1: Parse HTML with BeautifulSoup
             try:
                 soup = BeautifulSoup(html_content, 'html.parser')

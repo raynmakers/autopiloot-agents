@@ -485,7 +485,7 @@ class StyleAnalyzer:
 
         # Linguistic patterns
         patterns = []
-        if first_person_count / total_words > 0.02:  # More than 2% first person
+        if total_words > 0 and first_person_count / total_words > 0.02:  # More than 2% first person
             patterns.append({"pattern": "first_person_narrative", "frequency": round(first_person_count / total_words, 3)})
 
         if question_count / len(content_list) > 0.5:  # More than 0.5 questions per post

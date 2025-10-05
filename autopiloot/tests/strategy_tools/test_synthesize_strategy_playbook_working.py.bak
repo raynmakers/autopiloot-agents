@@ -1,0 +1,247 @@
+"""
+Working test for synthesize_strategy_playbook.py with proper coverage tracking.
+Uses module-level mocking pattern for coverage.py compatibility.
+"""
+
+import unittest
+from unittest.mock import patch, MagicMock, Mock
+import sys
+import json
+
+
+# Mock ALL external dependencies BEFORE import
+class MockBaseTool:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+def mock_field(*args, **kwargs):
+    return kwargs.get('default', None)
+
+sys.modules['agency_swarm'] = MagicMock()
+sys.modules['agency_swarm.tools'] = MagicMock()
+sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
+sys.modules['pydantic'] = MagicMock()
+sys.modules['pydantic'].Field = mock_field
+sys.modules['openai'] = MagicMock()
+sys.modules['config'] = MagicMock()
+sys.modules['config.env_loader'] = MagicMock()
+sys.modules['config.loader'] = MagicMock()
+sys.modules['env_loader'] = MagicMock()
+sys.modules['env_loader'].get_required_env_var = MagicMock(return_value='test-api-key')
+sys.modules['env_loader'].load_environment = MagicMock()
+sys.modules['loader'] = MagicMock()
+sys.modules['loader'].load_app_config = MagicMock(return_value={'test': 'config'})
+sys.modules['loader'].get_config_value = MagicMock(return_value='test-value')
+
+# Import the tool at module level for coverage tracking
+from strategy_agent.tools.synthesize_strategy_playbook import (
+    SynthesizeStrategyPlaybook,
+    LLMPlaybookSynthesizer,
+    RuleBasedSynthesizer,
+    MockLLMClient
+)
+
+
+class TestSynthesizeStrategyPlaybookWorking(unittest.TestCase):
+    """Working tests with proper coverage tracking."""
+
+    def setUp(self):
+        """Set up common test data."""
+        self.sample_keywords = {
+            "keywords": [
+                {"term": "business", "frequency": 15, "avg_engagement": 0.8, "engagement_boost": 0.15},
+                {"term": "growth", "frequency": 12, "avg_engagement": 0.75, "engagement_boost": 0.12}
+            ]
+        }
+
+        self.sample_triggers = {
+            "trigger_phrases": [
+                {"phrase": "excited to announce", "log_odds": 2.5, "phrase_type": "announcement"},
+                {"phrase": "what's your experience", "log_odds": 1.8, "phrase_type": "question"}
+            ],
+            "phrase_categories": {
+                "announcement": 0.25,
+                "question": 0.35
+            }
+        }
+
+        self.sample_post_types = {
+            "analysis": {
+                "engagement_by_type": {"personal_story": 0.85, "how_to": 0.72},
+                "top_performing_types": ["personal_story", "how_to"]
+            },
+            "processing_metadata": {"total_input_items": 100}
+        }
+
+        self.sample_tones = {
+            "overall_tone": {"primary_characteristics": ["conversational", "authentic"]},
+            "authority_markers": {"authority_score": 0.72},
+            "engagement_correlation": {"high_engagement_traits": ["personal", "actionable"]}
+        }
+
+    def test_basic_functionality_success(self):
+        """Test basic tool functionality with valid inputs."""
+        tool = SynthesizeStrategyPlaybook(
+            keywords=self.sample_keywords,
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=self.sample_tones,
+            use_llm=False
+        )
+
+        result = tool.run()
+        parsed_result = json.loads(result)
+
+        self.assertIn("playbook_markdown", parsed_result)
+        self.assertIn("playbook_json", parsed_result)
+        self.assertIn("version", parsed_result)
+
+    def test_missing_required_sections_validation(self):
+        """Test validation error when required sections are missing."""
+        tool = SynthesizeStrategyPlaybook(
+            keywords={},
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=self.sample_tones
+        )
+
+        result = tool.run()
+        parsed_result = json.loads(result)
+
+        self.assertIn("error", parsed_result)
+        self.assertEqual(parsed_result["error"], "missing_required_sections")
+
+    def test_exception_handling_in_run_method(self):
+        """Test exception handling in run method."""
+        with patch.object(SynthesizeStrategyPlaybook, '_validate_inputs', side_effect=Exception("Test error")):
+            tool = SynthesizeStrategyPlaybook(
+                keywords=self.sample_keywords,
+                triggers=self.sample_triggers,
+                post_types=self.sample_post_types,
+                tones=self.sample_tones
+            )
+
+            result = tool.run()
+            parsed_result = json.loads(result)
+
+            self.assertIn("error", parsed_result)
+            self.assertEqual(parsed_result["error"], "playbook_synthesis_failed")
+
+    def test_frequency_recommendations_edge_cases(self):
+        """Test frequency recommendation edge cases."""
+        tool = SynthesizeStrategyPlaybook(
+            keywords=self.sample_keywords,
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=self.sample_tones,
+            use_llm=False
+        )
+
+        # Test different frequency scenarios
+        freq_weekly = tool._recommend_frequency(0.85, 15)
+        self.assertEqual(freq_weekly, "weekly")
+
+        freq_biweekly = tool._recommend_frequency(0.65, 8)
+        self.assertEqual(freq_biweekly, "bi-weekly")
+
+        freq_occasional = tool._recommend_frequency(0.2, 2)
+        self.assertEqual(freq_occasional, "occasional")
+
+    def test_voice_characteristics_edge_cases(self):
+        """Test voice characteristics generation edge cases."""
+        high_authority_tones = {
+            "overall_tone": {"primary_characteristics": ["professional"]},
+            "authority_markers": {"authority_score": 0.8},
+            "engagement_correlation": {}
+        }
+
+        tool = SynthesizeStrategyPlaybook(
+            keywords=self.sample_keywords,
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=high_authority_tones,
+            use_llm=False
+        )
+
+        insights = tool._extract_key_insights()
+        tone_guidelines = tool._build_tone_guidelines(insights)
+
+        self.assertIn("authoritative", tone_guidelines["voice_characteristics"])
+
+    def test_llm_synthesizer_initialization_without_openai(self):
+        """Test LLM synthesizer initialization without OpenAI."""
+        with patch('os.getenv', return_value=None):
+            synthesizer = LLMPlaybookSynthesizer()
+            self.assertIsInstance(synthesizer.client, MockLLMClient)
+
+    @patch('os.getenv')
+    def test_llm_synthesizer_with_openai_error(self, mock_getenv):
+        """Test LLM synthesizer with OpenAI error fallback."""
+        mock_getenv.return_value = "test-api-key"
+
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+
+        with patch('openai.OpenAI', return_value=mock_client):
+            synthesizer = LLMPlaybookSynthesizer()
+            synthesizer.client = mock_client
+
+            insights = {"test": "data"}
+            result = synthesizer.create_executive_summary(insights)
+
+            self.assertIn("key_insights", result)
+
+    def test_llm_synthesizer_hooks_generation(self):
+        """Test hooks and openers generation."""
+        synthesizer = LLMPlaybookSynthesizer()
+        insights = {"test": "data"}
+
+        hooks = synthesizer.generate_hooks_and_openers(insights)
+
+        self.assertIsInstance(hooks, list)
+        self.assertTrue(len(hooks) > 0)
+
+    def test_with_llm_enabled(self):
+        """Test tool with LLM enabled."""
+        tool = SynthesizeStrategyPlaybook(
+            keywords=self.sample_keywords,
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=self.sample_tones,
+            use_llm=True,
+            model="gpt-4o"
+        )
+
+        result = tool.run()
+        parsed_result = json.loads(result)
+
+        self.assertIn("synthesis_metadata", parsed_result)
+        self.assertEqual(parsed_result["synthesis_metadata"]["synthesis_method"], "llm")
+
+    def test_markdown_generation_completeness(self):
+        """Test markdown generation includes all sections."""
+        tool = SynthesizeStrategyPlaybook(
+            keywords=self.sample_keywords,
+            triggers=self.sample_triggers,
+            post_types=self.sample_post_types,
+            tones=self.sample_tones,
+            use_llm=False
+        )
+
+        result = tool.run()
+        parsed_result = json.loads(result)
+        markdown = parsed_result["playbook_markdown"]
+
+        expected_sections = [
+            "# Content Strategy Playbook",
+            "## Executive Summary",
+            "## Winning Topics"
+        ]
+
+        for section in expected_sections:
+            self.assertIn(section, markdown)
+
+
+if __name__ == "__main__":
+    unittest.main()
