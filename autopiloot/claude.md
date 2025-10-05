@@ -20,43 +20,93 @@ coverage run --source=. -m unittest discover tests -v
 coverage report
 coverage html  # Generate HTML report in htmlcov/index.html
 
+# CRITICAL: Test Interference Prevention
+# Running tests across multiple agent directories simultaneously causes coverage interference.
+# Different agents use different import strategies (direct file imports, module mocking patterns)
+# that conflict when run together, causing coverage.py to misreport line execution.
+#
+# ALWAYS use agent-specific test directories to prevent interference:
+# - tests/drive_tools/ for drive_agent
+# - tests/summarizer_tools/ for summarizer_agent
+# - tests/orchestrator_tools/ for orchestrator_agent
+# - tests/observability_tools/ for observability_agent
+# - tests/linkedin_tools/ for linkedin_agent
+# - tests/strategy_tools/ for strategy_agent
+#
+# NEVER use "discover tests -p 'test_*.py'" without a specific subdirectory
+# as it will pick up ALL 296+ test files across agents and cause interference.
+
 # Run agent-specific tests with coverage
 # Replace [AGENT_NAME] with the agent to test (e.g., drive_agent, scraper_agent, etc.)
 # Replace [TEST_DIR] with the test directory (e.g., drive_tools, scraper_tools, etc.)
 export PYTHONPATH=.
+coverage erase  # Always clear old coverage data first
 coverage run --source=[AGENT_NAME] -m unittest discover tests/[TEST_DIR] -p "test_*.py"
 coverage report --include="[AGENT_NAME]/*"
 coverage html --include="[AGENT_NAME]/*" -d coverage/[AGENT_NAME]
 
 # Example: Drive Agent (85% coverage achieved)
 export PYTHONPATH=.
+coverage erase
 coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py"
 coverage report --include="drive_agent/*"
 coverage html --include="drive_agent/*" -d coverage/drive_agent
 
 # Example: Scraper Agent
 export PYTHONPATH=.
+coverage erase
 coverage run --source=scraper_agent -m unittest discover tests/scraper_tools -p "test_*.py"
 coverage report --include="scraper_agent/*"
 coverage html --include="scraper_agent/*" -d coverage/scraper_agent
 
 # Example: Observability Agent
 export PYTHONPATH=.
+coverage erase
 coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py"
 coverage report --include="observability_agent/*"
 coverage html --include="observability_agent/*" -d coverage/observability_agent
 
 # Example: Transcriber Agent
+# IMPORTANT: Transcriber tests are in root tests/ directory (legacy organization)
+# Use specific test module names to avoid picking up other agents' tests
 export PYTHONPATH=.
-coverage run --source=transcriber_agent -m unittest discover tests/transcriber_tools -p "test_*.py"
+coverage erase
+coverage run --source=transcriber_agent -m unittest \
+  tests.test_get_video_audio_url \
+  tests.test_poll_transcription_job \
+  tests.test_save_transcript_record \
+  tests.test_store_transcript_to_drive \
+  tests.test_submit_assemblyai_job
 coverage report --include="transcriber_agent/*"
 coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent
 
 # Example: Summarizer Agent
 export PYTHONPATH=.
+coverage erase
 coverage run --source=summarizer_agent -m unittest discover tests/summarizer_tools -p "test_*.py"
 coverage report --include="summarizer_agent/*"
 coverage html --include="summarizer_agent/*" -d coverage/summarizer_agent
+
+# Example: LinkedIn Agent (95% coverage achieved)
+export PYTHONPATH=.
+coverage erase
+coverage run --source=linkedin_agent -m unittest discover tests/linkedin_tools -p "test_*.py"
+coverage report --include="linkedin_agent/*"
+coverage html --include="linkedin_agent/*" -d coverage/linkedin_agent
+
+# Example: Orchestrator Agent (99% coverage achieved)
+export PYTHONPATH=.
+coverage erase
+coverage run --source=orchestrator_agent -m unittest discover tests/orchestrator_tools -p "test_*.py"
+coverage report --include="orchestrator_agent/*"
+coverage html --include="orchestrator_agent/*" -d coverage/orchestrator_agent
+
+# Example: Strategy Agent
+export PYTHONPATH=.
+coverage erase
+coverage run --source=strategy_agent -m unittest discover tests/strategy_tools -p "test_*.py"
+coverage report --include="strategy_agent/*"
+coverage html --include="strategy_agent/*" -d coverage/strategy_agent
 
 # Run specific test modules
 python -m unittest tests.test_config -v           # Configuration tests
@@ -198,25 +248,30 @@ All tools return consistent JSON error structures:
 
 ## Test Coverage Achievements
 
-### Drive Agent Module (85% Coverage)
-The drive_agent module has comprehensive test coverage across all 7 tools:
+### Drive Agent Module (59% Coverage)
+The drive_agent module has comprehensive test coverage across all 10 files:
 
 - **Perfect Coverage (100%)**:
-  - `list_tracked_targets_from_config.py` - Configuration tracking
-  - `save_drive_ingestion_record.py` - Audit record management
   - `drive_agent.py` - Agent initialization
-  - `__init__.py` - Module imports
 
 - **Excellent Coverage (80%+)**:
-  - `resolve_folder_tree.py` - 89% coverage
-  - `extract_text_from_document.py` - 88% coverage
-  - `upsert_drive_docs_to_zep.py` - 83% coverage
+  - `list_tracked_targets_from_config.py` - 84% coverage
+  - `list_drive_changes.py` - 80% coverage
 
-- **Good Coverage (70%+)**:
-  - `fetch_file_content.py` - 78% coverage
-  - `list_drive_changes.py` - 74% coverage
+- **Good Coverage (60%+)**:
+  - `fetch_file_content.py` - 75% coverage
+  - `extract_text_from_document.py` - 67% coverage
 
-**Test Suite**: 268 tests across 37 test files in `tests/drive_tools/`
+- **Moderate Coverage (25%+)**:
+  - `save_drive_ingestion_record.py` - 43% coverage
+  - `resolve_folder_tree.py` - 41% coverage
+  - `upsert_drive_docs_to_zep.py` - 25% coverage
+
+- **Low Coverage (0%)**:
+  - `drive_agent/__init__.py` - 0% coverage
+  - `drive_agent/tools/__init__.py` - 0% coverage
+
+**Test Suite**: 37+ working tests across 8 coverage test files in `tests/drive_tools/`
 
 ## ADR and Documentation Maintenance
 
@@ -258,6 +313,19 @@ coverage run --source=observability_agent -m unittest discover tests/observabili
 coverage run --source=transcriber_agent -m unittest discover tests/transcriber_tools -p "test_*.py"
 ```
 
+**CRITICAL: Always Generate HTML Reports**
+After running coverage tests, you MUST ALWAYS generate the HTML coverage report:
+```bash
+# REQUIRED: Generate HTML report to update coverage/[AGENT_NAME]/index.html
+coverage html --include="[AGENT_NAME]/*" -d coverage/[AGENT_NAME]
+```
+The HTML report provides:
+- Visual line-by-line coverage display
+- Clickable file navigation
+- Detailed coverage statistics
+- Missing line identification
+- Updated timestamps for tracking progress
+
 ### Test Organization Standards
 
 **File Naming Convention:**
@@ -294,6 +362,42 @@ def test_[functionality]_[scenario]_lines_[X_Y](self):
 - Fallback mechanisms and alternative code paths
 
 ### Comprehensive Mocking Standards
+
+**CRITICAL: Proper Coverage Measurement Strategy**
+
+**ISSUE IDENTIFIED**: Module-level mocking prevents actual source code execution, resulting in 0% coverage.
+
+**ROOT CAUSE**: Using `sys.modules['agency_swarm'] = MagicMock()` prevents importing and executing real source code.
+
+**SOLUTION**: Use direct file imports with `importlib.util.spec_from_file_location()` while mocking only dependencies.
+
+To ensure coverage tools properly measure source code execution, follow these guidelines:
+
+1. **Import Real Source Code**: Always import actual source files, not mocked modules
+2. **Use Direct File Imports**: When dependencies like `agency_swarm` are missing, use `importlib.util.spec_from_file_location()` to import specific tool files directly
+3. **Mock Dependencies, Not Source**: Mock external dependencies (APIs, libraries) but import and execute the actual tool source code
+4. **Verify Coverage Data**: If coverage reports show 0%, it means tests aren't executing real source code - fix the import strategy
+5. **ALWAYS Generate HTML Reports**: After coverage measurement, run `coverage html` to update the index.html file
+
+**Example of Correct Import Pattern for Coverage:**
+```python
+# WRONG: Module-level mocking that prevents source execution
+sys.modules['agency_swarm'] = MagicMock()  # Prevents real imports
+
+# RIGHT: Direct file import with dependency mocking
+import importlib.util
+tool_path = os.path.join(os.path.dirname(__file__), '..', '..', 'agent_name', 'tools', 'tool_name.py')
+spec = importlib.util.spec_from_file_location("tool_name", tool_path)
+module = importlib.util.module_from_spec(spec)
+
+# Mock only the dependencies in sys.modules BEFORE executing
+sys.modules['agency_swarm'] = mock_agency_swarm
+sys.modules['external_api'] = mock_external_api
+
+# Execute the real source code
+spec.loader.exec_module(module)
+ToolClass = module.ToolClassName
+```
 
 **External Dependencies:**
 ```python

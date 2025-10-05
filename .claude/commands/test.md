@@ -65,6 +65,97 @@ tests/{agent}_tools/
 - No confusing naming schemes or multiple files
 - Just `test_{tool}.py` - clear and simple
 
+## CRITICAL: Test Interference Prevention
+
+**Problem**: Running tests from multiple agent directories simultaneously causes coverage interference.
+
+**Root Cause**: Different agents use different import strategies (direct file imports with `importlib.util.spec_from_file_location()`, various module mocking patterns, real vs mocked Pydantic) that conflict when run together. This causes `coverage.py` to misreport line execution, showing artificially low coverage (e.g., 90% drops to 32%).
+
+**Symptoms**:
+- Coverage drops dramatically when running full test suite vs isolated tests
+- Same test file shows different coverage percentages depending on what other tests run
+- "Module was never imported" warnings despite tests passing
+- Coverage reports show 0% for tools that have comprehensive tests
+
+**Solution**: ALWAYS use agent-specific test directories to isolate tests:
+
+```bash
+# ✅ CORRECT: Agent-specific directory isolation
+coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py"
+coverage run --source=summarizer_agent -m unittest discover tests/summarizer_tools -p "test_*.py"
+coverage run --source=orchestrator_agent -m unittest discover tests/orchestrator_tools -p "test_*.py"
+coverage run --source=linkedin_agent -m unittest discover tests/linkedin_tools -p "test_*.py"
+coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py"
+
+# ✅ CORRECT: Specific test modules (for legacy organization)
+coverage run --source=transcriber_agent -m unittest \
+  tests.test_get_video_audio_url \
+  tests.test_poll_transcription_job \
+  tests.test_save_transcript_record \
+  tests.test_store_transcript_to_drive \
+  tests.test_submit_assemblyai_job
+
+# ❌ WRONG: Global discovery picks up ALL agents (296+ test files)
+coverage run --source=. -m unittest discover tests -p "test_*.py"
+
+# ❌ WRONG: No directory restriction causes interference
+coverage run --source=transcriber_agent -m unittest discover tests -p "test_*.py"
+```
+
+**Why This Happens**:
+
+1. **Multiple Import Strategies**: Each agent's tests use different approaches:
+   - Some use `from {agent}.tools.{tool} import {Tool}` (standard imports)
+   - Some use `importlib.util.spec_from_file_location()` (direct file imports)
+   - Some mock `sys.modules` globally, some use context managers
+   - Some use real Pydantic, some mock it
+
+2. **Module Registration Conflicts**: When Test A registers a module in `sys.modules` and Test B tries to import it differently, coverage.py loses track of which lines belong to which module.
+
+3. **Coverage Measurement Confusion**: Coverage.py tracks execution by module identity. When the same source file is imported multiple ways across different tests, coverage tracking breaks.
+
+**Project Context**:
+- Total test files: **296+** across all agents
+- Root `tests/` directory: 59 files (mixed agents - legacy organization)
+- Agent-specific subdirectories: 237+ files (organized by agent)
+- Running all tests together causes cross-agent interference
+
+**Mandatory Testing Protocol**:
+
+1. **ALWAYS** use `coverage erase` before running tests
+2. **ALWAYS** specify agent-specific test directory with `discover`
+3. **NEVER** use global `discover tests -p "test_*.py"` without subdirectory
+4. **VERIFY** coverage with HTML report: `coverage html --include="{agent}/*" -d coverage/{agent}`
+5. **CHECK** for "Module was never imported" warnings (indicates interference)
+
+**Test Directory Structure**:
+```
+tests/
+├── drive_tools/              # ✅ Isolated - drive_agent tests only
+├── summarizer_tools/         # ✅ Isolated - summarizer_agent tests only
+├── orchestrator_tools/       # ✅ Isolated - orchestrator_agent tests only
+├── observability_tools/      # ✅ Isolated - observability_agent tests only
+├── linkedin_tools/           # ✅ Isolated - linkedin_agent tests only
+├── strategy_tools/           # ✅ Isolated - strategy_agent tests only
+├── test_*.py                 # ⚠️ Legacy - mixed agents, use specific module names
+└── ...
+```
+
+**Verification**:
+```bash
+# Run isolated agent test
+coverage erase
+coverage run --source=transcriber_agent -m unittest tests.test_save_transcript_record
+coverage report --include="transcriber_agent/*"
+# Result: save_transcript_record.py shows 90% ✅
+
+# Run with interference (ALL tests)
+coverage erase
+coverage run --source=transcriber_agent -m unittest discover tests -p "test_*.py"
+coverage report --include="transcriber_agent/*"
+# Result: save_transcript_record.py shows 32% ❌ (interference detected!)
+```
+
 ## Comprehensive Mocking Strategy
 
 **Always mock external dependencies** to prevent real API calls and ensure reliable tests:
