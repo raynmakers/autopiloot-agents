@@ -163,7 +163,7 @@ scraper:
 | --------------------------------- | ------------------------------------------- | ----------------------------- |
 | `generate_short_summary.py`       | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
 | `store_short_in_zep.py`           | Save to Zep GraphRAG for semantic search    | Zep API                       |
-| `store_short_summary_to_drive.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
+| `save_summary_record.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
 | `save_summary_record.py`          | Basic Firestore summary records             | Firestore                     |
 | `SaveSummaryRecordEnhanced.py`    | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
 | `ProcessSummaryWorkflow.py`       | End-to-end orchestration tool               | Multi-platform Coordination   |

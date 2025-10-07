@@ -77,7 +77,7 @@ End-to-end automation of multi-platform content processing and strategic analysi
 - Zep GraphRAG storage for semantic search
 - Multi-platform persistence (Firestore, Drive, Zep)
 - Enhanced metadata and reference linking
-- **6 tools**: generate_short_summary, process_summary_workflow, save_summary_record, save_summary_record_enhanced, store_short_in_zep, store_short_summary_to_drive
+- **6 tools**: generate_short_summary, process_summary_workflow, save_summary_record, save_summary_record_enhanced, store_short_in_zep, save_summary_record
 
 #### ObservabilityAgent
 
@@ -237,7 +237,7 @@ autopiloot/
 │       ├── save_summary_record.py
 │       ├── save_summary_record_enhanced.py
 │       ├── store_short_in_zep.py
-│       └── store_short_summary_to_drive.py
+│       └── save_summary_record.py
 ├── observability_agent/
 │   ├── observability_agent.py   # Operations monitoring and alerting
 │   ├── instructions.md

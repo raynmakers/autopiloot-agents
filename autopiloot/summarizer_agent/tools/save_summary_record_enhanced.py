@@ -39,11 +39,26 @@ class SaveSummaryRecordEnhanced(BaseTool):
         description="YouTube video ID for Firestore document reference"
     )
     
-    refs: Dict[str, Any] = Field(
-        ..., 
-        description="References dictionary containing all storage references including zep_doc_id and rag_refs"
+    bullets: List[str] = Field(
+        ...,
+        description="List of actionable insights from summary generation"
     )
-    
+
+    key_concepts: List[str] = Field(
+        ...,
+        description="List of key concepts and frameworks identified"
+    )
+
+    prompt_id: str = Field(
+        ...,
+        description="Unique identifier for the prompt used in generation"
+    )
+
+    refs: Dict[str, Any] = Field(
+        ...,
+        description="References dictionary containing storage references including zep_doc_id and rag_refs"
+    )
+
     video_metadata: Dict[str, Any] = Field(
         ...,
         description="Complete video metadata for enhanced reference tracking"
@@ -157,38 +172,39 @@ class SaveSummaryRecordEnhanced(BaseTool):
         
         summary_data = {
             "video_id": self.video_id,
-            
+
+            # Actual summary content
+            "bullets": self.bullets,
+            "key_concepts": self.key_concepts,
+            "bullets_count": len(self.bullets),
+            "concepts_count": len(self.key_concepts),
+
             # Core references from original specification
             "transcript_doc_ref": self.refs.get("transcript_doc_ref"),
-            "transcript_drive_id_txt": self.refs.get("transcript_drive_id_txt"),
-            "transcript_drive_id_json": self.refs.get("transcript_drive_id_json"),
-            "short_drive_id": self.refs.get("short_drive_id"),
-            "prompt_id": self.refs.get("prompt_id"),
+            "prompt_id": self.prompt_id,
             "prompt_version": self.refs.get("prompt_version", "v1"),
             "token_usage": self.refs.get("token_usage", {}),
-            
+
             # Enhanced Zep GraphRAG references (TASK-ZEP-0006)
             "zep_doc_id": self.refs.get("zep_doc_id"),
             "zep_collection": self.refs.get("zep_collection", "autopiloot_guidelines"),
             "rag_refs": self.refs.get("rag_refs", []),
-            
+
             # Video metadata for enhanced context
             "title": self.video_metadata.get("title", ""),
             "published_at": self.video_metadata.get("published_at", ""),
             "channel_id": self.video_metadata.get("channel_id", ""),
             "tags": self.refs.get("tags", []),
-            
+
             # Status and timestamps (UTC ISO 8601 with Z)
             "status": "completed",
             "created_at": timestamp,
             "updated_at": timestamp,
-            
+
             # Enhanced metadata for audit trail
             "metadata": {
                 "source": "autopiloot_summarizer",
                 "version": "2.0",  # Enhanced version
-                "bullets_count": self.refs.get("bullets_count", 0),
-                "concepts_count": self.refs.get("concepts_count", 0),
                 "rag_refs_count": len(self.refs.get("rag_refs", [])),
                 "zep_integration": "enabled"
             }
@@ -231,7 +247,6 @@ class SaveSummaryRecordEnhanced(BaseTool):
             video_update_data = {
                 'status': 'summarized',
                 'summary_doc_ref': f"summaries/{self.video_id}",
-                'summary_short_drive_id': self.refs.get("short_drive_id"),
                 'zep_doc_id': self.refs.get("zep_doc_id"),
                 'zep_collection': self.refs.get("zep_collection", "autopiloot_guidelines"),
                 'rag_refs': self.refs.get("rag_refs", []),
@@ -275,33 +290,36 @@ class SaveSummaryRecordEnhanced(BaseTool):
             timestamp = datetime.now(timezone.utc).isoformat()
             summary_data = {
                 "video_id": self.video_id,
+
+                # Actual summary content
+                "bullets": self.bullets,
+                "key_concepts": self.key_concepts,
+                "bullets_count": len(self.bullets),
+                "concepts_count": len(self.key_concepts),
+
+                # References
                 "transcript_doc_ref": self.refs.get("transcript_doc_ref"),
-                "transcript_drive_id_txt": self.refs.get("transcript_drive_id_txt"),
-                "transcript_drive_id_json": self.refs.get("transcript_drive_id_json"),
-                "short_drive_id": self.refs.get("short_drive_id"),
-                "prompt_id": self.refs.get("prompt_id"),
+                "prompt_id": self.prompt_id,
                 "prompt_version": self.refs.get("prompt_version", "v1"),
                 "token_usage": self.refs.get("token_usage", {}),
-                
+
                 # Enhanced Zep references
                 "zep_doc_id": self.refs.get("zep_doc_id"),
                 "zep_collection": self.refs.get("zep_collection", "autopiloot_guidelines"),
                 "rag_refs": self.refs.get("rag_refs", []),
-                
+
                 # Video metadata
                 "title": self.video_metadata.get("title", ""),
                 "published_at": self.video_metadata.get("published_at", ""),
                 "channel_id": self.video_metadata.get("channel_id", ""),
                 "tags": self.refs.get("tags", []),
-                
+
                 "status": "completed",
                 "created_at": timestamp,
                 "updated_at": timestamp,
                 "metadata": {
                     "source": "autopiloot_summarizer",
                     "version": "2.0",
-                    "bullets_count": self.refs.get("bullets_count", 0),
-                    "concepts_count": self.refs.get("concepts_count", 0),
                     "rag_refs_count": len(self.refs.get("rag_refs", [])),
                     "zep_integration": "enabled"
                 }
@@ -314,7 +332,6 @@ class SaveSummaryRecordEnhanced(BaseTool):
             transaction.update(video_ref, {
                 'status': 'summarized',
                 'summary_doc_ref': summary_doc_ref,
-                'summary_short_drive_id': self.refs.get("short_drive_id"),
                 'zep_doc_id': self.refs.get("zep_doc_id"),
                 'zep_collection': self.refs.get("zep_collection", "autopiloot_guidelines"),
                 'rag_refs': self.refs.get("rag_refs", []),
@@ -333,41 +350,51 @@ class SaveSummaryRecordEnhanced(BaseTool):
 
 if __name__ == "__main__":
     # Test the enhanced tool
+    test_bullets = [
+        "Focus on high-leverage activities that drive 80% of results",
+        "Build systems and processes to eliminate repetitive decisions",
+        "Delegate non-core tasks to preserve energy for strategic work"
+    ]
+
+    test_key_concepts = [
+        "80/20 Principle",
+        "Systems Thinking",
+        "Strategic Delegation",
+        "Energy Management"
+    ]
+
     test_refs = {
         "zep_doc_id": "summary_test_video_123",
         "zep_collection": "autopiloot_guidelines",
-        "short_drive_id": "1BvGjZqX5YK8H3mP9QnRtS7Ua2VwE4",
         "transcript_doc_ref": "transcripts/test_video_123",
-        "transcript_drive_id_txt": "1AbC2DefGhI3jKlMnOpQ4rStU5vWx",
-        "transcript_drive_id_json": "1ZyX3WvU2TsR4qPoN5mLkJ6iH7gFe",
-        "prompt_id": "coach_v1_12345678",
         "token_usage": {
             "input_tokens": 1500,
             "output_tokens": 300
         },
         "rag_refs": [
             {
-                "type": "transcript_drive",
-                "ref": "1AbC2DefGhI3jKlMnOpQ4rStU5vWx"
+                "type": "transcript_firestore",
+                "ref": "transcripts/test_video_123"
             },
             {
-                "type": "logic_doc",
-                "ref": "1ZyX3WvU2TsR4qPoN5mLkJ6iH7gFe"
+                "type": "zep_doc",
+                "ref": "summary_test_video_123"
             }
         ],
-        "tags": ["coaching", "business", "automation"],
-        "bullets_count": 3,
-        "concepts_count": 4
+        "tags": ["coaching", "business", "automation"]
     }
-    
+
     test_video_metadata = {
         "title": "How to Scale Your Business Without Burnout",
         "published_at": "2023-09-15T10:30:00Z",
         "channel_id": "UC1234567890"
     }
-    
+
     tool = SaveSummaryRecordEnhanced(
         video_id="test_video_123",
+        bullets=test_bullets,
+        key_concepts=test_key_concepts,
+        prompt_id="coach_v1_12345678",
         refs=test_refs,
         video_metadata=test_video_metadata
     )

@@ -1,6 +1,6 @@
 """
 ProcessSummaryWorkflow tool for orchestrating complete summary processing workflow.
-Implements TASK-ZEP-0006 end-to-end workflow: Generate → Zep Upsert → Drive Storage → Firestore Record.
+Implements TASK-ZEP-0006 end-to-end workflow: Generate → Zep Upsert → Firestore Record.
 """
 
 import os
@@ -19,22 +19,20 @@ from env_loader import get_required_env_var, get_optional_env_var
 # Import related tools
 from .generate_short_summary import GenerateShortSummary
 from .store_short_in_zep import StoreShortInZep
-from .store_short_summary_to_drive import StoreShortSummaryToDrive
 from .save_summary_record_enhanced import SaveSummaryRecordEnhanced
 
 
 class ProcessSummaryWorkflow(BaseTool):
     """
     Orchestrate complete summary processing workflow with Zep GraphRAG integration.
-    
+
     Implements the full TASK-ZEP-0006 specification by coordinating:
     1. Short summary generation from transcript
     2. Zep GraphRAG upsert with comprehensive metadata
-    3. Google Drive dual-format storage
-    4. Enhanced Firestore record with all references
-    
+    3. Enhanced Firestore record with all references (stores actual summary content)
+
     Provides atomic workflow execution with comprehensive error handling
-    and reference linking across all storage platforms.
+    and reference linking across Firestore and Zep platforms.
     """
     
     video_id: str = Field(
@@ -102,46 +100,33 @@ class ProcessSummaryWorkflow(BaseTool):
             zep_result = self._upsert_to_zep(short_summary)
             workflow_results["zep_upsert"] = zep_result
             workflow_results["steps_completed"].append("zep_upsert")
-            
+
             # Extract Zep data
             zep_data = json.loads(zep_result)
             if "error" in zep_data:
                 raise RuntimeError(f"Zep upsert failed: {zep_data['error']}")
-            
-            # Step 3: Store to Google Drive in dual formats
-            print(f"Step 3: Storing summary to Google Drive for {self.video_id}")
-            drive_result = self._store_to_drive(short_summary)
-            workflow_results["drive_storage"] = drive_result
-            workflow_results["steps_completed"].append("drive_storage")
-            
-            # Extract Drive data
-            drive_data = json.loads(drive_result)
-            if "error" in drive_data:
-                raise RuntimeError(f"Drive storage failed: {drive_data['error']}")
-            
-            # Step 4: Save enhanced Firestore record with all references
-            print(f"Step 4: Saving enhanced Firestore record for {self.video_id}")
+
+            # Step 3: Save enhanced Firestore record with all references (includes actual summary content)
+            print(f"Step 3: Saving enhanced Firestore record for {self.video_id}")
             firestore_result = self._save_enhanced_record(
-                short_summary, 
-                zep_data, 
-                drive_data, 
+                short_summary,
+                zep_data,
                 summary_data
             )
             workflow_results["firestore_record"] = firestore_result
             workflow_results["steps_completed"].append("firestore_record")
-            
+
             # Extract Firestore data
             firestore_data = json.loads(firestore_result)
             if "error" in firestore_data:
                 raise RuntimeError(f"Firestore record creation failed: {firestore_data['error']}")
-            
+
             # Workflow completed successfully
             workflow_results["workflow_status"] = "completed"
             workflow_results["final_references"] = {
                 "summary_doc_ref": firestore_data["summary_doc_ref"],
                 "zep_doc_id": zep_data["zep_doc_id"],
                 "zep_collection": zep_data["collection"],
-                "short_drive_id": drive_data["short_drive_id"],
                 "rag_refs": zep_data["rag_refs"]
             }
             
@@ -201,43 +186,20 @@ class ProcessSummaryWorkflow(BaseTool):
         except Exception as e:
             raise RuntimeError(f"Failed to upsert to Zep: {str(e)}")
     
-    def _store_to_drive(self, short_summary: Dict[str, Any]) -> str:
-        """
-        Execute Google Drive storage step.
-        
-        Args:
-            short_summary: Generated summary data
-            
-        Returns:
-            JSON string result from StoreShortSummaryToDrive
-        """
-        try:
-            drive_storer = StoreShortSummaryToDrive(
-                video_id=self.video_id,
-                short_summary=short_summary
-            )
-            
-            return drive_storer.run()
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to store to Drive: {str(e)}")
-    
     def _save_enhanced_record(
-        self, 
-        short_summary: Dict[str, Any], 
-        zep_data: Dict[str, Any], 
-        drive_data: Dict[str, Any],
+        self,
+        short_summary: Dict[str, Any],
+        zep_data: Dict[str, Any],
         summary_data: Dict[str, Any]
     ) -> str:
         """
         Execute enhanced Firestore record creation step.
-        
+
         Args:
             short_summary: Generated summary data
             zep_data: Zep upsert results
-            drive_data: Drive storage results
             summary_data: Original summary generation results
-            
+
         Returns:
             JSON string result from SaveSummaryRecordEnhanced
         """
@@ -247,28 +209,23 @@ class ProcessSummaryWorkflow(BaseTool):
                 "transcript_doc_ref": self.transcript_doc_ref,
                 "zep_doc_id": zep_data["zep_doc_id"],
                 "zep_collection": zep_data["collection"],
-                "short_drive_id": drive_data["short_drive_id"],
-                "prompt_id": summary_data["prompt_id"],
                 "prompt_version": summary_data.get("prompt_version", "v1"),
                 "token_usage": summary_data["token_usage"],
                 "rag_refs": zep_data["rag_refs"],
-                "tags": self.tags,
-                "bullets_count": len(short_summary.get("bullets", [])),
-                "concepts_count": len(short_summary.get("key_concepts", []))
+                "tags": self.tags
             }
-            
-            # Add any transcript drive references if available
-            # Note: These would come from the transcript processing workflow
-            # For now, we'll include them in RAG refs if they exist
-            
+
             record_saver = SaveSummaryRecordEnhanced(
                 video_id=self.video_id,
+                bullets=short_summary.get("bullets", []),
+                key_concepts=short_summary.get("key_concepts", []),
+                prompt_id=summary_data["prompt_id"],
                 refs=refs,
                 video_metadata=self.video_metadata
             )
-            
+
             return record_saver.run()
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to save enhanced record: {str(e)}")
     
@@ -281,9 +238,9 @@ class ProcessSummaryWorkflow(BaseTool):
         """
         rag_refs = []
         
-        # Add transcript reference
+        # Add transcript reference (Firestore-based)
         rag_refs.append({
-            "type": "transcript_drive",
+            "type": "transcript_firestore",
             "ref": self.transcript_doc_ref
         })
         
@@ -302,7 +259,6 @@ class ProcessSummaryWorkflow(BaseTool):
         required_env_vars = [
             "ZEP_API_KEY",
             "GOOGLE_APPLICATION_CREDENTIALS",
-            "GOOGLE_DRIVE_FOLDER_ID_SUMMARIES",
             "OPENAI_API_KEY"
         ]
         
@@ -350,7 +306,6 @@ if __name__ == "__main__":
                 refs = data["final_references"]
                 print(f"Summary Doc Ref: {refs['summary_doc_ref']}")
                 print(f"Zep Doc ID: {refs['zep_doc_id']}")
-                print(f"Drive ID: {refs['short_drive_id']}")
                 print(f"RAG References: {len(refs['rag_refs'])} items")
             
     except Exception as e:
