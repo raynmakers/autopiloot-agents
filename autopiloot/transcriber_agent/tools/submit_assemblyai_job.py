@@ -41,9 +41,13 @@ class SubmitAssemblyAIJob(BaseTool):
         default=None,
         description="Firestore job ID from jobs_transcription collection (for job tracking and restart recovery)"
     )
-    remote_url: str = Field(
-        ...,
-        description="Direct audio stream URL from YouTube video for transcription"
+    remote_url: Optional[str] = Field(
+        default=None,
+        description="Direct audio stream URL from YouTube video for transcription (use for quick submissions, may fail due to URL expiration)"
+    )
+    local_path: Optional[str] = Field(
+        default=None,
+        description="Local audio file path to upload to AssemblyAI (more reliable than remote_url, prevents YouTube URL expiration issues)"
     )
     video_id: str = Field(
         ...,
@@ -111,13 +115,15 @@ class SubmitAssemblyAIJob(BaseTool):
     def run(self) -> str:
         """
         Submit transcription job to AssemblyAI with duration validation and cost estimation.
-        
+
         Process:
         1. Validates duration is within 70-minute limit (handled by validator)
-        2. Configures AssemblyAI with minimal features for cost efficiency
-        3. Submits job with optional webhook support
-        4. Calculates and returns estimated cost
-        
+        2. Validates either remote_url or local_path is provided
+        3. Uploads local file if local_path provided (more reliable)
+        4. Configures AssemblyAI with minimal features for cost efficiency
+        5. Submits job with optional webhook support
+        6. Calculates and returns estimated cost
+
         Returns:
             JSON string containing:
             - job_id: AssemblyAI job identifier
@@ -125,7 +131,15 @@ class SubmitAssemblyAIJob(BaseTool):
             - video_id: YouTube video ID for tracking
             - duration_sec: Video duration
             - webhook_enabled: Whether webhook callback is configured
+            - method: 'remote_url' or 'local_upload'
         """
+        # Validate that either remote_url or local_path is provided
+        if not self.remote_url and not self.local_path:
+            return json.dumps({
+                "error": "configuration_error",
+                "message": "Either remote_url or local_path must be provided"
+            })
+
         # Initialize AssemblyAI with API key
         api_key = os.getenv("ASSEMBLYAI_API_KEY")
         if not api_key:
@@ -133,9 +147,9 @@ class SubmitAssemblyAIJob(BaseTool):
                 "error": "configuration_error",
                 "message": "ASSEMBLYAI_API_KEY environment variable is required"
             })
-        
+
         aai.settings.api_key = api_key
-        
+
         try:
             # Build transcription configuration
             config_params = {
@@ -150,7 +164,7 @@ class SubmitAssemblyAIJob(BaseTool):
                 "punctuate": True,
                 "language_code": self.language_code
             }
-            
+
             # Add webhook configuration if provided
             if self.webhook_url:
                 webhook_secret = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
@@ -159,13 +173,27 @@ class SubmitAssemblyAIJob(BaseTool):
                     "webhook_auth_header_name": "X-AssemblyAI-Webhook-Secret" if webhook_secret else None,
                     "webhook_auth_header_value": webhook_secret if webhook_secret else None
                 })
-            
+
             # Create transcription configuration
             config = aai.TranscriptionConfig(**config_params)
-            
+
             # Submit transcription job
             transcriber = aai.Transcriber()
-            transcript = transcriber.submit(self.remote_url, config=config)
+
+            # Prefer local upload over remote URL (more reliable)
+            if self.local_path:
+                if not os.path.exists(self.local_path):
+                    return json.dumps({
+                        "error": "file_not_found",
+                        "message": f"Local audio file not found: {self.local_path}"
+                    })
+                print(f"Uploading local file: {self.local_path}")
+                transcript = transcriber.submit(self.local_path, config=config)
+                submission_method = "local_upload"
+            else:
+                print(f"Using remote URL: {self.remote_url[:100]}...")
+                transcript = transcriber.submit(self.remote_url, config=config)
+                submission_method = "remote_url"
             
             # Calculate estimated cost
             base_cost = (self.duration_sec / 3600) * ASSEMBLYAI_COST_PER_HOUR
@@ -206,6 +234,7 @@ class SubmitAssemblyAIJob(BaseTool):
                 "duration_sec": self.duration_sec,
                 "webhook_enabled": bool(self.webhook_url),
                 "status": "submitted",
+                "method": submission_method,
                 "features": {
                     "speaker_labels": self.enable_speaker_labels,
                     "language_code": self.language_code or "auto"
@@ -235,25 +264,29 @@ if __name__ == "__main__":
     print("TEST 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
     print("=" * 80)
 
-    # Get audio URL for Rick Astley
+    # Get audio file for Rick Astley (local download for reliability)
     from transcriber_agent.tools.get_video_audio_url import GetVideoAudioUrl
 
-    audio_tool_1 = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    audio_tool_1 = GetVideoAudioUrl(
+        video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        prefer_download=True  # Download locally to avoid URL expiration
+    )
     audio_result_1 = audio_tool_1.run()
     audio_data_1 = json.loads(audio_result_1)
 
-    if "error" in audio_data_1 or "remote_url" not in audio_data_1:
-        print(f"❌ Failed to get audio URL: {audio_data_1.get('error', 'Unknown error')}")
-    else:
-        remote_url_1 = audio_data_1["remote_url"]
+    if "error" in audio_data_1:
+        print(f"❌ Failed to get audio: {audio_data_1.get('error', 'Unknown error')}")
+    elif "local_path" in audio_data_1:
+        local_path_1 = audio_data_1["local_path"]
         video_id_1 = audio_data_1["video_id"]
         duration_sec_1 = audio_data_1["duration"]
-        print(f"✅ Got remote URL for video: {audio_data_1['title']}")
+        print(f"✅ Downloaded audio for video: {audio_data_1['title']}")
+        print(f"   Local path: {local_path_1}")
         print(f"   Duration: {duration_sec_1} seconds")
 
-        print("\nSubmitting to AssemblyAI...")
+        print("\nSubmitting to AssemblyAI (local upload)...")
         tool_1 = SubmitAssemblyAIJob(
-            remote_url=remote_url_1,
+            local_path=local_path_1,
             video_id=video_id_1,
             duration_sec=duration_sec_1
         )
@@ -268,30 +301,37 @@ if __name__ == "__main__":
                 print(f"   Job ID: {data.get('job_id', 'N/A')}")
                 print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
                 print(f"   Duration: {data.get('duration_sec', 0)} seconds")
+                print(f"   Method: {data.get('method', 'N/A')}")
         except Exception as e:
             print(f"❌ Test error: {str(e)}")
+    else:
+        print(f"❌ Expected local_path in audio data, got: {list(audio_data_1.keys())}")
 
     print("\n" + "=" * 80)
     print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
     print("=" * 80)
 
-    # Get audio URL for Dan Martell
-    audio_tool_2 = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=mZxDw92UXmA")
+    # Get audio file for Dan Martell (local download for reliability)
+    audio_tool_2 = GetVideoAudioUrl(
+        video_url="https://www.youtube.com/watch?v=mZxDw92UXmA",
+        prefer_download=True  # Download locally to avoid URL expiration
+    )
     audio_result_2 = audio_tool_2.run()
     audio_data_2 = json.loads(audio_result_2)
 
-    if "error" in audio_data_2 or "remote_url" not in audio_data_2:
-        print(f"❌ Failed to get audio URL: {audio_data_2.get('error', 'Unknown error')}")
-    else:
-        remote_url_2 = audio_data_2["remote_url"]
+    if "error" in audio_data_2:
+        print(f"❌ Failed to get audio: {audio_data_2.get('error', 'Unknown error')}")
+    elif "local_path" in audio_data_2:
+        local_path_2 = audio_data_2["local_path"]
         video_id_2 = audio_data_2["video_id"]
         duration_sec_2 = audio_data_2["duration"]
-        print(f"✅ Got remote URL for video: {audio_data_2['title']}")
+        print(f"✅ Downloaded audio for video: {audio_data_2['title']}")
+        print(f"   Local path: {local_path_2}")
         print(f"   Duration: {duration_sec_2} seconds")
 
-        print("\nSubmitting to AssemblyAI...")
+        print("\nSubmitting to AssemblyAI (local upload)...")
         tool_2 = SubmitAssemblyAIJob(
-            remote_url=remote_url_2,
+            local_path=local_path_2,
             video_id=video_id_2,
             duration_sec=duration_sec_2
         )
@@ -306,8 +346,11 @@ if __name__ == "__main__":
                 print(f"   Job ID: {data.get('job_id', 'N/A')}")
                 print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
                 print(f"   Duration: {data.get('duration_sec', 0)} seconds")
+                print(f"   Method: {data.get('method', 'N/A')}")
         except Exception as e:
             print(f"❌ Test error: {str(e)}")
+    else:
+        print(f"❌ Expected local_path in audio data, got: {list(audio_data_2.keys())}")
     
     print("\n" + "="*50)
     print("Testing complete! Both videos submitted to AssemblyAI successfully.")
