@@ -97,8 +97,27 @@ class GenerateShortSummary(BaseTool):
                     "message": "Transcript text not found in Firestore document"
                 })
 
-            # Create comprehensive coaching prompt
+            # Create comprehensive coaching prompt with content validation
             prompt = f"""You are an expert business coach with deep expertise across sales, marketing, business strategy, and content creation.
+
+CRITICAL FIRST STEP - CONTENT VALIDATION:
+Before analyzing, you MUST determine if this transcript contains actual business, marketing, sales, strategy, or educational content.
+
+RED FLAGS that indicate NON-BUSINESS content:
+- Song lyrics, music, poetry, or entertainment content
+- Fiction, stories, or narrative content without business lessons
+- Personal vlogs or casual conversation without educational value
+- Gaming, sports commentary, or recreational content
+- News reporting without strategic analysis
+
+If the transcript is NOT business/educational content, respond with ONLY:
+CONTENT TYPE: [type of content, e.g., "Song Lyrics", "Entertainment", "Fiction"]
+BUSINESS RELEVANCE: Not Applicable
+REASON: [Brief explanation why this is not business content]
+
+If the transcript IS legitimate business/educational content, proceed with the analysis below.
+
+---
 
 Analyze this transcript from "{self.title}" and provide a COMPREHENSIVE analysis with NO LIMITS on depth or breadth.
 
@@ -164,6 +183,32 @@ KEY CONCEPTS:
             )
 
             summary_text = response.choices[0].message.content
+
+            # Check if content was flagged as non-business
+            if "BUSINESS RELEVANCE: Not Applicable" in summary_text or "CONTENT TYPE:" in summary_text:
+                # Extract content type and reason
+                content_type = "Unknown"
+                reason = "Content does not contain business/educational material"
+
+                for line in summary_text.split('\n'):
+                    if line.startswith("CONTENT TYPE:"):
+                        content_type = line.replace("CONTENT TYPE:", "").strip()
+                    elif line.startswith("REASON:"):
+                        reason = line.replace("REASON:", "").strip()
+
+                return json.dumps({
+                    "status": "not_business_content",
+                    "content_type": content_type,
+                    "reason": reason,
+                    "video_id": video_id,
+                    "title": self.title,
+                    "message": "This content is not business/educational material and cannot be analyzed for business insights",
+                    "token_usage": {
+                        "input_tokens": response.usage.prompt_tokens,
+                        "output_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens
+                    }
+                })
 
             # Parse structured output with improved multi-line handling
             bullets = []
@@ -261,6 +306,20 @@ if __name__ == "__main__":
         if "error" in data:
             print(f"\n❌ Error: {data['message']}")
             print(f"   Error type: {data['error']}")
+        elif data.get("status") == "not_business_content":
+            print(f"\n⚠️  Content Validation Failed")
+            print(f"\n📋 Content Analysis:")
+            print(f"   Video: {data.get('title', 'N/A')}")
+            print(f"   Content Type: {data.get('content_type', 'Unknown')}")
+            print(f"   Business Relevance: Not Applicable")
+            print(f"\n💬 Reason:")
+            print(f"   {data.get('reason', 'N/A')}")
+            print(f"\n📈 Token Usage:")
+            print(f"   Input: {data.get('token_usage', {}).get('input_tokens', 0):,}")
+            print(f"   Output: {data.get('token_usage', {}).get('output_tokens', 0):,}")
+            print(f"   Total: {data.get('token_usage', {}).get('total_tokens', 0):,}")
+            print(f"\n✅ Hallucination Prevention: Working correctly!")
+            print(f"   The tool correctly identified non-business content and refused to generate fake insights.")
         else:
             print(f"\n✅ Summary generated successfully!")
             print(f"\n📊 Summary Statistics:")
