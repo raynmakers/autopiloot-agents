@@ -1,216 +1,250 @@
 """
 GetVideoAudioUrl tool for extracting direct audio URLs from YouTube videos.
 Implements TASK-TRN-0020: Resolve audio source for AssemblyAI transcription.
+Streams audio directly to Firebase Storage without local downloads.
 """
 
 import os
 import json
-import tempfile
 import yt_dlp
+import requests
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from dotenv import load_dotenv
 from typing import Optional
+from google.cloud import storage
+from datetime import timedelta
+
+# Add core and config directories to path
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+
+from config.env_loader import get_required_env_var
 
 load_dotenv()
 
 
 class GetVideoAudioUrl(BaseTool):
     """
-    Extracts direct audio URL from YouTube videos for AssemblyAI transcription.
+    Extracts audio from YouTube videos for AssemblyAI transcription.
 
-    Prefers remote URL for direct streaming to AssemblyAI, with fallback to local
-    download if remote URL extraction fails. Handles age restrictions, live streams,
-    and various error conditions gracefully.
+    Streams audio directly to Firebase Storage for temporary hosting without local downloads.
+    Returns a signed URL that won't expire during AssemblyAI processing.
+    This prevents YouTube URL expiration issues that cause "Download error" failures.
 
-    IMPORTANT: YouTube URLs expire within 6 hours. Always submit to AssemblyAI
-    immediately after extraction. In production workflow, this tool is called
-    immediately before SubmitAssemblyAIJob to ensure URL validity.
+    Workflow:
+    1. Extract direct audio URL from YouTube (no download)
+    2. Stream audio to Firebase Storage (transcription_temp/ folder)
+    3. Generate signed URL with 24-hour expiration
+    4. Return storage_path and signed_url for AssemblyAI
+    5. File should be deleted after successful transcription using CleanupTranscriptionAudio
+
+    Benefits:
+    - No local filesystem usage (Firebase Functions compatible)
+    - Efficient streaming (no temporary files)
+    - Lower memory footprint
     """
-    
+
     video_url: str = Field(
         ...,
         description="YouTube video URL to extract audio from (e.g., 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')"
     )
-    
-    prefer_download: bool = Field(
-        default=False,
-        description="Force local download instead of remote URL extraction"
+
+    firebase_bucket: Optional[str] = Field(
+        default=None,
+        description="Firebase Storage bucket name (defaults to GCP_PROJECT_ID.appspot.com)"
     )
     
     def run(self) -> str:
         """
-        Extract audio URL from YouTube video, preferring remote URL for AssemblyAI.
-        
-        Priority:
-        1. Try to extract remote audio URL directly from YouTube
-        2. Fallback to downloading audio locally if remote fails or prefer_download=True
-        3. Return error if both methods fail
-        
+        Extract audio URL and stream directly to Firebase Storage.
+
+        Process:
+        1. Extract video metadata and direct audio URL from YouTube (no download)
+        2. Stream audio directly to Firebase Storage (transcription_temp/ folder)
+        3. Generate signed URL with 24-hour expiration
+        4. Return storage_path and signed_url
+
         Returns:
-            str: JSON string with either remote_url or local_path for audio
+            str: JSON string with:
+            - storage_path: Firebase Storage path (for cleanup)
+            - signed_url: Temporary signed URL for AssemblyAI
+            - video_id: YouTube video ID
+            - duration: Video duration in seconds
+            - title: Video title
+            - format: Audio format (m4a, webm, etc.)
         """
         try:
-            # First attempt: Extract remote URL (unless prefer_download is set)
-            if not self.prefer_download:
-                remote_result = self._extract_remote_url()
-                if remote_result and "remote_url" in remote_result and remote_result["remote_url"]:
-                    return json.dumps(remote_result, indent=2)
-            
-            # Second attempt: Download audio locally as fallback
-            local_result = self._download_audio_locally()
-            if local_result and "local_path" in local_result:
-                return json.dumps(local_result, indent=2)
-            
-            # Both methods failed
+            # Step 1: Extract video metadata and direct audio URL
+            print("Extracting video metadata and audio URL from YouTube...")
+            video_info = self._extract_video_info()
+
+            if "error" in video_info:
+                return json.dumps(video_info)
+
+            # Step 2: Stream audio directly to Firebase Storage
+            print("Streaming audio to Firebase Storage...")
+            storage_result = self._stream_to_firebase_storage(
+                audio_url=video_info["audio_url"],
+                video_id=video_info["video_id"],
+                file_extension=video_info.get("format", "m4a")
+            )
+
+            if "error" in storage_result:
+                return json.dumps(storage_result)
+
+            # Return complete result
             return json.dumps({
-                "error": "Failed to extract audio URL via both remote and local methods",
-                "remote_url": None,
-                "local_path": None
-            })
-                
+                "storage_path": storage_result["storage_path"],
+                "signed_url": storage_result["signed_url"],
+                "video_id": video_info["video_id"],
+                "duration": video_info.get("duration", 0),
+                "title": video_info.get("title", "Unknown"),
+                "format": video_info.get("format", "m4a")
+            }, indent=2)
+
         except Exception as e:
             return json.dumps({
-                "error": f"Failed to get video audio URL: {str(e)}",
-                "remote_url": None,
-                "local_path": None
+                "error": "processing_failed",
+                "message": f"Failed to process video audio: {str(e)}",
+                "storage_path": None,
+                "signed_url": None
             })
     
-    def _extract_remote_url(self) -> Optional[dict]:
+    def _extract_video_info(self) -> dict:
         """
-        Extract remote audio URL without downloading.
-        
+        Extract video metadata and direct audio URL from YouTube without downloading.
+
         Returns:
-            dict with remote_url or None if extraction fails
+            dict with video_id, audio_url, duration, title, format, or error
         """
         try:
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': False,
-                'skip_download': True,
-                # More flexible format selection - try multiple options
                 'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+                'extract_flat': False,  # Need full extraction to get URL
             }
-            
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(self.video_url, download=False)
-                
-                # Check for restrictions
-                if info.get('age_limit', 0) >= 18:
-                    return {
-                        "error": "age_restricted",
-                        "message": "Video is age-restricted and cannot be processed",
-                        "remote_url": None
-                    }
-                
-                if info.get('is_live'):
-                    return {
-                        "error": "live_stream",
-                        "message": "Live videos are not supported",
-                        "remote_url": None
-                    }
-                
-                # Extract best audio format URL
-                formats = info.get('formats', [])
-                audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('acodec') is not None]
 
-                if audio_formats:
-                    # Sort by bitrate to get best quality (handle None values)
-                    audio_formats.sort(key=lambda x: x.get('abr') or 0, reverse=True)
-                    best_audio = audio_formats[0]
-                    audio_url = best_audio.get('url')
-                    
-                    if audio_url:
-                        return {
-                            "remote_url": audio_url,
-                            "format": best_audio.get('ext', 'unknown'),
-                            "bitrate": best_audio.get('abr', 0),
-                            "duration": info.get('duration', 0),
-                            "video_id": info.get('id'),
-                            "title": info.get('title', 'Unknown')
-                        }
-                
-                # Try direct video URL as last resort for remote processing
+                if not info:
+                    return {
+                        "error": "extraction_failed",
+                        "message": "Failed to extract video information"
+                    }
+
+                # Get the best audio format
+                audio_format = None
+                if 'url' in info:
+                    # Direct URL available
+                    audio_format = {
+                        'url': info['url'],
+                        'ext': info.get('ext', 'm4a')
+                    }
+                elif 'formats' in info:
+                    # Find best audio format
+                    audio_formats = [f for f in info['formats'] if f.get('acodec') != 'none']
+                    if audio_formats:
+                        # Sort by quality (audio bitrate)
+                        audio_formats.sort(key=lambda x: x.get('abr', 0) or 0, reverse=True)
+                        audio_format = audio_formats[0]
+
+                if not audio_format or 'url' not in audio_format:
+                    return {
+                        "error": "no_audio_url",
+                        "message": "Could not extract direct audio URL from video"
+                    }
+
                 return {
-                    "remote_url": self.video_url,
-                    "note": "Using original video URL for remote processing",
-                    "duration": info.get('duration', 0)
+                    "video_id": info.get('id'),
+                    "audio_url": audio_format['url'],
+                    "format": audio_format.get('ext', 'm4a'),
+                    "duration": info.get('duration', 0),
+                    "title": info.get('title', 'Unknown')
                 }
-                
-        except yt_dlp.utils.DownloadError as e:
-            error_str = str(e)
-            print(f"Remote URL extraction failed: {error_str}")
-            if 'Private video' in error_str:
-                return {"error": "private_video", "message": "Video is private and cannot be accessed"}
-            elif 'Video unavailable' in error_str:
-                return {"error": "unavailable", "message": "Video is unavailable"}
-            else:
-                return {"error": "download_error", "message": f"Failed to extract: {error_str}"}
+
         except Exception as e:
-            print(f"Remote URL extraction exception: {str(e)}")
-            return None  # Silent fail, will try local download
-    
-    def _download_audio_locally(self) -> Optional[dict]:
-        """
-        Download audio to local temporary file as fallback.
-        
-        Returns:
-            dict with local_path or None if download fails
-        """
-        try:
-            # Create temporary directory for audio download
-            temp_dir = tempfile.mkdtemp(prefix="autopiloot_audio_")
-            output_template = os.path.join(temp_dir, '%(id)s.%(ext)s')
-            
-            # Try to use FFmpeg if available, otherwise download original format
-            ydl_opts = {
-                'quiet': False,  # Enable output for debugging
-                'no_warnings': False,
-                # More flexible format selection for download
-                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
-                'outtmpl': output_template,
+            return {
+                "error": "extraction_failed",
+                "message": f"Failed to extract video info: {str(e)}"
             }
 
-            # Only add FFmpeg post-processor if FFmpeg is available
-            try:
-                import subprocess
-                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
-                ydl_opts['postprocessors'] = [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }]
-                print("FFmpeg detected - will convert to MP3")
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                print("FFmpeg not found - will keep original format")
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(self.video_url, download=True)
+    def _stream_to_firebase_storage(
+        self,
+        audio_url: str,
+        video_id: str,
+        file_extension: str
+    ) -> dict:
+        """
+        Stream audio directly from YouTube to Firebase Storage without local download.
 
-                # Find the downloaded file
-                video_id = info.get('id')
+        Args:
+            audio_url: Direct audio URL from YouTube
+            video_id: YouTube video ID
+            file_extension: File extension (e.g., 'm4a', 'webm')
 
-                # Check for all possible extensions (including original formats)
-                for ext in ['mp3', 'm4a', 'webm', 'ogg', 'wav', 'opus']:
-                    file_path = os.path.join(temp_dir, f"{video_id}.{ext}")
-                    if os.path.exists(file_path):
-                        print(f"Found downloaded file: {file_path}")
-                        return {
-                            "local_path": file_path,
-                            "format": ext,
-                            "duration": info.get('duration', 0),
-                            "video_id": video_id,
-                            "title": info.get('title', 'Unknown'),
-                            "note": "Audio downloaded locally for processing"
-                        }
+        Returns:
+            dict with storage_path and signed_url, or error
+        """
+        try:
+            # Get project ID for bucket name
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firebase Storage"
+            )
 
-                # List what files were actually created
-                print(f"Files in temp_dir: {os.listdir(temp_dir)}")
-                return None  # Download completed but file not found
-                
-        except Exception:
-            return None  # Silent fail
+            # Use provided bucket or default to project bucket
+            # Firebase now uses .firebasestorage.app for new projects
+            bucket_name = self.firebase_bucket or f"{project_id}.firebasestorage.app"
+
+            # Initialize Storage client
+            storage_client = storage.Client(project=project_id)
+            bucket = storage_client.bucket(bucket_name)
+
+            # Create storage path: transcription_temp/video_id.extension
+            storage_path = f"transcription_temp/{video_id}.{file_extension}"
+            blob = bucket.blob(storage_path)
+
+            # Stream audio from YouTube to Firebase Storage
+            print(f"Streaming {file_extension} audio to Firebase Storage...")
+            response = requests.get(audio_url, stream=True, timeout=300)
+            response.raise_for_status()
+
+            # Upload in chunks to handle large files efficiently
+            blob.upload_from_file(
+                response.raw,
+                content_type=f"audio/{file_extension}",
+                timeout=300
+            )
+
+            print(f"✅ Successfully uploaded to {storage_path}")
+
+            # Generate signed URL with 24-hour expiration
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(hours=24),
+                method="GET"
+            )
+
+            return {
+                "storage_path": storage_path,
+                "signed_url": signed_url,
+                "bucket": bucket_name
+            }
+
+        except requests.RequestException as e:
+            return {
+                "error": "stream_download_failed",
+                "message": f"Failed to download audio stream: {str(e)}"
+            }
+        except Exception as e:
+            return {
+                "error": "firebase_upload_failed",
+                "message": f"Failed to upload to Firebase Storage: {str(e)}"
+            }
 
 
 if __name__ == "__main__":
@@ -232,16 +266,13 @@ if __name__ == "__main__":
         data = json.loads(result)
         if "error" in data:
             print(f"\n❌ Error: {data.get('message', data['error'])}")
-        elif "remote_url" in data and data["remote_url"]:
-            print(f"\n✅ Success: Remote audio URL obtained")
+        elif "signed_url" in data and data["signed_url"]:
+            print(f"\n✅ Success: Audio streamed to Firebase Storage")
+            print(f"   Storage path: {data.get('storage_path')}")
             print(f"   Format: {data.get('format', 'unknown')}")
             print(f"   Duration: {data.get('duration', 0)} seconds")
-            print(f"   Bitrate: {data.get('bitrate', 'unknown')} kbps")
-        elif "local_path" in data and data["local_path"]:
-            print(f"\n✅ Success: Audio downloaded locally")
-            print(f"   Path: {data['local_path']}")
-            print(f"   Format: {data.get('format', 'unknown')}")
-            print(f"   Duration: {data.get('duration', 0)} seconds")
+            print(f"   Signed URL (first 100 chars): {data['signed_url'][:100]}...")
+            print(f"   ⚡ No local download - streamed directly to Firebase Storage")
         else:
             print("\n⚠️ Unexpected response format")
 
@@ -267,16 +298,13 @@ if __name__ == "__main__":
         data = json.loads(result)
         if "error" in data:
             print(f"\n❌ Error: {data.get('message', data['error'])}")
-        elif "remote_url" in data and data["remote_url"]:
-            print(f"\n✅ Success: Remote audio URL obtained")
+        elif "signed_url" in data and data["signed_url"]:
+            print(f"\n✅ Success: Audio streamed to Firebase Storage")
+            print(f"   Storage path: {data.get('storage_path')}")
             print(f"   Format: {data.get('format', 'unknown')}")
             print(f"   Duration: {data.get('duration', 0)} seconds")
-            print(f"   Bitrate: {data.get('bitrate', 'unknown')} kbps")
-        elif "local_path" in data and data["local_path"]:
-            print(f"\n✅ Success: Audio downloaded locally")
-            print(f"   Path: {data['local_path']}")
-            print(f"   Format: {data.get('format', 'unknown')}")
-            print(f"   Duration: {data.get('duration', 0)} seconds")
+            print(f"   Signed URL (first 100 chars): {data['signed_url'][:100]}...")
+            print(f"   ⚡ No local download - streamed directly to Firebase Storage")
         else:
             print("\n⚠️ Unexpected response format")
 
@@ -286,7 +314,13 @@ if __name__ == "__main__":
         traceback.print_exc()
 
     print("\n" + "=" * 80)
-    print("Testing complete! Both videos can be used for transcription pipeline:")
+    print("Testing complete! Both videos streamed to Firebase Storage:")
     print("- dQw4w9WgXcQ: Rick Astley (will be rejected at summarization)")
     print("- mZxDw92UXmA: Dan Martell (will be processed normally)")
+    print("\n⚡ BENEFITS:")
+    print("  - No local filesystem usage (Firebase Functions compatible)")
+    print("  - Efficient streaming (no temporary files)")
+    print("  - Lower memory footprint")
+    print("\nNOTE: Files stored in transcription_temp/ folder")
+    print("Clean up after successful transcription using CleanupTranscriptionAudio tool")
     print("=" * 80)
