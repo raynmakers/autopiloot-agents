@@ -104,43 +104,48 @@ Analyze this transcript from "{self.title}" and provide a COMPREHENSIVE analysis
 
 Your goal is to extract EVERY valuable insight, framework, concept, tactic, and strategy mentioned. Be as thorough and detailed as possible.
 
-Organize your analysis into:
+Organize your analysis into TWO sections:
 
-1. ACTIONABLE INSIGHTS: Extract ALL specific, implementable insights. Include:
-   - Sales tactics and strategies
-   - Marketing approaches and campaigns
+1. ACTIONABLE INSIGHTS: Extract ALL specific, implementable tactics and strategies. Each insight should be a complete, actionable recommendation with context. Include insights about:
+   - Sales tactics and closing strategies
+   - Marketing approaches and campaign ideas
    - Business strategy and operations
    - Content creation techniques
    - Customer acquisition methods
    - Retention and engagement tactics
    - Pricing and positioning strategies
-   - Team building and leadership insights
+   - Team building and leadership approaches
    - Any other tactical advice
 
-2. KEY CONCEPTS & FRAMEWORKS: Identify ALL concepts, frameworks, mental models, or methodologies mentioned:
-   - Named frameworks (e.g., "80/20 Principle", "Jobs to Be Done")
-   - Business philosophies
-   - Strategic approaches
-   - Decision-making frameworks
-   - Analytical models
-   - Conceptual patterns
+2. KEY CONCEPTS & FRAMEWORKS: List ALL named concepts, frameworks, mental models, or methodologies mentioned. These should be NAMES of established concepts or patterns, such as:
+   - "80/20 Principle" or "Pareto Principle"
+   - "Jobs to Be Done Framework"
+   - "Flywheel Effect"
+   - "Loss Aversion"
+   - "Commitment and Consistency Principle"
+   - "Brand Promise Framework"
+   - etc.
 
-DO NOT limit yourself. Extract everything valuable. Be exhaustive and comprehensive.
+IMPORTANT FORMATTING RULES:
+- Each ACTIONABLE INSIGHT should be a COMPLETE sentence or paragraph explaining the tactic
+- Each KEY CONCEPT should be the NAME of a framework, principle, or methodology
+- Use bullet points (•) for each item
+- Be exhaustive - extract EVERYTHING valuable
 
 Transcript:
 {transcript_text}
 
-Format your response as:
+Format your response EXACTLY as:
 ACTIONABLE INSIGHTS:
-• [insight 1]
-• [insight 2]
-• [insight 3]
+• [Complete description of actionable insight 1 with full context and implementation details]
+• [Complete description of actionable insight 2 with full context and implementation details]
+• [Complete description of actionable insight 3 with full context and implementation details]
 ... (continue with ALL insights, no limit)
 
 KEY CONCEPTS:
-• [concept 1]
-• [concept 2]
-• [concept 3]
+• [Name of framework/concept 1]
+• [Name of framework/concept 2]
+• [Name of framework/concept 3]
 ... (continue with ALL concepts, no limit)"""
 
             # Generate comprehensive summary using GPT-5 reasoning
@@ -160,23 +165,58 @@ KEY CONCEPTS:
 
             summary_text = response.choices[0].message.content
 
-            # Parse structured output
+            # Parse structured output with improved multi-line handling
             bullets = []
             key_concepts = []
+
+            def parse_bullet_section(section_text):
+                """Parse a section containing bulleted items, handling multi-line entries."""
+                items = []
+                current_item = []
+                lines = section_text.strip().split('\n')
+
+                for line in lines:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+
+                    # Check if this line starts a new bullet point
+                    is_bullet_start = any(stripped.startswith(c) for c in ('•', '-', '*')) or \
+                                     (stripped and stripped[0].isdigit() and ('.' in stripped[:4] or ')' in stripped[:4]))
+
+                    if is_bullet_start:
+                        # Save previous item if exists
+                        if current_item:
+                            items.append(' '.join(current_item).strip())
+                        # Start new item, removing bullet markers
+                        cleaned = stripped.lstrip('•-*').strip()
+                        # Remove leading numbers like "1." or "1)"
+                        if cleaned and cleaned[0].isdigit():
+                            for i, char in enumerate(cleaned):
+                                if char in '.):':
+                                    cleaned = cleaned[i+1:].strip()
+                                    break
+                        current_item = [cleaned] if cleaned else []
+                    else:
+                        # Continuation of current item
+                        if current_item:  # Only add if we have a current item
+                            current_item.append(stripped)
+
+                # Don't forget the last item
+                if current_item:
+                    items.append(' '.join(current_item).strip())
+
+                return items
 
             if "ACTIONABLE INSIGHTS:" in summary_text:
                 insights_section = summary_text.split("ACTIONABLE INSIGHTS:")[1]
                 if "KEY CONCEPTS:" in insights_section:
                     insights_section = insights_section.split("KEY CONCEPTS:")[0]
-                bullets = [line.strip().lstrip('•-*').strip()
-                          for line in insights_section.split('\n')
-                          if line.strip() and any(line.strip().startswith(c) for c in ('•', '-', '*', '1', '2', '3', '4', '5', '6', '7', '8', '9'))]
+                bullets = parse_bullet_section(insights_section)
 
             if "KEY CONCEPTS:" in summary_text:
                 concepts_section = summary_text.split("KEY CONCEPTS:")[1]
-                key_concepts = [line.strip().lstrip('•-*').strip()
-                               for line in concepts_section.split('\n')
-                               if line.strip() and any(line.strip().startswith(c) for c in ('•', '-', '*', '1', '2', '3', '4', '5', '6', '7', '8', '9'))]
+                key_concepts = parse_bullet_section(concepts_section)
 
             result = {
                 "bullets": bullets,
