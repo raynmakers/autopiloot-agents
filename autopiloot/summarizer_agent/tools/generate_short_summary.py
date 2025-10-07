@@ -97,109 +97,105 @@ class GenerateShortSummary(BaseTool):
                     "message": "Transcript text not found in Firestore document"
                 })
 
-            # Create comprehensive coaching prompt with content validation
+            # Create comprehensive coaching prompt with structured JSON output
             prompt = f"""You are an expert business coach with deep expertise across sales, marketing, business strategy, and content creation.
 
-CRITICAL FIRST STEP - CONTENT VALIDATION:
-Before analyzing, you MUST determine if this transcript contains actual business, marketing, sales, strategy, or educational content.
+STEP 1 - CONTENT VALIDATION:
+Determine if this transcript contains actual business, marketing, sales, strategy, or educational content.
 
-RED FLAGS that indicate NON-BUSINESS content:
-- Song lyrics, music, poetry, or entertainment content
-- Fiction, stories, or narrative content without business lessons
-- Personal vlogs or casual conversation without educational value
-- Gaming, sports commentary, or recreational content
-- News reporting without strategic analysis
+RED FLAGS for NON-BUSINESS content:
+- Song lyrics, music, poetry, entertainment
+- Fiction, stories without business lessons
+- Casual vlogs without educational value
+- Gaming, sports, recreational content
+- News without strategic analysis
 
-If the transcript is NOT business/educational content, respond with ONLY:
-CONTENT TYPE: [type of content, e.g., "Song Lyrics", "Entertainment", "Fiction"]
-BUSINESS RELEVANCE: Not Applicable
-REASON: [Brief explanation why this is not business content]
+STEP 2 - ANALYSIS (if business content):
+Extract EVERY valuable insight, framework, concept, tactic, and strategy mentioned.
 
-If the transcript IS legitimate business/educational content, proceed with the analysis below.
-
----
-
-Analyze this transcript from "{self.title}" and provide a COMPREHENSIVE analysis with NO LIMITS on depth or breadth.
-
-Your goal is to extract EVERY valuable insight, framework, concept, tactic, and strategy mentioned. Be as thorough and detailed as possible.
-
-Organize your analysis into TWO sections:
-
-1. ACTIONABLE INSIGHTS: Extract ALL specific, implementable tactics and strategies. Each insight should be a complete, actionable recommendation with context. Include insights about:
-   - Sales tactics and closing strategies
-   - Marketing approaches and campaign ideas
-   - Business strategy and operations
-   - Content creation techniques
-   - Customer acquisition methods
-   - Retention and engagement tactics
-   - Pricing and positioning strategies
-   - Team building and leadership approaches
-   - Any other tactical advice
-
-2. KEY CONCEPTS & FRAMEWORKS: List ALL named concepts, frameworks, mental models, or methodologies mentioned. These should be NAMES of established concepts or patterns, such as:
-   - "80/20 Principle" or "Pareto Principle"
-   - "Jobs to Be Done Framework"
-   - "Flywheel Effect"
-   - "Loss Aversion"
-   - "Commitment and Consistency Principle"
-   - "Brand Promise Framework"
-   - etc.
-
-IMPORTANT FORMATTING RULES:
-- Each ACTIONABLE INSIGHT should be a COMPLETE sentence or paragraph explaining the tactic
-- Each KEY CONCEPT should be the NAME of a framework, principle, or methodology
-- Use bullet points (•) for each item
-- Be exhaustive - extract EVERYTHING valuable
+Video: "{self.title}"
 
 Transcript:
 {transcript_text}
 
-Format your response EXACTLY as:
-ACTIONABLE INSIGHTS:
-• [Complete description of actionable insight 1 with full context and implementation details]
-• [Complete description of actionable insight 2 with full context and implementation details]
-• [Complete description of actionable insight 3 with full context and implementation details]
-... (continue with ALL insights, no limit)
+Provide comprehensive analysis covering:
+- Sales tactics and closing strategies
+- Marketing approaches and campaigns
+- Business strategy and operations
+- Content creation techniques
+- Customer acquisition/retention
+- Pricing and positioning
+- Leadership and team building
+- Any other actionable tactics
 
-KEY CONCEPTS:
-• [Name of framework/concept 1]
-• [Name of framework/concept 2]
-• [Name of framework/concept 3]
-... (continue with ALL concepts, no limit)"""
+Extract named frameworks/concepts like:
+- "80/20 Principle", "Jobs to Be Done"
+- "Flywheel Effect", "Loss Aversion"
+- "Brand Promise Framework", etc."""
 
-            # Generate comprehensive summary using GPT-5 reasoning
+            # Define JSON schema for structured output
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "is_business_content": {
+                        "type": "boolean",
+                        "description": "Whether the content is business/educational (true) or entertainment/non-business (false)"
+                    },
+                    "content_type": {
+                        "type": "string",
+                        "description": "Type of content: 'Business/Educational', 'Song Lyrics', 'Entertainment', 'Fiction', etc."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Explanation for content classification decision"
+                    },
+                    "actionable_insights": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Complete descriptions of actionable business insights with implementation details"
+                    },
+                    "key_concepts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Names of frameworks, principles, or methodologies mentioned"
+                    }
+                },
+                "required": ["is_business_content", "content_type", "reason", "actionable_insights", "key_concepts"],
+                "additionalProperties": False
+            }
+
+            # Generate comprehensive summary using GPT-5 reasoning with structured output
             response = client.chat.completions.create(
                 model=model,
                 temperature=temperature,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert multi-domain business coach (sales, marketing, strategy, content) specializing in extracting comprehensive, actionable insights. Be thorough and exhaustive - extract every valuable insight without limits."
+                        "content": "You are an expert multi-domain business coach (sales, marketing, strategy, content) specializing in extracting comprehensive, actionable insights. First validate if content is business-related, then extract insights. Always respond with valid JSON matching the schema."
                     },
                     {"role": "user", "content": prompt}
                 ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "business_summary_analysis",
+                        "strict": True,
+                        "schema": response_schema
+                    }
+                },
                 max_completion_tokens=max_output_tokens,
                 **({"reasoning_effort": reasoning_effort} if reasoning_effort else {})
             )
 
-            summary_text = response.choices[0].message.content
+            # Parse JSON response directly
+            summary_data = json.loads(response.choices[0].message.content)
 
             # Check if content was flagged as non-business
-            if "BUSINESS RELEVANCE: Not Applicable" in summary_text or "CONTENT TYPE:" in summary_text:
-                # Extract content type and reason
-                content_type = "Unknown"
-                reason = "Content does not contain business/educational material"
-
-                for line in summary_text.split('\n'):
-                    if line.startswith("CONTENT TYPE:"):
-                        content_type = line.replace("CONTENT TYPE:", "").strip()
-                    elif line.startswith("REASON:"):
-                        reason = line.replace("REASON:", "").strip()
-
+            if not summary_data.get("is_business_content", False):
                 return json.dumps({
                     "status": "not_business_content",
-                    "content_type": content_type,
-                    "reason": reason,
+                    "content_type": summary_data.get("content_type", "Unknown"),
+                    "reason": summary_data.get("reason", "Content does not contain business/educational material"),
                     "video_id": video_id,
                     "title": self.title,
                     "message": "This content is not business/educational material and cannot be analyzed for business insights",
@@ -210,58 +206,9 @@ KEY CONCEPTS:
                     }
                 })
 
-            # Parse structured output with improved multi-line handling
-            bullets = []
-            key_concepts = []
-
-            def parse_bullet_section(section_text):
-                """Parse a section containing bulleted items, handling multi-line entries."""
-                items = []
-                current_item = []
-                lines = section_text.strip().split('\n')
-
-                for line in lines:
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
-
-                    # Check if this line starts a new bullet point
-                    is_bullet_start = any(stripped.startswith(c) for c in ('•', '-', '*')) or \
-                                     (stripped and stripped[0].isdigit() and ('.' in stripped[:4] or ')' in stripped[:4]))
-
-                    if is_bullet_start:
-                        # Save previous item if exists
-                        if current_item:
-                            items.append(' '.join(current_item).strip())
-                        # Start new item, removing bullet markers
-                        cleaned = stripped.lstrip('•-*').strip()
-                        # Remove leading numbers like "1." or "1)"
-                        if cleaned and cleaned[0].isdigit():
-                            for i, char in enumerate(cleaned):
-                                if char in '.):':
-                                    cleaned = cleaned[i+1:].strip()
-                                    break
-                        current_item = [cleaned] if cleaned else []
-                    else:
-                        # Continuation of current item
-                        if current_item:  # Only add if we have a current item
-                            current_item.append(stripped)
-
-                # Don't forget the last item
-                if current_item:
-                    items.append(' '.join(current_item).strip())
-
-                return items
-
-            if "ACTIONABLE INSIGHTS:" in summary_text:
-                insights_section = summary_text.split("ACTIONABLE INSIGHTS:")[1]
-                if "KEY CONCEPTS:" in insights_section:
-                    insights_section = insights_section.split("KEY CONCEPTS:")[0]
-                bullets = parse_bullet_section(insights_section)
-
-            if "KEY CONCEPTS:" in summary_text:
-                concepts_section = summary_text.split("KEY CONCEPTS:")[1]
-                key_concepts = parse_bullet_section(concepts_section)
+            # Extract insights and concepts from structured response
+            bullets = summary_data.get("actionable_insights", [])
+            key_concepts = summary_data.get("key_concepts", [])
 
             result = {
                 "bullets": bullets,
