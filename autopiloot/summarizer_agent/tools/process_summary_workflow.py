@@ -88,12 +88,30 @@ class ProcessSummaryWorkflow(BaseTool):
             summary_result = self._generate_short_summary()
             workflow_results["summary_generation"] = summary_result
             workflow_results["steps_completed"].append("summary_generation")
-            
+
             # Extract summary data
             summary_data = json.loads(summary_result)
+
+            # Check for errors
             if "error" in summary_data:
                 raise RuntimeError(f"Summary generation failed: {summary_data['error']}")
-            
+
+            # Check if content was rejected as non-business
+            if summary_data.get("status") == "not_business_content":
+                print(f"⚠️  Content validation failed for {self.video_id}")
+                print(f"   Content Type: {summary_data.get('content_type', 'Unknown')}")
+                print(f"   Reason: {summary_data.get('reason', 'N/A')}")
+
+                return json.dumps({
+                    "workflow_status": "skipped_non_business_content",
+                    "video_id": self.video_id,
+                    "content_type": summary_data.get("content_type"),
+                    "reason": summary_data.get("reason"),
+                    "message": "Content is not business/educational material and will not be stored in Zep or Firestore",
+                    "token_usage": summary_data.get("token_usage", {}),
+                    "steps_completed": workflow_results["steps_completed"]
+                })
+
             short_summary = {
                 "bullets": summary_data["bullets"],
                 "key_concepts": summary_data["key_concepts"],
