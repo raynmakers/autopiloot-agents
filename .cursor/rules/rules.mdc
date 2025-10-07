@@ -341,6 +341,7 @@ Tools are the specific actions that agents can perform. They are defined using p
 - **Use global variables for constants**: If a tool requires a constant value that doesn't change from use to use (for example, `ad_account_id`, `pull_request_id`, etc.), define it above the tool function instead of passing it as a parameter.
 - **Add a test case at the bottom of the file**: Add a test case for each tool in if **name** == "**main**": block. It will be used to test the tool later.
 - **Test Coverage Requirement**: ALWAYS generate test coverage reports when creating or updating tools. Target 100% coverage for critical initialization modules and minimum 80% for tool modules.
+- **ALWAYS use OpenAI Structured Outputs for LLM responses**: When tools make LLM calls (OpenAI, etc.), ALWAYS use `response_format={"type": "json_schema", ...}` with a strict JSON schema definition. This eliminates parsing errors, guarantees valid JSON output, and removes the need for complex text parsing logic. See `summarizer_agent/tools/generate_short_summary.py` for reference implementation. Benefits: 100% reliable parsing, schema validation enforced, no regex needed.
 
 ### Complete Example of a Tool File
 
