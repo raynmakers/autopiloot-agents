@@ -19,9 +19,8 @@ from googleapiclient.errors import HttpError
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var, env_loader
-from loader import get_config_value
-from reliability import QuotaManager
+from config.env_loader import get_required_env_var
+from config.loader import get_config_value
 
 # Firebase Admin SDK for checkpoint persistence
 try:
@@ -53,9 +52,9 @@ class ListRecentUploads(BaseTool):
         ..., 
         description="End time in ISO8601 UTC format (e.g., '2025-01-28T00:00:00Z')"
     )
-    page_size: int = Field(
-        default=50, 
-        description="Maximum number of videos to return per page (1-50)",
+    page_size: Optional[int] = Field(
+        default=None,
+        description="Maximum number of videos to return per page (1-50). If None, reads from settings.yaml",
         ge=1,
         le=50
     )
@@ -77,18 +76,13 @@ class ListRecentUploads(BaseTool):
             RuntimeError: If API call fails or quota exceeded
         """
         try:
-            # Initialize YouTube API client and quota manager
+            # Load page_size from config if not provided
+            if self.page_size is None:
+                self.page_size = get_config_value("scraper.page_size", 50)
+
+            # Initialize YouTube API client
             youtube = self._initialize_youtube_client()
-            quota_manager = QuotaManager()
-            
-            # Check quota availability
-            if not quota_manager.is_service_available('youtube'):
-                return json.dumps({
-                    'error': 'YouTube API quota exhausted',
-                    'items': [],
-                    'quota_reset_time': quota_manager.get_quota_status('youtube')['reset_time']
-                })
-            
+
             # Get channel's uploads playlist ID
             uploads_playlist_id = self._get_uploads_playlist_id(youtube, self.channel_id)
             
@@ -102,14 +96,13 @@ class ListRecentUploads(BaseTool):
             
             # Fetch videos from uploads playlist
             videos = self._fetch_playlist_videos(
-                youtube, 
-                uploads_playlist_id, 
-                checkpoint,
-                quota_manager
+                youtube,
+                uploads_playlist_id,
+                checkpoint
             )
-            
+
             # Get detailed video information including durations
-            detailed_videos = self._get_video_details(youtube, videos, quota_manager)
+            detailed_videos = self._get_video_details(youtube, videos)
             
             # Filter by time window and apply limits
             filtered_videos = self._filter_videos_by_timeframe(detailed_videos)
@@ -118,10 +111,7 @@ class ListRecentUploads(BaseTool):
             if self.use_checkpoint and filtered_videos:
                 latest_video = max(filtered_videos, key=lambda v: v['published_at'])
                 self._save_checkpoint(self.channel_id, latest_video['published_at'])
-            
-            # Update quota usage
-            quota_manager.record_request('youtube', len(videos) + len(detailed_videos))
-            
+
             return json.dumps({
                 'items': filtered_videos[:self.page_size],
                 'total_found': len(filtered_videos),
@@ -154,8 +144,7 @@ class ListRecentUploads(BaseTool):
         except Exception as e:
             raise RuntimeError(f"Failed to get uploads playlist: {str(e)}")
     
-    def _fetch_playlist_videos(self, youtube, playlist_id: str, checkpoint: Optional[str], 
-                              quota_manager: QuotaManager) -> List[Dict[str, Any]]:
+    def _fetch_playlist_videos(self, youtube, playlist_id: str, checkpoint: Optional[str]) -> List[Dict[str, Any]]:
         """Fetch videos from uploads playlist with checkpoint support."""
         videos = []
         next_page_token = None
@@ -168,10 +157,6 @@ class ListRecentUploads(BaseTool):
                 checkpoint_dt = None
         
         while len(videos) < self.page_size * 2:  # Fetch extra to account for filtering
-            # Check quota before making request
-            if not quota_manager.is_service_available('youtube'):
-                break
-            
             params = {
                 'part': 'snippet',
                 'playlistId': playlist_id,
@@ -183,8 +168,7 @@ class ListRecentUploads(BaseTool):
             
             try:
                 response = youtube.playlistItems().list(**params).execute()
-                quota_manager.record_request('youtube', 1)
-                
+
                 for item in response.get('items', []):
                     published_at = item['snippet']['publishedAt']
                     published_dt = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
@@ -208,18 +192,16 @@ class ListRecentUploads(BaseTool):
                 next_page_token = response.get('nextPageToken')
                 if not next_page_token:
                     break
-                    
+
             except HttpError as e:
                 if e.resp.status == 429:  # Rate limit
-                    quota_manager.mark_quota_exhausted('youtube')
                     break
                 else:
                     raise RuntimeError(f"YouTube API error: {str(e)}")
         
         return videos
     
-    def _get_video_details(self, youtube, videos: List[Dict[str, Any]], 
-                          quota_manager: QuotaManager) -> List[Dict[str, Any]]:
+    def _get_video_details(self, youtube, videos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Get detailed video information including durations."""
         if not videos:
             return []
@@ -230,18 +212,13 @@ class ListRecentUploads(BaseTool):
         for i in range(0, len(videos), 50):
             batch = videos[i:i + 50]
             video_ids = [video['video_id'] for video in batch]
-            
-            if not quota_manager.is_service_available('youtube'):
-                break
-            
+
             try:
                 videos_response = youtube.videos().list(
                     part='snippet,contentDetails',
                     id=','.join(video_ids)
                 ).execute()
-                
-                quota_manager.record_request('youtube', 1)
-                
+
                 # Create lookup for video details
                 video_details = {item['id']: item for item in videos_response.get('items', [])}
                 
@@ -258,10 +235,9 @@ class ListRecentUploads(BaseTool):
                             'published_at': details['snippet']['publishedAt'],
                             'duration_sec': duration_sec
                         })
-                        
+
             except HttpError as e:
                 if e.resp.status == 429:  # Rate limit
-                    quota_manager.mark_quota_exhausted('youtube')
                     break
                 else:
                     raise RuntimeError(f"YouTube API error: {str(e)}")
@@ -352,7 +328,7 @@ class ListRecentUploads(BaseTool):
             
             # Try service account authentication first (if available)
             try:
-                service_account_path = env_loader.get_service_credentials()
+                service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
                 if service_account_path and os.path.exists(service_account_path):
                     credentials = service_account.Credentials.from_service_account_file(
                         service_account_path,
@@ -370,21 +346,29 @@ class ListRecentUploads(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test the tool with sample data
+    # NOTE: In production, the ScraperAgent orchestrates the workflow:
+    #   1. Agent calls ResolveChannelHandles to get channel_id from handle
+    #   2. Agent passes the channel_id to this tool
+    # See scraper_agent/instructions.md for the complete workflow
+
     from datetime import datetime, timedelta
-    
-    # Test with a 24-hour window
+
+    # Sample channel_id for testing (Alex Hormozi)
+    # In production, this comes from ResolveChannelHandles tool via the agent
+    channel_id = "UCUyDOdBWhC1MCxEjC46d-zw"
+
+    # Test with last 7 days
     now = datetime.now(timezone.utc)
-    yesterday = now - timedelta(days=1)
-    
+    since = now - timedelta(days=1)
+
     tool = ListRecentUploads(
-        channel_id="UCfV36TX5AejfAGIbtwTc7Zw",  # Example channel ID
-        since_utc=yesterday.isoformat(),
+        channel_id=channel_id,
+        since_utc=since.isoformat(),
         until_utc=now.isoformat(),
-        page_size=10,
         use_checkpoint=False  # Disable for testing
     )
-    
+
     try:
         result = tool.run()
         print("Success!")

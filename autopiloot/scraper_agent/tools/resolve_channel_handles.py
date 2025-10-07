@@ -17,8 +17,8 @@ from googleapiclient.errors import HttpError
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var
-from loader import load_app_config, get_config_value
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config, get_config_value
 
 
 class ResolveChannelHandles(BaseTool):
