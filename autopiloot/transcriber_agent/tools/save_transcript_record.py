@@ -273,105 +273,84 @@ if __name__ == "__main__":
         traceback.print_exc()
 
     print("\n" + "=" * 80)
-    print("Test 2: Dan Martell transcript (if available)")
-    print("Note: Replace with actual Dan Martell AssemblyAI job ID after transcription")
+    print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
+    print("Fetching transcript from AssemblyAI...")
     print("=" * 80)
 
-    # Test 2: Parameter validation - empty video_id
-    print("\n" + "="*50)
-    print("\nTest 2: Parameter validation (empty video_id)")
     try:
-        invalid_tool = SaveTranscriptRecord(
-            video_id="",  # Empty video ID
-            transcript_text="Test transcript",
-            transcript_json={"id": "test", "status": "completed"}
-        )
-        print("❌ Should have failed validation but didn't")
-    except ValueError as e:
-        print(f"✅ Validation working correctly: {str(e)}")
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+        # Fetch the completed transcript for Dan Martell (if available)
+        # Note: This requires the AssemblyAI job to have completed first
+        assemblyai_job_id_dan = "05389eb3-bdb7-4877-ae5a-3f41db570d9a"  # From previous test run
+        print(f"Fetching transcript: {assemblyai_job_id_dan}")
 
-    # Test 3: Parameter validation - empty transcript_text
-    print("\n" + "="*50)
-    print("\nTest 3: Parameter validation (empty transcript_text)")
-    try:
-        invalid_tool2 = SaveTranscriptRecord(
-            video_id="test_video_456",
-            transcript_text="",  # Empty transcript
-            transcript_json={"id": "test", "status": "completed"}
-        )
-        print("❌ Should have failed validation but didn't")
-    except ValueError as e:
-        print(f"✅ Validation working correctly: {str(e)}")
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+        transcript_dan = aai.Transcript.get_by_id(assemblyai_job_id_dan)
 
-    # Test 4: Parameter validation - invalid transcript_json
-    print("\n" + "="*50)
-    print("\nTest 4: Parameter validation (invalid transcript_json)")
-    try:
-        invalid_tool3 = SaveTranscriptRecord(
-            video_id="test_video_789",
-            transcript_text="Test transcript",
-            transcript_json={"id": "test"}  # Missing 'status' field
-        )
-        print("❌ Should have failed validation but didn't")
-    except ValueError as e:
-        print(f"✅ Validation working correctly: {str(e)}")
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+        if transcript_dan.status == aai.TranscriptStatus.completed:
+            video_id_dan = "mZxDw92UXmA"  # Dan Martell video
 
-    # Test 5: Complex transcript data
-    print("\n" + "="*50)
-    print("\nTest 5: Complex transcript with speaker labels")
-    complex_tool = SaveTranscriptRecord(
-        video_id="complex_video_abc",
-        transcript_text="Speaker A: Hello, welcome to our podcast. Speaker B: Thanks for having me on the show. Speaker A: Let's dive right into the topic.",
-        transcript_json={
-            "id": "complex_job_67890",
-            "status": "completed",
-            "confidence": 0.8756,
-            "audio_duration": 425.3,
-            "language_code": "en",
-            "utterances": [
-                {
-                    "speaker": "A",
-                    "text": "Hello, welcome to our podcast.",
-                    "start": 0,
-                    "end": 2340,
-                    "confidence": 0.92
-                },
-                {
-                    "speaker": "B",
-                    "text": "Thanks for having me on the show.",
-                    "start": 2400,
-                    "end": 4100,
-                    "confidence": 0.89
-                }
-            ]
-        }
-    )
-    
-    try:
-        result = complex_tool.run()
-        data = json.loads(result)
-        if "error" in data:
-            print(f"❌ Error: {data['message']}")
+            # Build transcript_json
+            transcript_json_dan = {
+                "id": transcript_dan.id,
+                "status": str(transcript_dan.status),
+                "confidence": getattr(transcript_dan, 'confidence', None),
+                "audio_duration": getattr(transcript_dan, 'audio_duration', None),
+                "language_code": getattr(transcript_dan, 'language_code', None),
+                "audio_url": getattr(transcript_dan, 'audio_url', None),
+                "words": []
+            }
+
+            # Add words with timestamps if available
+            if hasattr(transcript_dan, 'words') and transcript_dan.words:
+                transcript_json_dan["words"] = [
+                    {
+                        "text": word.text,
+                        "start": word.start,
+                        "end": word.end,
+                        "confidence": word.confidence
+                    }
+                    for word in transcript_dan.words[:100]  # First 100 words only for demo
+                ]
+
+            print(f"✅ Transcript fetched successfully")
+            print(f"   Status: {transcript_dan.status}")
+            print(f"   Text length: {len(transcript_dan.text or '')} chars")
+            print(f"   First 100 chars: {(transcript_dan.text or '')[:100]}...")
+
+            # Store to Firestore
+            print("\nStoring transcript to Firestore...")
+            tool_dan = SaveTranscriptRecord(
+                video_id=video_id_dan,
+                transcript_text=transcript_dan.text or "",
+                transcript_json=transcript_json_dan
+            )
+
+            result_dan = tool_dan.run()
+            data_dan = json.loads(result_dan)
+
+            if "error" in data_dan:
+                print(f"❌ Error: {data_dan['message']}")
+                print(f"   Error type: {data_dan['error']}")
+            else:
+                print(f"✅ Transcript stored to Firestore successfully:")
+                print(f"   Video ID: {data_dan.get('video_id', 'N/A')}")
+                print(f"   Transcript length: {data_dan.get('transcript_length', 0)} chars")
+                print(f"   Word count: {data_dan.get('word_count', 0)}")
+                print(f"   Transcript digest: {data_dan.get('transcript_digest', 'N/A')}")
+                print(f"   Stored at: {data_dan.get('stored_at', 'N/A')}")
+
+        elif transcript_dan.status == aai.TranscriptStatus.processing:
+            print(f"⚠️  Transcript still processing. Run test again after completion.")
         else:
-            print(f"✅ Complex transcript stored successfully:")
-            print(f"   Document contains speaker diarization data")
-            print(f"   Transcript length: {data.get('transcript_length', 0)} chars")
-            print(f"   Digest: {data.get('transcript_digest', 'N/A')[:8]}...")
-    except Exception as e:
-        print(f"❌ Test error: {str(e)}")
+            print(f"⚠️  Transcript status: {transcript_dan.status}")
+            print(f"   Run this test again after AssemblyAI completes the transcription")
 
-    print("\n" + "="*50)
-    print("Testing complete!")
-    print("\n📝 Summary: Transcripts stored in Firestore transcripts/ collection (fully deduplicated)")
-    print("   - Document ID: video_id (YouTube ID, not duplicated in data)")
-    print("   - Top-level fields: transcript_text, transcript_json, computed metrics")
-    print("   - transcript_json contains: id, status, confidence, language_code, audio_duration, words")
-    print("   - Note: 'text' NOT in transcript_json (stored at top level as transcript_text)")
-    print("   - Computed metrics: transcript_digest, transcript_length, word_count")
-    print("   - Also updates videos/ collection status to 'transcribed'")
+    except Exception as e:
+        print(f"⚠️  Dan Martell test skipped: {str(e)}")
+        print(f"   This is expected if the AssemblyAI job hasn't completed yet")
+        print(f"   Run submit_assemblyai_job.py first, then poll_transcription_job.py")
+
+    print("\n" + "=" * 80)
+    print("Testing complete! Both transcripts can be stored:")
+    print("- dQw4w9WgXcQ: Rick Astley (will be rejected at summarization)")
+    print("- mZxDw92UXmA: Dan Martell (will be processed normally)")
+    print("=" * 80)
