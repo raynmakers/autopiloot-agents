@@ -174,8 +174,12 @@ class SaveVideoMetadata(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool with realistic data
-    test_tool = SaveVideoMetadata(
+    # Test the tool with two videos: one entertainment (Rick Astley) and one business (Dan Martell)
+    print("="*80)
+    print("TEST 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
+    print("="*80)
+
+    test_tool_1 = SaveVideoMetadata(
         video_id="dQw4w9WgXcQ",
         url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         title="Rick Astley - Never Gonna Give You Up (Official Video)",
@@ -184,21 +188,59 @@ if __name__ == "__main__":
         source="scrape",
         channel_id="UCuAXFkgsw1L7xaCfnd5JJOw"
     )
-    
+
     try:
-        result = test_tool.run()
+        result = test_tool_1.run()
         print("SaveVideoMetadata test result:")
         print(result)
-        
+
         # Parse and validate result
         data = json.loads(result)
         if "error" in data:
-            print(f"Error: {data['error']}")
+            print(f"❌ Error: {data['error']}")
         else:
-            print(f"Success: Saved to {data['doc_ref']}")
-            print(f"Operation: {data['operation']}")
-            
+            print(f"✅ Success: Saved to {data['doc_ref']}")
+            print(f"   Operation: {data['operation']}")
+
     except Exception as e:
-        print(f"Test error: {str(e)}")
+        print(f"❌ Test error: {str(e)}")
         import traceback
         traceback.print_exc()
+
+    print("\n" + "="*80)
+    print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
+    print("="*80)
+
+    test_tool_2 = SaveVideoMetadata(
+        video_id="mZxDw92UXmA",
+        url="https://www.youtube.com/watch?v=mZxDw92UXmA",
+        title="Dan Martell - How to 10x Your Business",
+        published_at="2024-01-15T12:00:00Z",
+        duration_sec=1800,
+        source="scrape",
+        channel_id="UC5RV_s1Jh-jQI8HfygCLK9g"
+    )
+
+    try:
+        result = test_tool_2.run()
+        print("SaveVideoMetadata test result:")
+        print(result)
+
+        # Parse and validate result
+        data = json.loads(result)
+        if "error" in data:
+            print(f"❌ Error: {data['error']}")
+        else:
+            print(f"✅ Success: Saved to {data['doc_ref']}")
+            print(f"   Operation: {data['operation']}")
+
+    except Exception as e:
+        print(f"❌ Test error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+    print("\n" + "="*80)
+    print("Testing complete! Use these videos to test the full pipeline:")
+    print("- dQw4w9WgXcQ: Should be rejected by summarizer (non-business content)")
+    print("- mZxDw92UXmA: Should be processed normally (business content)")
+    print("="*80)
