@@ -16,10 +16,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, get_optional_env_var
 
-# Import related tools
-from .generate_short_summary import GenerateShortSummary
-from .store_short_in_zep import StoreShortInZep
-from .save_summary_record_enhanced import SaveSummaryRecordEnhanced
+# Import related tools - use try/except for both package and direct execution
+try:
+    from .generate_short_summary import GenerateShortSummary
+    from .store_short_in_zep import StoreShortInZep
+    from .save_summary_record_enhanced import SaveSummaryRecordEnhanced
+except ImportError:
+    # Fallback for direct execution
+    from generate_short_summary import GenerateShortSummary
+    from store_short_in_zep import StoreShortInZep
+    from save_summary_record_enhanced import SaveSummaryRecordEnhanced
 
 
 class ProcessSummaryWorkflow(BaseTool):
