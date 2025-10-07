@@ -18,10 +18,14 @@ load_dotenv()
 class GetVideoAudioUrl(BaseTool):
     """
     Extracts direct audio URL from YouTube videos for AssemblyAI transcription.
-    
+
     Prefers remote URL for direct streaming to AssemblyAI, with fallback to local
     download if remote URL extraction fails. Handles age restrictions, live streams,
     and various error conditions gracefully.
+
+    IMPORTANT: YouTube URLs expire within 6 hours. Always submit to AssemblyAI
+    immediately after extraction. In production workflow, this tool is called
+    immediately before SubmitAssemblyAIJob to ensure URL validity.
     """
     
     video_url: str = Field(
