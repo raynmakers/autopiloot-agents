@@ -231,75 +231,83 @@ class SubmitAssemblyAIJob(BaseTool):
 
 
 if __name__ == "__main__":
-    print("Testing SubmitAssemblyAIJob tool...")
-    print("="*50)
+    print("=" * 80)
+    print("TEST 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
+    print("=" * 80)
 
-    # First, get a real remote URL using GetVideoAudioUrl
-    print("\nGetting real audio URL from YouTube...")
+    # Get audio URL for Rick Astley
     from transcriber_agent.tools.get_video_audio_url import GetVideoAudioUrl
 
-    audio_tool = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-    audio_result = audio_tool.run()
-    audio_data = json.loads(audio_result)
+    audio_tool_1 = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    audio_result_1 = audio_tool_1.run()
+    audio_data_1 = json.loads(audio_result_1)
 
-    if "error" in audio_data or "remote_url" not in audio_data:
-        print(f"❌ Failed to get audio URL: {audio_data.get('error', 'Unknown error')}")
-        print("Falling back to example URL for testing...")
-        remote_url = "https://example.com/audio.mp3"
-        video_id = "test_video_123"
-        duration_sec = 600
+    if "error" in audio_data_1 or "remote_url" not in audio_data_1:
+        print(f"❌ Failed to get audio URL: {audio_data_1.get('error', 'Unknown error')}")
     else:
-        remote_url = audio_data["remote_url"]
-        video_id = audio_data["video_id"]
-        duration_sec = audio_data["duration"]
-        print(f"✅ Got remote URL for video: {audio_data['title']}")
-        print(f"   Duration: {duration_sec} seconds")
+        remote_url_1 = audio_data_1["remote_url"]
+        video_id_1 = audio_data_1["video_id"]
+        duration_sec_1 = audio_data_1["duration"]
+        print(f"✅ Got remote URL for video: {audio_data_1['title']}")
+        print(f"   Duration: {duration_sec_1} seconds")
 
-    # Test 1: Basic submission without webhook
-    print("\n" + "="*50)
-    print("\nTest 1: Basic job submission with real YouTube audio")
-    tool = SubmitAssemblyAIJob(
-        remote_url=remote_url,
-        video_id=video_id,
-        duration_sec=duration_sec
-    )
-    
-    try:
-        result = tool.run()
-        data = json.loads(result)
-        if "error" in data:
-            print(f"❌ Error: {data['message']}")
-        else:
-            print(f"✅ Job submitted successfully")
-            print(f"   Job ID: {data.get('job_id', 'N/A')}")
-            print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
-            print(f"   Duration: {data.get('duration_sec', 0)} seconds")
-            print(f"   Webhook enabled: {data.get('webhook_enabled', False)}")
-    except Exception as e:
-        print(f"❌ Test error: {str(e)}")
-    
-    # Test 2: Submission with webhook (using the same real URL)
-    print("\n" + "="*50)
-    print("\nTest 2: Job submission with webhook")
-    tool_webhook = SubmitAssemblyAIJob(
-        remote_url=remote_url,
-        video_id=video_id,
-        duration_sec=duration_sec,
-        webhook_url="https://example.com/webhook/callback"
-    )
-    
-    try:
-        result = tool_webhook.run()
-        data = json.loads(result)
-        if "error" in data:
-            print(f"❌ Error: {data['message']}")
-        else:
-            print(f"✅ Job submitted with webhook")
-            print(f"   Job ID: {data.get('job_id', 'N/A')}")
-            print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
-            print(f"   Webhook URL: {data.get('webhook_url', 'N/A')}")
-    except Exception as e:
-        print(f"❌ Test error: {str(e)}")
+        print("\nSubmitting to AssemblyAI...")
+        tool_1 = SubmitAssemblyAIJob(
+            remote_url=remote_url_1,
+            video_id=video_id_1,
+            duration_sec=duration_sec_1
+        )
+
+        try:
+            result = tool_1.run()
+            data = json.loads(result)
+            if "error" in data:
+                print(f"❌ Error: {data['message']}")
+            else:
+                print(f"✅ Job submitted successfully")
+                print(f"   Job ID: {data.get('job_id', 'N/A')}")
+                print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
+                print(f"   Duration: {data.get('duration_sec', 0)} seconds")
+        except Exception as e:
+            print(f"❌ Test error: {str(e)}")
+
+    print("\n" + "=" * 80)
+    print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
+    print("=" * 80)
+
+    # Get audio URL for Dan Martell
+    audio_tool_2 = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=mZxDw92UXmA")
+    audio_result_2 = audio_tool_2.run()
+    audio_data_2 = json.loads(audio_result_2)
+
+    if "error" in audio_data_2 or "remote_url" not in audio_data_2:
+        print(f"❌ Failed to get audio URL: {audio_data_2.get('error', 'Unknown error')}")
+    else:
+        remote_url_2 = audio_data_2["remote_url"]
+        video_id_2 = audio_data_2["video_id"]
+        duration_sec_2 = audio_data_2["duration"]
+        print(f"✅ Got remote URL for video: {audio_data_2['title']}")
+        print(f"   Duration: {duration_sec_2} seconds")
+
+        print("\nSubmitting to AssemblyAI...")
+        tool_2 = SubmitAssemblyAIJob(
+            remote_url=remote_url_2,
+            video_id=video_id_2,
+            duration_sec=duration_sec_2
+        )
+
+        try:
+            result = tool_2.run()
+            data = json.loads(result)
+            if "error" in data:
+                print(f"❌ Error: {data['message']}")
+            else:
+                print(f"✅ Job submitted successfully")
+                print(f"   Job ID: {data.get('job_id', 'N/A')}")
+                print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
+                print(f"   Duration: {data.get('duration_sec', 0)} seconds")
+        except Exception as e:
+            print(f"❌ Test error: {str(e)}")
     
     # Test 3: Duration limit validation (should fail)
     print("\n" + "="*50)

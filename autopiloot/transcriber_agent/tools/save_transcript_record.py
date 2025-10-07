@@ -191,8 +191,8 @@ if __name__ == "__main__":
     print("Testing SaveTranscriptRecord tool...")
     print("="*50)
 
-    # Test 1: Store real AssemblyAI transcript
-    print("\nTest 1: Store real AssemblyAI transcript")
+    # Test 1: Store Rick Astley transcript
+    print("\nTest 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
     print("Fetching transcript from AssemblyAI...")
 
     try:
@@ -205,18 +205,16 @@ if __name__ == "__main__":
         else:
             aai.settings.api_key = api_key
 
-            # Fetch the completed transcript
+            # Fetch the completed transcript for Rick Astley
             assemblyai_job_id = "26df5f83-6e47-4419-8e98-33ef380f4a11"
             print(f"Fetching transcript: {assemblyai_job_id}")
 
             transcript = aai.Transcript.get_by_id(assemblyai_job_id)
 
             if transcript.status == aai.TranscriptStatus.completed:
-                # Extract video_id from audio_url or use job_id
-                # For this test, we'll extract from the audio URL if available
-                video_id = "dQw4w9WgXcQ"  # Rick Astley video from previous tests
+                video_id = "dQw4w9WgXcQ"  # Rick Astley video
 
-                # Build transcript_json (without 'text' - stored at parent level as transcript_text)
+                # Build transcript_json
                 transcript_json = {
                     "id": transcript.id,
                     "status": str(transcript.status),
@@ -265,11 +263,6 @@ if __name__ == "__main__":
                     print(f"   Word count: {data.get('word_count', 0)}")
                     print(f"   Transcript digest: {data.get('transcript_digest', 'N/A')}")
                     print(f"   Stored at: {data.get('stored_at', 'N/A')}")
-                    print(f"\n   📝 Full metadata stored in transcript_json field:")
-                    print(f"      - AssemblyAI job ID: {transcript_json.get('id', 'N/A')}")
-                    print(f"      - Language: {transcript_json.get('language_code', 'N/A')}")
-                    print(f"      - Confidence: {transcript_json.get('confidence', 'N/A')}")
-                    print(f"      - Audio duration: {transcript_json.get('audio_duration', 'N/A')}s")
 
             else:
                 print(f"❌ Transcript not completed yet. Status: {transcript.status}")
@@ -278,6 +271,11 @@ if __name__ == "__main__":
         print(f"❌ Test error: {str(e)}")
         import traceback
         traceback.print_exc()
+
+    print("\n" + "=" * 80)
+    print("Test 2: Dan Martell transcript (if available)")
+    print("Note: Replace with actual Dan Martell AssemblyAI job ID after transcription")
+    print("=" * 80)
 
     # Test 2: Parameter validation - empty video_id
     print("\n" + "="*50)

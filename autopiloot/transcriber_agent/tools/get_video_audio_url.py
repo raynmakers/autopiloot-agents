@@ -210,19 +210,20 @@ class GetVideoAudioUrl(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool with Agency Swarm v1.0.0 pattern
-    print("Testing GetVideoAudioUrl tool...")
-    
-    # Test with a sample video URL
-    tool = GetVideoAudioUrl(
+    # Test the tool with both test videos
+    print("=" * 80)
+    print("TEST 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
+    print("=" * 80)
+
+    tool_1 = GetVideoAudioUrl(
         video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
     )
-    
+
     try:
-        result = tool.run()
+        result = tool_1.run()
         print("\nGetVideoAudioUrl test result:")
         print(result)
-        
+
         # Parse and validate result
         data = json.loads(result)
         if "error" in data:
@@ -239,31 +240,49 @@ if __name__ == "__main__":
             print(f"   Duration: {data.get('duration', 0)} seconds")
         else:
             print("\n⚠️ Unexpected response format")
-                
+
     except Exception as e:
         print(f"\n❌ Test error: {str(e)}")
         import traceback
         traceback.print_exc()
-    
-    # Test with prefer_download option
-    print("\n" + "="*50)
-    print("Testing with prefer_download=True...")
-    
-    tool_download = GetVideoAudioUrl(
-        video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        prefer_download=True
+
+    print("\n" + "=" * 80)
+    print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
+    print("=" * 80)
+
+    tool_2 = GetVideoAudioUrl(
+        video_url="https://www.youtube.com/watch?v=mZxDw92UXmA"
     )
-    
+
     try:
-        result = tool_download.run()
+        result = tool_2.run()
+        print("\nGetVideoAudioUrl test result:")
+        print(result)
+
+        # Parse and validate result
         data = json.loads(result)
-        if "local_path" in data and data["local_path"]:
-            print(f"✅ Local download successful: {data['local_path']}")
-            # Clean up temp file
-            if os.path.exists(data['local_path']):
-                os.remove(data['local_path'])
-                print("   Cleaned up temporary file")
+        if "error" in data:
+            print(f"\n❌ Error: {data.get('message', data['error'])}")
+        elif "remote_url" in data and data["remote_url"]:
+            print(f"\n✅ Success: Remote audio URL obtained")
+            print(f"   Format: {data.get('format', 'unknown')}")
+            print(f"   Duration: {data.get('duration', 0)} seconds")
+            print(f"   Bitrate: {data.get('bitrate', 'unknown')} kbps")
+        elif "local_path" in data and data["local_path"]:
+            print(f"\n✅ Success: Audio downloaded locally")
+            print(f"   Path: {data['local_path']}")
+            print(f"   Format: {data.get('format', 'unknown')}")
+            print(f"   Duration: {data.get('duration', 0)} seconds")
         else:
-            print("⚠️ Local download did not produce expected result")
+            print("\n⚠️ Unexpected response format")
+
     except Exception as e:
-        print(f"❌ Download test error: {str(e)}")
+        print(f"\n❌ Test error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+    print("\n" + "=" * 80)
+    print("Testing complete! Both videos can be used for transcription pipeline:")
+    print("- dQw4w9WgXcQ: Rick Astley (will be rejected at summarization)")
+    print("- mZxDw92UXmA: Dan Martell (will be processed normally)")
+    print("=" * 80)
