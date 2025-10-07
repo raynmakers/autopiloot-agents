@@ -47,7 +47,7 @@ communication_flows:
   - ["drive_agent", "observability_agent"]
 
 # ID of the Google Sheet used for backfill links
-sheet: "1AbC2defGhIJkLmNoPqRSTuVwxyz0123456789"
+sheet: "1ikj9GU4_LG-q4i0ACsgrJ8BECX_YW-ujfr4kKWlJt8A"
 
 scraper:
   handles:
@@ -104,11 +104,12 @@ llm:
       max_output_tokens: 25000
   tasks:
     summarizer_generate_short:
-      model: "gpt-4.1"
-      temperature: 0.2
-      max_output_tokens: 1500
-      prompt_id: "coach_v1"
-      prompt_version: "v1"
+      model: "o3-mini"  # GPT-5 reasoning model
+      temperature: 1.0  # High reasoning mode
+      max_output_tokens: 50000  # No practical limit
+      reasoning_effort: "high"  # Maximum reasoning
+      prompt_id: "comprehensive_coach_v2"
+      prompt_version: "v2"
 
 notifications:
   slack:
