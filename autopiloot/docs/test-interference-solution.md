@@ -85,7 +85,7 @@ coverage run --source=transcriber_agent -m unittest \
   tests.test_get_video_audio_url \
   tests.test_poll_transcription_job \
   tests.test_save_transcript_record \
-  tests.test_store_transcript_to_drive \
+  tests.test_save_transcript_record \
   tests.test_submit_assemblyai_job
 coverage report --include="transcriber_agent/*"
 ```
@@ -155,7 +155,7 @@ coverage run --source=transcriber_agent -m unittest \
   tests.test_get_video_audio_url \
   tests.test_poll_transcription_job \
   tests.test_save_transcript_record \
-  tests.test_store_transcript_to_drive \
+  tests.test_save_transcript_record \
   tests.test_submit_assemblyai_job
 coverage report --include="transcriber_agent/*"
 coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent

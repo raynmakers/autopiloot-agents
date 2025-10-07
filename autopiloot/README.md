@@ -1,6 +1,6 @@
 # Autopiloot Agency
 
-A production-ready AI agency built with Agency Swarm v1.0.0 for comprehensive content processing, knowledge management, and strategic analysis across YouTube, LinkedIn, and Google Drive.
+A production-ready AI agency built with Agency Swarm v1.0.2 for comprehensive content processing, knowledge management, and strategic analysis across YouTube, LinkedIn, and Google Drive.
 
 ## Overview
 
@@ -67,7 +67,7 @@ End-to-end automation of multi-platform content processing and strategic analysi
 - Dual-format storage (JSON + TXT) to Google Drive
 - Cost tracking and budget monitoring integration
 - Firestore transcript metadata management
-- **5 tools**: get_video_audio_url, poll_transcription_job, save_transcript_record, store_transcript_to_drive, submit_assemblyai_job
+- **5 tools**: get_video_audio_url, poll_transcription_job, save_transcript_record, save_transcript_record, submit_assemblyai_job
 
 #### SummarizerAgent
 
@@ -226,7 +226,7 @@ autopiloot/
 │       ├── get_video_audio_url.py
 │       ├── submit_assemblyai_job.py
 │       ├── poll_transcription_job.py
-│       ├── store_transcript_to_drive.py
+│       ├── save_transcript_record.py
 │       └── save_transcript_record.py
 ├── summarizer_agent/
 │   ├── summarizer_agent.py      # GPT-4 content summarization
@@ -530,17 +530,52 @@ reliability:
 
 ## 🧪 Testing Framework
 
-Comprehensive test suite with **72 test files** across all components:
+Comprehensive test suite with **140+ test files** achieving **85% overall coverage**:
+
+### Test Coverage by Agent
+
+**7 of 8 agents meet 80%+ threshold** ✅
+
+| Agent | Coverage | Status | Tools | Tests | Report |
+|-------|----------|--------|-------|-------|--------|
+| Orchestrator | 99% | ✅ Excellent | 10/10 at 100% | 169 tests | `coverage/orchestrator_agent/` |
+| Scraper | 90% | ✅ Excellent | 6 perfect | 117 tests | `coverage/scraper_agent/` |
+| LinkedIn | 87% | ✅ Good | 3 perfect | 302 tests | `coverage/linkedin_agent/` |
+| Strategy | 86% | ✅ Good | 4 perfect | 288 tests | `coverage/strategy_agent/` |
+| Summarizer | 84% | ✅ Good | 7 perfect | 42 tests | `coverage/summarizer_agent/` |
+| Drive | 82% | ✅ Good | 4 perfect | 343 tests | `coverage/drive_agent/` |
+| Transcriber | 80% | ✅ Good | 3 perfect | 67 tests | `coverage/transcriber_agent/` |
+| Observability | 79% | ⚠️ Needs work | 5 perfect | 543 tests | `coverage/observability_agent/` |
+
+### Running Tests
 
 ```bash
-# Run all tests
-python -m unittest discover tests -v
+# Run all tests with coverage
+cd autopiloot
+export PYTHONPATH=.
+coverage erase
+coverage run --source=. -m unittest discover tests -v
+coverage report
+coverage html  # Generate HTML report in htmlcov/
 
-# Agent-specific test suites
-python -m unittest tests.drive_tools.test_suite_runner -v     # Drive Agent suite (8 test files)
-python -m unittest tests.linkedin_tools.test_suite_runner -v  # LinkedIn Agent suite
-python -m unittest tests.observability_tools.test_suite_runner -v # Observability suite
-python -m unittest tests.orchestrator_tools.test_suite_runner -v   # Orchestrator suite
+# Test individual agents (with proper isolation)
+coverage erase
+coverage run --source=orchestrator_agent -m unittest discover tests/orchestrator_tools -p "test_*.py" -v
+coverage html --include="orchestrator_agent/*" -d coverage/orchestrator_agent
+
+# Agent-specific test commands
+coverage run --source=drive_agent -m unittest discover tests/drive_tools -p "test_*.py" -v
+coverage run --source=linkedin_agent -m unittest discover tests/linkedin_tools -p "test_*.py" -v
+coverage run --source=strategy_agent -m unittest discover tests/strategy_tools -p "test_*.py" -v
+coverage run --source=summarizer_agent -m unittest discover tests/summarizer_tools -p "test_*.py" -v
+coverage run --source=observability_agent -m unittest discover tests/observability_tools -p "test_*.py" -v
+coverage run --source=scraper_agent -m unittest tests.test_extract_youtube_from_page_comprehensive tests.test_resolve_channel_handles_100_coverage tests.test_list_recent_uploads_100_coverage tests.test_save_video_metadata_100_coverage tests.test_read_sheet_links_working tests.test_remove_sheet_row_100_coverage tests.test_enqueue_transcription_100_coverage -v
+coverage run --source=transcriber_agent -m unittest tests.test_get_video_audio_url_comprehensive tests.test_poll_transcription_job_fixed tests.test_save_transcript_record_100_coverage tests.test_save_transcript_record_comprehensive tests.test_submit_assemblyai_job_fixed -v
+
+# View HTML reports
+open coverage/orchestrator_agent/index.html
+open coverage/drive_agent/index.html
+open coverage/linkedin_agent/index.html
 
 # Component-specific tests
 python -m unittest tests.test_audit_logger -v     # Audit logging tests
@@ -555,19 +590,26 @@ python strategy_agent/tools/synthesize_strategy_playbook.py
 python observability_agent/tools/send_error_alert.py
 ```
 
-**Test Coverage:**
+### Test Coverage Highlights
 
-- ✅ All 86 production tools across 8 agents with comprehensive test coverage
-- ✅ Drive Agent: 8 test files covering all 7 tools with mock implementations
-- ✅ LinkedIn Agent: Complete test suite with RapidAPI mocking
-- ✅ Strategy Agent: NLP analysis and playbook synthesis testing
-- ✅ Configuration loading and validation
-- ✅ Environment variable management
-- ✅ Error handling and retry logic
-- ✅ Audit logging and compliance
-- ✅ API integration patterns with comprehensive mocking
-- ✅ Business rule enforcement
-- ✅ Multi-format content processing (PDF, DOCX, HTML, CSV)
+- ✅ **Orchestrator Agent**: 99% coverage - ALL 10 tools at 100%
+- ✅ **Drive Agent**: 82% coverage - 4 tools at 100%
+- ✅ **LinkedIn Agent**: 87% coverage - Comprehensive RapidAPI mocking
+- ✅ **Strategy Agent**: 86% coverage - NLP analysis and playbook synthesis
+- ✅ **Summarizer Agent**: 84% coverage - GPT-4 integration testing
+- ✅ **Scraper Agent**: 90% coverage - YouTube API integration
+- ✅ **Transcriber Agent**: 80% coverage - AssemblyAI workflow testing
+- ⚠️ **Observability Agent**: 79% coverage - Needs minor improvement
+
+**Test Infrastructure:**
+- Configuration loading and validation
+- Environment variable management
+- Error handling and retry logic
+- Audit logging and compliance
+- API integration with comprehensive mocking
+- Business rule enforcement
+- Multi-format content processing (PDF, DOCX, HTML, CSV)
+- Test isolation to prevent interference (agent-specific directories)
 
 ## 🚀 Deployment
 

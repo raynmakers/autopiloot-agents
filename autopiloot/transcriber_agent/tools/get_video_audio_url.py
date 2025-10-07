@@ -85,7 +85,8 @@ class GetVideoAudioUrl(BaseTool):
                 'no_warnings': True,
                 'extract_flat': False,
                 'skip_download': True,
-                'format': 'bestaudio/best',
+                # More flexible format selection - try multiple options
+                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -109,10 +110,10 @@ class GetVideoAudioUrl(BaseTool):
                 # Extract best audio format URL
                 formats = info.get('formats', [])
                 audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('acodec') is not None]
-                
+
                 if audio_formats:
-                    # Sort by bitrate to get best quality
-                    audio_formats.sort(key=lambda x: x.get('abr', 0), reverse=True)
+                    # Sort by bitrate to get best quality (handle None values)
+                    audio_formats.sort(key=lambda x: x.get('abr') or 0, reverse=True)
                     best_audio = audio_formats[0]
                     audio_url = best_audio.get('url')
                     
@@ -135,13 +136,15 @@ class GetVideoAudioUrl(BaseTool):
                 
         except yt_dlp.utils.DownloadError as e:
             error_str = str(e)
+            print(f"Remote URL extraction failed: {error_str}")
             if 'Private video' in error_str:
                 return {"error": "private_video", "message": "Video is private and cannot be accessed"}
             elif 'Video unavailable' in error_str:
                 return {"error": "unavailable", "message": "Video is unavailable"}
             else:
                 return {"error": "download_error", "message": f"Failed to extract: {error_str}"}
-        except Exception:
+        except Exception as e:
+            print(f"Remote URL extraction exception: {str(e)}")
             return None  # Silent fail, will try local download
     
     def _download_audio_locally(self) -> Optional[dict]:
@@ -156,48 +159,50 @@ class GetVideoAudioUrl(BaseTool):
             temp_dir = tempfile.mkdtemp(prefix="autopiloot_audio_")
             output_template = os.path.join(temp_dir, '%(id)s.%(ext)s')
             
+            # Try to use FFmpeg if available, otherwise download original format
             ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'format': 'bestaudio/best',
+                'quiet': False,  # Enable output for debugging
+                'no_warnings': False,
+                # More flexible format selection for download
+                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
                 'outtmpl': output_template,
-                'postprocessors': [{
+            }
+
+            # Only add FFmpeg post-processor if FFmpeg is available
+            try:
+                import subprocess
+                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+                ydl_opts['postprocessors'] = [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
-                }],
-            }
+                }]
+                print("FFmpeg detected - will convert to MP3")
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                print("FFmpeg not found - will keep original format")
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(self.video_url, download=True)
-                
+
                 # Find the downloaded file
                 video_id = info.get('id')
-                expected_path = os.path.join(temp_dir, f"{video_id}.mp3")
-                
-                if os.path.exists(expected_path):
-                    return {
-                        "local_path": expected_path,
-                        "format": "mp3",
-                        "duration": info.get('duration', 0),
-                        "video_id": video_id,
-                        "title": info.get('title', 'Unknown'),
-                        "note": "Audio downloaded locally for processing"
-                    }
-                
-                # Check for other possible extensions
-                for ext in ['m4a', 'webm', 'ogg', 'wav']:
-                    alt_path = os.path.join(temp_dir, f"{video_id}.{ext}")
-                    if os.path.exists(alt_path):
+
+                # Check for all possible extensions (including original formats)
+                for ext in ['mp3', 'm4a', 'webm', 'ogg', 'wav', 'opus']:
+                    file_path = os.path.join(temp_dir, f"{video_id}.{ext}")
+                    if os.path.exists(file_path):
+                        print(f"Found downloaded file: {file_path}")
                         return {
-                            "local_path": alt_path,
+                            "local_path": file_path,
                             "format": ext,
                             "duration": info.get('duration', 0),
                             "video_id": video_id,
                             "title": info.get('title', 'Unknown'),
                             "note": "Audio downloaded locally for processing"
                         }
-                
+
+                # List what files were actually created
+                print(f"Files in temp_dir: {os.listdir(temp_dir)}")
                 return None  # Download completed but file not found
                 
         except Exception:

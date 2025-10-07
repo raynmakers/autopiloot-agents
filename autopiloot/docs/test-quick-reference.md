@@ -26,7 +26,7 @@ coverage erase && coverage run --source=observability_agent -m unittest discover
 coverage erase && coverage run --source=strategy_agent -m unittest discover tests/strategy_tools -p "test_*.py" && coverage report --include="strategy_agent/*" && coverage html --include="strategy_agent/*" -d coverage/strategy_agent
 
 # Transcriber Agent (legacy - use specific modules)
-coverage erase && coverage run --source=transcriber_agent -m unittest tests.test_get_video_audio_url tests.test_poll_transcription_job tests.test_save_transcript_record tests.test_store_transcript_to_drive tests.test_submit_assemblyai_job && coverage report --include="transcriber_agent/*" && coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent
+coverage erase && coverage run --source=transcriber_agent -m unittest tests.test_get_video_audio_url tests.test_poll_transcription_job tests.test_save_transcript_record tests.test_save_transcript_record tests.test_submit_assemblyai_job && coverage report --include="transcriber_agent/*" && coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent
 
 # Scraper Agent (legacy - use specific modules)
 coverage erase && coverage run --source=scraper_agent -m unittest tests.test_extract_youtube_from_page tests.test_resolve_channel_handles tests.test_list_recent_uploads tests.test_save_video_metadata tests.test_read_sheet_links tests.test_remove_sheet_row tests.test_enqueue_transcription && coverage report --include="scraper_agent/*" && coverage html --include="scraper_agent/*" -d coverage/scraper_agent

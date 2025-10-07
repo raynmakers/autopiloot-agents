@@ -94,16 +94,16 @@ python -c "from config.loader import load_app_config; print(load_app_config())"
 
 ```bash
 # Test YouTube channel resolution
-python scraper_agent/tools/ResolveChannelHandles.py
+python scraper_agent/tools/resolve_channel_handles.py
 
 # Test video discovery
-python scraper_agent/tools/ListRecentUploads.py
+python scraper_agent/tools/list_recent_uploads.py
 
 # Test Google Sheets reading
-python scraper_agent/tools/ReadSheetLinks.py
+python scraper_agent/tools/read_sheet_links.py
 
 # Test video metadata storage
-python scraper_agent/tools/SaveVideoMetadata.py
+python scraper_agent/tools/save_video_metadata.py
 ```
 
 ### 3. **TranscriberAgent Tools** (Audio Processing)
@@ -119,20 +119,20 @@ python transcriber_agent/tools/submit_assemblyai_job.py
 python transcriber_agent/tools/poll_transcription_job.py
 
 # Test Google Drive storage
-python transcriber_agent/tools/store_transcript_to_drive.py
+python transcriber_agent/tools/save_transcript_record.py
 ```
 
 ### 4. **SummarizerAgent Tools** (Content Analysis)
 
 ```bash
 # Test GPT-4.1 summary generation
-python summarizer_agent/tools/GenerateShortSummary.py
+python summarizer_agent/tools/generate_short_summary.py
 
 # Test Zep GraphRAG storage
-python summarizer_agent/tools/StoreShortInZep.py
+python summarizer_agent/tools/store_short_in_zep.py
 
 # Test complete summary workflow
-python summarizer_agent/tools/ProcessSummaryWorkflow.py
+python summarizer_agent/tools/process_summary_workflow.py
 ```
 
 ### 5. **ObservabilityAgent Tools** (Monitoring)
@@ -183,7 +183,7 @@ python -m unittest tests.test_config tests.test_env_loader tests.test_audit_logg
 python -m unittest tests.test_generate_short_summary tests.test_format_slack_blocks -v
 
 # Integration tests
-python -m unittest tests.test_store_transcript_to_drive tests.test_send_slack_message -v
+python -m unittest tests.test_save_transcript_record tests.test_send_slack_message -v
 ```
 
 ## 📊 Production Deployment
@@ -260,7 +260,7 @@ scraper:
 
 ```bash
 # Process specific video ID manually
-python scraper_agent/tools/SaveVideoMetadata.py
+python scraper_agent/tools/save_video_metadata.py
 # Edit the test block with your video ID
 ```
 

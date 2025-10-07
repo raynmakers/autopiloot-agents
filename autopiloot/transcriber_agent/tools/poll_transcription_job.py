@@ -96,13 +96,12 @@ class PollTranscriptionJob(BaseTool):
         aai.settings.api_key = api_key
         
         try:
-            transcriber = aai.Transcriber()
             start_time = time.time()
             attempt = 0
-            
+
             while attempt < self.max_attempts:
                 attempt += 1
-                
+
                 # Check for timeout
                 elapsed_time = time.time() - start_time
                 if elapsed_time > self.timeout_sec:
@@ -113,9 +112,9 @@ class PollTranscriptionJob(BaseTool):
                         "polling_attempts": attempt,
                         "elapsed_sec": int(elapsed_time)
                     })
-                
-                # Get current job status
-                transcript = transcriber.get_transcript(self.job_id)
+
+                # Get current job status using Transcript.get_by_id()
+                transcript = aai.Transcript.get_by_id(self.job_id)
                 
                 # Handle different transcript statuses
                 if transcript.status == aai.TranscriptStatus.completed:
@@ -225,20 +224,6 @@ class PollTranscriptionJob(BaseTool):
                 "last_status": str(transcript.status) if 'transcript' in locals() else "unknown"
             })
             
-        except aai.exceptions.AuthenticationError as e:
-            return json.dumps({
-                "error": "authentication_error",
-                "message": "Invalid AssemblyAI API key",
-                "details": str(e),
-                "job_id": self.job_id
-            })
-        except aai.exceptions.TranscriptError as e:
-            return json.dumps({
-                "error": "transcript_error",
-                "message": "Failed to retrieve transcript",
-                "details": str(e),
-                "job_id": self.job_id
-            })
         except Exception as e:
             return json.dumps({
                 "error": "unexpected_error",
@@ -250,24 +235,61 @@ class PollTranscriptionJob(BaseTool):
 if __name__ == "__main__":
     print("Testing PollTranscriptionJob tool...")
     print("="*50)
-    
-    # Test 1: Basic polling (will likely fail without real job ID)
-    print("\nTest 1: Basic polling with dummy job ID")
-    tool = PollTranscriptionJob(
-        job_id="test_job_123",
-        max_attempts=2,
-        base_delay_sec=10,
-        timeout_sec=300
-    )
-    
+
+    # Test 1: Submit a real job first, then poll it
+    print("\nTest 1: Submit real job and poll for completion")
+
+    # First, submit a transcription job
     try:
-        result = tool.run()
-        data = json.loads(result)
-        if "error" in data:
-            print(f"❌ Expected error (dummy job): {data['message']}")
-            print(f"   Error type: {data['error']}")
+        from transcriber_agent.tools.get_video_audio_url import GetVideoAudioUrl
+        from transcriber_agent.tools.submit_assemblyai_job import SubmitAssemblyAIJob
+
+        # Get real audio URL
+        audio_tool = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        audio_result = audio_tool.run()
+        audio_data = json.loads(audio_result)
+
+        if "error" not in audio_data and "remote_url" in audio_data:
+            # Submit transcription job
+            submit_tool = SubmitAssemblyAIJob(
+                remote_url=audio_data["remote_url"],
+                video_id=audio_data["video_id"],
+                duration_sec=audio_data["duration"]
+            )
+            submit_result = submit_tool.run()
+            submit_data = json.loads(submit_result)
+
+            if "error" not in submit_data and "job_id" in submit_data:
+                job_id = submit_data["job_id"]
+                print(f"✅ Job submitted: {job_id}")
+                print(f"   Polling for completion...")
+
+                # Poll the job
+                poll_tool = PollTranscriptionJob(
+                    job_id=job_id,
+                    max_attempts=10,
+                    base_delay_sec=30,
+                    timeout_sec=1800  # 30 minutes
+                )
+
+                poll_result = poll_tool.run()
+                poll_data = json.loads(poll_result)
+
+                if "error" in poll_data:
+                    print(f"⚠️ Polling ended with: {poll_data['message']}")
+                    print(f"   Status: {poll_data.get('last_status', 'unknown')}")
+                    print(f"   Attempts: {poll_data.get('polling_attempts', 0)}")
+                elif poll_data.get("status") == "completed":
+                    print(f"✅ Transcription completed!")
+                    print(f"   Transcript length: {len(poll_data.get('transcript_text', ''))} chars")
+                    print(f"   Polling attempts: {poll_data.get('polling_attempts', 0)}")
+                    print(f"   Elapsed time: {poll_data.get('elapsed_sec', 0)} seconds")
+                    print(f"   First 200 chars: {poll_data.get('transcript_text', '')[:200]}...")
+            else:
+                print(f"❌ Failed to submit job: {submit_data.get('message', 'Unknown error')}")
         else:
-            print(f"✅ Unexpected success: {data.get('status', 'unknown')}")
+            print(f"❌ Failed to get audio URL: {audio_data.get('message', 'Unknown error')}")
+
     except Exception as e:
         print(f"❌ Test error: {str(e)}")
     

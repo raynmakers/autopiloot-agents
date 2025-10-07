@@ -4,7 +4,7 @@ This document provides detailed information about each agent in the Autopiloot A
 
 ## Agent Architecture
 
-The Autopiloot Agency consists of 5 specialized agents following the Agency Swarm v1.0.0 framework:
+The Autopiloot Agency consists of 5 specialized agents following the Agency Swarm v1.0.2 framework:
 
 - **OrchestratorAgent** (CEO) - End-to-end pipeline orchestration and policy enforcement
 - **ScraperAgent** - Content discovery and metadata management
@@ -43,16 +43,16 @@ ObservabilityAgent (monitoring all)
 
 ### Tools Overview
 
-| Tool                      | Purpose                                           | Integration                   |
-| ------------------------- | ------------------------------------------------- | ----------------------------- |
-| `plan_daily_run.py`       | Plan daily scraping runs with resource allocation | Configuration + Firestore     |
-| `dispatch_scraper.py`     | Coordinate ScraperAgent execution                 | Agent Communication           |
-| `dispatch_transcriber.py` | Coordinate TranscriberAgent execution             | Agent Communication           |
-| `dispatch_summarizer.py`  | Coordinate SummarizerAgent execution              | Agent Communication           |
-| `emit_run_events.py`      | Emit operational events for monitoring            | Firestore Event Publishing    |
-| `enforce_policies.py`     | Enforce reliability and business policies         | Configuration + Validation    |
-| `handle_dlq.py`           | Process dead letter queue failures               | DLQ Management + Retry Logic  |
-| `query_dlq.py`            | Query and analyze DLQ trends                     | Firestore Analytics           |
+| Tool                      | Purpose                                           | Integration                  |
+| ------------------------- | ------------------------------------------------- | ---------------------------- |
+| `plan_daily_run.py`       | Plan daily scraping runs with resource allocation | Configuration + Firestore    |
+| `dispatch_scraper.py`     | Coordinate ScraperAgent execution                 | Agent Communication          |
+| `dispatch_transcriber.py` | Coordinate TranscriberAgent execution             | Agent Communication          |
+| `dispatch_summarizer.py`  | Coordinate SummarizerAgent execution              | Agent Communication          |
+| `emit_run_events.py`      | Emit operational events for monitoring            | Firestore Event Publishing   |
+| `enforce_policies.py`     | Enforce reliability and business policies         | Configuration + Validation   |
+| `handle_dlq.py`           | Process dead letter queue failures                | DLQ Management + Retry Logic |
+| `query_dlq.py`            | Query and analyze DLQ trends                      | Firestore Analytics          |
 
 ### Key Features
 
@@ -126,7 +126,7 @@ scraper:
 | `get_video_audio_url.py`       | Extract audio URLs from YouTube videos          | yt-dlp + YouTube API         |
 | `submit_assemblyai_job.py`     | Submit transcription jobs to AssemblyAI         | AssemblyAI SDK               |
 | `poll_transcription_job.py`    | Monitor job completion with exponential backoff | AssemblyAI SDK + Retry Logic |
-| `store_transcript_to_drive.py` | Save transcripts in dual formats with metadata  | Google Drive API             |
+| `save_transcript_record.py` | Save transcripts in dual formats with metadata  | Google Drive API             |
 | `save_transcript_record.py`    | Store metadata and update video status          | Firestore + Audit Logging    |
 
 ### Key Features
@@ -159,14 +159,14 @@ scraper:
 
 ### Tools Overview
 
-| Tool                           | Purpose                                     | Integration                   |
-| ------------------------------ | ------------------------------------------- | ----------------------------- |
-| `generate_short_summary.py`    | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
-| `store_short_in_zep.py`        | Save to Zep GraphRAG for semantic search    | Zep API                       |
+| Tool                              | Purpose                                     | Integration                   |
+| --------------------------------- | ------------------------------------------- | ----------------------------- |
+| `generate_short_summary.py`       | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
+| `store_short_in_zep.py`           | Save to Zep GraphRAG for semantic search    | Zep API                       |
 | `store_short_summary_to_drive.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
-| `save_summary_record.py`       | Basic Firestore summary records             | Firestore                     |
-| `SaveSummaryRecordEnhanced.py` | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
-| `ProcessSummaryWorkflow.py`    | End-to-end orchestration tool               | Multi-platform Coordination   |
+| `save_summary_record.py`          | Basic Firestore summary records             | Firestore                     |
+| `SaveSummaryRecordEnhanced.py`    | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
+| `ProcessSummaryWorkflow.py`       | End-to-end orchestration tool               | Multi-platform Coordination   |
 
 ### Key Features
 
@@ -205,18 +205,18 @@ llm:
 
 ### Tools Overview
 
-| Tool                              | Purpose                                                 | Integration         |
-| --------------------------------- | ------------------------------------------------------- | ------------------- |
-| `alert_engine.py`                 | Centralized alerting with throttling and deduplication | Firestore + Slack   |
-| `format_slack_blocks.py`          | Create rich Slack Block Kit notifications               | Slack Block Kit API |
+| Tool                              | Purpose                                                 | Integration          |
+| --------------------------------- | ------------------------------------------------------- | -------------------- |
+| `alert_engine.py`                 | Centralized alerting with throttling and deduplication  | Firestore + Slack    |
+| `format_slack_blocks.py`          | Create rich Slack Block Kit notifications               | Slack Block Kit API  |
 | `llm_observability_metrics.py`    | Track LLM usage, costs, and performance metrics         | Firestore + Langfuse |
-| `monitor_dlq_trends.py`           | Analyze dead letter queue patterns and anomalies       | Firestore Analytics |
-| `monitor_quota_state.py`          | Track API quotas and rate limiting status              | Multi-API Monitoring |
-| `monitor_transcription_budget.py` | Track daily spending with threshold alerts              | Firestore + Slack   |
-| `report_daily_summary.py`         | Generate comprehensive operational summaries           | Firestore + Slack   |
-| `send_error_alert.py`             | Error notifications with 1-per-type-per-hour throttling | Firestore + Slack   |
-| `send_slack_message.py`           | Send formatted messages to configured channels          | Slack API           |
-| `stuck_job_scanner.py`            | Detect and alert on stale jobs across collections      | Firestore Analytics |
+| `monitor_dlq_trends.py`           | Analyze dead letter queue patterns and anomalies        | Firestore Analytics  |
+| `monitor_quota_state.py`          | Track API quotas and rate limiting status               | Multi-API Monitoring |
+| `monitor_transcription_budget.py` | Track daily spending with threshold alerts              | Firestore + Slack    |
+| `report_daily_summary.py`         | Generate comprehensive operational summaries            | Firestore + Slack    |
+| `send_error_alert.py`             | Error notifications with 1-per-type-per-hour throttling | Firestore + Slack    |
+| `send_slack_message.py`           | Send formatted messages to configured channels          | Slack API            |
+| `stuck_job_scanner.py`            | Detect and alert on stale jobs across collections       | Firestore Analytics  |
 
 ### Key Features
 
@@ -318,6 +318,6 @@ python observability_agent/tools/send_error_alert.py
 ---
 
 **Agents Status**: Production Ready ✅
-**Total Tools**: 36 across 5 agents
+**Total Tools**: 42 across 8 agents
 **Framework**: Agency Swarm v1.0.0
 **Test Coverage**: Comprehensive with standalone tool tests

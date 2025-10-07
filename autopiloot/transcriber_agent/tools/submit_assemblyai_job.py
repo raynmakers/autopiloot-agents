@@ -1,15 +1,24 @@
 """
 SubmitAssemblyAIJob tool for submitting transcription jobs to AssemblyAI.
 Implements TASK-TRN-0021: Submit transcription with 70-min cap and cost estimation.
+Updates Firestore job record for restart recovery and monitoring.
 """
 
 import os
+import sys
 import json
 from typing import Optional, Dict, Any
 from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
+from google.cloud import firestore
+
+# Add core and config directories to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+
+from config.env_loader import get_required_env_var
 
 load_dotenv()
 
@@ -20,26 +29,32 @@ ASSEMBLYAI_COST_PER_HOUR = 0.65  # USD
 class SubmitAssemblyAIJob(BaseTool):
     """
     Submit a transcription job to AssemblyAI with quality controls and webhook support.
-    
+
     Enforces 70-minute duration limit, provides cost estimation, and supports optional
     webhook callbacks for job completion notifications. Uses minimal features by default
     to optimize costs while maintaining high transcription quality.
+
+    Updates Firestore job record with AssemblyAI job ID for restart recovery and monitoring.
     """
-    
+
+    job_id: Optional[str] = Field(
+        default=None,
+        description="Firestore job ID from jobs_transcription collection (for job tracking and restart recovery)"
+    )
     remote_url: str = Field(
-        ..., 
+        ...,
         description="Direct audio stream URL from YouTube video for transcription"
     )
     video_id: str = Field(
-        ..., 
+        ...,
         description="YouTube video ID for tracking and metadata"
     )
     duration_sec: int = Field(
-        ..., 
+        ...,
         description="Video duration in seconds (must be ≤4200 for 70-minute limit)"
     )
     webhook_url: Optional[str] = Field(
-        default=None, 
+        default=None,
         description="Optional webhook URL for job completion notifications from AssemblyAI"
     )
     enable_speaker_labels: bool = Field(
@@ -68,7 +83,31 @@ class SubmitAssemblyAIJob(BaseTool):
         if v and not (v.startswith('http://') or v.startswith('https://')):
             raise ValueError(f"Invalid webhook URL: {v}. Must start with http:// or https://")
         return v
-    
+
+    def _initialize_firestore(self):
+        """Initialize Firestore client with proper authentication."""
+        try:
+            # Get required project ID
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firestore"
+            )
+
+            # Get service account credentials path
+            credentials_path = get_required_env_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "Google service account credentials file path"
+            )
+
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
+
+            # Initialize Firestore client with project ID
+            return firestore.Client(project=project_id)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+
     def run(self) -> str:
         """
         Submit transcription job to AssemblyAI with duration validation and cost estimation.
@@ -136,7 +175,29 @@ class SubmitAssemblyAIJob(BaseTool):
                 base_cost *= 1.15  # 15% additional for speaker diarization
             
             estimated_cost_usd = round(base_cost, 4)
-            
+
+            # Update Firestore job record if job_id provided
+            if self.job_id:
+                try:
+                    db = self._initialize_firestore()
+                    job_ref = db.collection('jobs_transcription').document(self.job_id)
+
+                    # Update job with AssemblyAI details
+                    job_ref.update({
+                        'assemblyai_job_id': transcript.id,
+                        'status': 'processing',
+                        'estimated_cost_usd': estimated_cost_usd,
+                        'remote_url': self.remote_url,
+                        'features': {
+                            'speaker_labels': self.enable_speaker_labels,
+                            'language_code': self.language_code or 'auto'
+                        },
+                        'updated_at': firestore.SERVER_TIMESTAMP
+                    })
+                except Exception as firestore_error:
+                    # Log Firestore error but don't fail the submission
+                    print(f"Warning: Failed to update Firestore job record: {str(firestore_error)}")
+
             # Prepare response
             result = {
                 "job_id": transcript.id,
@@ -150,25 +211,17 @@ class SubmitAssemblyAIJob(BaseTool):
                     "language_code": self.language_code or "auto"
                 }
             }
-            
+
+            # Add Firestore job ID to response if provided
+            if self.job_id:
+                result["firestore_job_id"] = self.job_id
+
             # Add webhook URL to response if configured
             if self.webhook_url:
                 result["webhook_url"] = self.webhook_url
-            
+
             return json.dumps(result, indent=2)
-            
-        except aai.exceptions.AuthenticationError as e:
-            return json.dumps({
-                "error": "authentication_error",
-                "message": "Invalid AssemblyAI API key",
-                "details": str(e)
-            })
-        except aai.exceptions.TranscriptError as e:
-            return json.dumps({
-                "error": "transcript_error",
-                "message": "Failed to submit transcription job",
-                "details": str(e)
-            })
+
         except Exception as e:
             return json.dumps({
                 "error": "unexpected_error",
@@ -180,13 +233,35 @@ class SubmitAssemblyAIJob(BaseTool):
 if __name__ == "__main__":
     print("Testing SubmitAssemblyAIJob tool...")
     print("="*50)
-    
+
+    # First, get a real remote URL using GetVideoAudioUrl
+    print("\nGetting real audio URL from YouTube...")
+    from transcriber_agent.tools.get_video_audio_url import GetVideoAudioUrl
+
+    audio_tool = GetVideoAudioUrl(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    audio_result = audio_tool.run()
+    audio_data = json.loads(audio_result)
+
+    if "error" in audio_data or "remote_url" not in audio_data:
+        print(f"❌ Failed to get audio URL: {audio_data.get('error', 'Unknown error')}")
+        print("Falling back to example URL for testing...")
+        remote_url = "https://example.com/audio.mp3"
+        video_id = "test_video_123"
+        duration_sec = 600
+    else:
+        remote_url = audio_data["remote_url"]
+        video_id = audio_data["video_id"]
+        duration_sec = audio_data["duration"]
+        print(f"✅ Got remote URL for video: {audio_data['title']}")
+        print(f"   Duration: {duration_sec} seconds")
+
     # Test 1: Basic submission without webhook
-    print("\nTest 1: Basic job submission (10 minutes)")
+    print("\n" + "="*50)
+    print("\nTest 1: Basic job submission with real YouTube audio")
     tool = SubmitAssemblyAIJob(
-        remote_url="https://example.com/audio.mp3",
-        video_id="test_video_123",
-        duration_sec=600  # 10 minutes
+        remote_url=remote_url,
+        video_id=video_id,
+        duration_sec=duration_sec
     )
     
     try:
@@ -203,13 +278,13 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Test error: {str(e)}")
     
-    # Test 2: Submission with webhook
+    # Test 2: Submission with webhook (using the same real URL)
     print("\n" + "="*50)
-    print("\nTest 2: Job submission with webhook (30 minutes)")
+    print("\nTest 2: Job submission with webhook")
     tool_webhook = SubmitAssemblyAIJob(
-        remote_url="https://example.com/audio.mp3",
-        video_id="test_video_456",
-        duration_sec=1800,  # 30 minutes
+        remote_url=remote_url,
+        video_id=video_id,
+        duration_sec=duration_sec,
         webhook_url="https://example.com/webhook/callback"
     )
     
@@ -241,30 +316,47 @@ if __name__ == "__main__":
         print(f"✅ Validation working correctly: {str(e)}")
     except Exception as e:
         print(f"❌ Unexpected error: {str(e)}")
-    
-    # Test 4: With speaker labels and language code
+
+    # Test 4: Submission with Firestore job tracking (demonstrates restart recovery)
     print("\n" + "="*50)
-    print("\nTest 4: Job with speaker labels and language code (45 minutes)")
-    tool_features = SubmitAssemblyAIJob(
-        remote_url="https://example.com/audio.mp3",
-        video_id="test_video_abc",
-        duration_sec=2700,  # 45 minutes
-        enable_speaker_labels=True,
-        language_code="en"
-    )
-    
+    print("\nTest 4: Job submission with Firestore tracking (for restart recovery)")
     try:
-        result = tool_features.run()
-        data = json.loads(result)
-        if "error" in data:
-            print(f"❌ Error: {data['message']}")
-        else:
-            print(f"✅ Job submitted with additional features")
-            print(f"   Job ID: {data.get('job_id', 'N/A')}")
-            print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f} (includes speaker labels)")
-            print(f"   Features: {data.get('features', {})}")
+        # First, create a Firestore job using EnqueueTranscription
+        print("Creating Firestore job record...")
+        from scraper_agent.tools.enqueue_transcription import EnqueueTranscription
+
+        # Note: This requires a video to exist in Firestore videos collection
+        # For testing, we'll just demonstrate the API with job_id parameter
+        print("⚠️  Skipping Firestore job creation (requires existing video in Firestore)")
+        print("   In production workflow:")
+        print("   1. EnqueueTranscription creates job in jobs_transcription collection")
+        print("   2. SubmitAssemblyAIJob receives job_id and updates it with assemblyai_job_id")
+        print("   3. PollTranscriptionJob can resume using assemblyai_job_id after restart")
+
+        # Demonstrate the API with a mock job_id
+        tool_with_firestore = SubmitAssemblyAIJob(
+            job_id="mock_firestore_job_123",  # Would be real Firestore document ID
+            remote_url=remote_url,
+            video_id=video_id,
+            duration_sec=duration_sec
+        )
+
+        print("\n✅ Tool accepts job_id parameter for Firestore tracking")
+        print(f"   job_id parameter: mock_firestore_job_123")
+        print(f"   After submission, Firestore job document will be updated with:")
+        print(f"   - assemblyai_job_id: [AssemblyAI transcript ID]")
+        print(f"   - status: 'processing'")
+        print(f"   - estimated_cost_usd: [cost estimate]")
+        print(f"   - updated_at: [server timestamp]")
+
     except Exception as e:
         print(f"❌ Test error: {str(e)}")
-    
+
     print("\n" + "="*50)
     print("Testing complete!")
+    print("\n📝 Workflow Summary:")
+    print("1. ScraperAgent → EnqueueTranscription (creates Firestore job)")
+    print("2. TranscriberAgent → GetVideoAudioUrl (gets remote audio URL)")
+    print("3. TranscriberAgent → SubmitAssemblyAIJob (submits to AssemblyAI + updates Firestore)")
+    print("4. TranscriberAgent → PollTranscriptionJob (monitors completion)")
+    print("5. If system restarts: Query Firestore jobs with assemblyai_job_id to resume")

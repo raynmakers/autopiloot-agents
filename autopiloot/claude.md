@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autopiloot is a production-ready Agency Swarm v1.0.0 multi-agent system for automated YouTube content processing. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, and manages operational monitoring with strict cost controls.
+Autopiloot is a production-ready Agency Swarm v1.0.2 multi-agent system for automated YouTube content processing. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, and manages operational monitoring with strict cost controls.
 
 **Key Architecture Pattern**: Event-driven broker architecture where Firestore serves as both data store and event broker, with Firebase Functions v2 for scheduling and automation.
 
@@ -75,8 +75,6 @@ coverage run --source=transcriber_agent -m unittest \
   tests.test_get_video_audio_url \
   tests.test_poll_transcription_job \
   tests.test_save_transcript_record \
-  tests.test_store_transcript_to_drive \
-  tests.test_submit_assemblyai_job
 coverage report --include="transcriber_agent/*"
 coverage html --include="transcriber_agent/*" -d coverage/transcriber_agent
 
@@ -119,7 +117,7 @@ python -m unittest tests.test_remove_sheet_row -v # Tool-specific tests
 python -m unittest tests.test_get_video_audio_url -v # Audio extraction tests
 python -m unittest tests.test_submit_assemblyai_job -v # AssemblyAI job submission tests
 python -m unittest tests.test_poll_transcription_job -v # Transcript polling tests
-python -m unittest tests.test_store_transcript_to_drive -v # Drive storage tests
+python -m unittest tests.test_save_transcript_record -v # Drive storage tests
 python -m unittest tests.test_save_transcript_record -v # Firestore metadata tests
 
 # Test individual tools (each has test block)
@@ -127,10 +125,8 @@ python scraper_agent/tools/RemoveSheetRow.py
 python transcriber_agent/tools/get_video_audio_url.py
 python transcriber_agent/tools/submit_assemblyai_job.py
 python transcriber_agent/tools/poll_transcription_job.py
-python transcriber_agent/tools/store_transcript_to_drive.py
 python transcriber_agent/tools/save_transcript_record.py
 python observability_agent/tools/monitor_quota_state.py
-python observability_agent/tools/alert_engine.py
 python observability_agent/tools/stuck_job_scanner.py
 
 # Validate environment setup
@@ -167,7 +163,7 @@ cp .env.template .env
 
 ## High-Level Architecture
 
-### Agency Swarm v1.0.0 Framework
+### Agency Swarm v1.0.2 Framework
 
 - **Inheritance Pattern**: All tools inherit from `agency_swarm.tools.BaseTool` with Pydantic Field validation
 - **Return Convention**: All tool `run()` methods return JSON strings (not Dict objects)

@@ -1,6 +1,6 @@
 """
-Comprehensive test for store_transcript_to_drive.py - targeting 75%+ coverage
-Tests all paths including validation, Google Drive API integration, and error handling.
+Comprehensive test for save_transcript_record.py - targeting 75%+ coverage
+Tests all paths including validation, Firestore integration, and error handling.
 """
 
 import unittest
@@ -13,18 +13,14 @@ import os
 sys.modules['agency_swarm'] = MagicMock()
 sys.modules['agency_swarm.tools'] = MagicMock()
 sys.modules['pydantic'] = MagicMock()
-sys.modules['googleapiclient'] = MagicMock()
-sys.modules['googleapiclient.discovery'] = MagicMock()
-sys.modules['googleapiclient.http'] = MagicMock()
 sys.modules['google'] = MagicMock()
-sys.modules['google.oauth2'] = MagicMock()
-sys.modules['google.oauth2.service_account'] = MagicMock()
-sys.modules['google.oauth2.credentials'] = MagicMock()
+sys.modules['google.cloud'] = MagicMock()
+sys.modules['google.cloud.firestore'] = MagicMock()
 sys.modules['dotenv'] = MagicMock()
 
 
-class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
-    """Comprehensive tests for store_transcript_to_drive.py achieving 75%+ coverage"""
+class TestSaveTranscriptRecordComprehensive(unittest.TestCase):
+    """Comprehensive tests for save_transcript_record.py achieving 75%+ coverage"""
 
     def setUp(self):
         """Set up test environment with comprehensive mocking."""
@@ -56,7 +52,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             'GOOGLE_APPLICATION_CREDENTIALS': '/path/to/service-account.json',
             'DRIVE_TRANSCRIPTS_FOLDER_ID': 'folder123'
         }):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
             # Mock Google Drive API
             mock_credentials = MagicMock()
@@ -86,13 +82,13 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             mock_files.return_value.create = mock_create
             mock_service.files = mock_files
 
-            with patch('transcriber_agent.tools.store_transcript_to_drive.service_account') as mock_sa, \
-                 patch('transcriber_agent.tools.store_transcript_to_drive.build') as mock_build:
+            with patch('transcriber_agent.tools.save_transcript_record.service_account') as mock_sa, \
+                 patch('transcriber_agent.tools.save_transcript_record.build') as mock_build:
 
                 mock_sa.Credentials.from_service_account_file.return_value = mock_credentials
                 mock_build.return_value = mock_service
 
-                tool = StoreTranscriptToDrive(
+                tool = SaveTranscriptRecord(
                     video_id='test_video_123',
                     transcript_text='This is a test transcript with multiple sentences.',
                     transcript_json={
@@ -121,9 +117,9 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
     def test_missing_google_credentials_env_var(self):
         """Test error handling when GOOGLE_APPLICATION_CREDENTIALS is missing."""
         with patch.dict(os.environ, {}, clear=True):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
-            tool = StoreTranscriptToDrive(
+            tool = SaveTranscriptRecord(
                 video_id='test_video',
                 transcript_text='Test transcript',
                 transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -141,9 +137,9 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
         with patch.dict(os.environ, {
             'GOOGLE_APPLICATION_CREDENTIALS': '/path/to/service-account.json'
         }):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
-            tool = StoreTranscriptToDrive(
+            tool = SaveTranscriptRecord(
                 video_id='test_video',
                 transcript_text='Test transcript',
                 transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -162,14 +158,14 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             'GOOGLE_APPLICATION_CREDENTIALS': '/path/to/invalid.json',
             'DRIVE_TRANSCRIPTS_FOLDER_ID': 'folder123'
         }):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
-            with patch('transcriber_agent.tools.store_transcript_to_drive.service_account') as mock_sa:
+            with patch('transcriber_agent.tools.save_transcript_record.service_account') as mock_sa:
                 # Mock service account exception
                 mock_sa.exceptions.ServiceAccountCredentialsError = Exception
                 mock_sa.Credentials.from_service_account_file.side_effect = Exception("Invalid credentials")
 
-                tool = StoreTranscriptToDrive(
+                tool = SaveTranscriptRecord(
                     video_id='test_video',
                     transcript_text='Test transcript',
                     transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -188,10 +184,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             'GOOGLE_APPLICATION_CREDENTIALS': '/path/to/service-account.json',
             'DRIVE_TRANSCRIPTS_FOLDER_ID': 'folder123'
         }):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
-            with patch('transcriber_agent.tools.store_transcript_to_drive.service_account') as mock_sa, \
-                 patch('transcriber_agent.tools.store_transcript_to_drive.build') as mock_build:
+            with patch('transcriber_agent.tools.save_transcript_record.service_account') as mock_sa, \
+                 patch('transcriber_agent.tools.save_transcript_record.build') as mock_build:
 
                 mock_credentials = MagicMock()
                 mock_sa.Credentials.from_service_account_file.return_value = mock_credentials
@@ -199,7 +195,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
                 # Mock Drive service to raise exception
                 mock_build.side_effect = Exception("Drive API error")
 
-                tool = StoreTranscriptToDrive(
+                tool = SaveTranscriptRecord(
                     video_id='test_video_error',
                     transcript_text='Test transcript',
                     transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -215,10 +211,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_video_id_validation_empty(self):
         """Test video_id validation for empty string."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         with self.assertRaises(ValueError) as context:
-            StoreTranscriptToDrive(
+            SaveTranscriptRecord(
                 video_id='',
                 transcript_text='Test transcript',
                 transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -228,10 +224,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_video_id_validation_too_long(self):
         """Test video_id validation for too long string."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         with self.assertRaises(ValueError) as context:
-            StoreTranscriptToDrive(
+            SaveTranscriptRecord(
                 video_id='a' * 51,  # Too long
                 transcript_text='Test transcript',
                 transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -241,10 +237,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_transcript_text_validation_empty(self):
         """Test transcript_text validation for empty string."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         with self.assertRaises(ValueError) as context:
-            StoreTranscriptToDrive(
+            SaveTranscriptRecord(
                 video_id='test_video',
                 transcript_text='',
                 transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -254,10 +250,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_transcript_json_validation_not_dict(self):
         """Test transcript_json validation for non-dictionary input."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         with self.assertRaises(ValueError) as context:
-            StoreTranscriptToDrive(
+            SaveTranscriptRecord(
                 video_id='test_video',
                 transcript_text='Test transcript',
                 transcript_json='not a dict'
@@ -267,10 +263,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_transcript_json_validation_missing_fields(self):
         """Test transcript_json validation for missing required fields."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         with self.assertRaises(ValueError) as context:
-            StoreTranscriptToDrive(
+            SaveTranscriptRecord(
                 video_id='test_video',
                 transcript_text='Test transcript',
                 transcript_json={'id': 'test'}  # Missing 'text' and 'status'
@@ -282,10 +278,10 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_video_id_validation_whitespace_handling(self):
         """Test video_id validation strips whitespace."""
-        from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+        from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
         # Should not raise exception and strip whitespace
-        tool = StoreTranscriptToDrive(
+        tool = SaveTranscriptRecord(
             video_id='  test_video  ',
             transcript_text='Test transcript',
             transcript_json={'id': 'test', 'text': 'Test', 'status': 'completed'}
@@ -299,7 +295,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             'GOOGLE_APPLICATION_CREDENTIALS': '/path/to/service-account.json',
             'DRIVE_TRANSCRIPTS_FOLDER_ID': 'folder123'
         }):
-            from transcriber_agent.tools.store_transcript_to_drive import StoreTranscriptToDrive
+            from transcriber_agent.tools.save_transcript_record import SaveTranscriptRecord
 
             # Mock Google Drive API success
             mock_credentials = MagicMock()
@@ -317,8 +313,8 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             mock_files.return_value.create = mock_create
             mock_service.files = mock_files
 
-            with patch('transcriber_agent.tools.store_transcript_to_drive.service_account') as mock_sa, \
-                 patch('transcriber_agent.tools.store_transcript_to_drive.build') as mock_build:
+            with patch('transcriber_agent.tools.save_transcript_record.service_account') as mock_sa, \
+                 patch('transcriber_agent.tools.save_transcript_record.build') as mock_build:
 
                 mock_sa.Credentials.from_service_account_file.return_value = mock_credentials
                 mock_build.return_value = mock_service
@@ -345,7 +341,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
                     ]
                 }
 
-                tool = StoreTranscriptToDrive(
+                tool = SaveTranscriptRecord(
                     video_id='complex_video',
                     transcript_text='Complex transcript with speaker labels',
                     transcript_json=complex_json
@@ -361,7 +357,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
 
     def test_main_block_execution(self):
         """Test main block execution for coverage."""
-        with patch('transcriber_agent.tools.store_transcript_to_drive.StoreTranscriptToDrive') as mock_tool_class, \
+        with patch('transcriber_agent.tools.save_transcript_record.SaveTranscriptRecord') as mock_tool_class, \
              patch('builtins.print') as mock_print:
 
             # Mock tool instances for each test
@@ -376,7 +372,7 @@ class TestStoreTranscriptToDriveComprehensive(unittest.TestCase):
             mock_tool_class.return_value = mock_tool
 
             # Import and execute main block
-            import transcriber_agent.tools.store_transcript_to_drive
+            import transcriber_agent.tools.save_transcript_record
 
             # Verify print was called (main block executed)
             mock_print.assert_called()

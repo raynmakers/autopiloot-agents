@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autopiloot is a production-ready 8-agent system built with Agency Swarm v1.0.0 for automated YouTube content processing and strategic content analysis. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, analyzes content strategy through LinkedIn data, manages Google Drive documentation, and provides comprehensive operational monitoring with strict cost controls.
+Autopiloot is a production-ready 8-agent system built with Agency Swarm v1.0.2 for automated YouTube content processing and strategic content analysis. The system discovers videos, transcribes them via AssemblyAI, generates business-focused summaries, analyzes content strategy through LinkedIn data, manages Google Drive documentation, and provides comprehensive operational monitoring with strict cost controls.
 
 **Core Architecture**: Event-driven broker pattern where Firestore serves as both data store and event broker, with Firebase Functions v2 for scheduling and automation.
 
@@ -124,7 +124,7 @@ python config/env_loader.py
 
 ## High-Level Architecture
 
-### Agency Swarm v1.0.0 Framework
+### Agency Swarm v1.0.2 Framework
 
 - **Framework Compliance**: All tools inherit from `agency_swarm.tools.BaseTool` with Pydantic Field validation
 - **Return Convention**: All tool `run()` methods return JSON strings (not Dict objects)
@@ -468,4 +468,4 @@ autopiloot/
 └── docs/               # Implementation documentation and guides
 ```
 
-Tools use snake_case filenames enforced by CI pipeline, with classes using PascalCase names. All 8 agents follow Agency Swarm v1.0.0 patterns with proper inheritance and validation.
+Tools use snake_case filenames enforced by CI pipeline, with classes using PascalCase names. All 8 agents follow Agency Swarm v1.0.2 patterns with proper inheritance and validation.
