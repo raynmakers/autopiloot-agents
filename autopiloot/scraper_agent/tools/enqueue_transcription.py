@@ -178,26 +178,63 @@ class EnqueueTranscription(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool with realistic data
-    test_tool = EnqueueTranscription(
+    # Test the tool with both videos
+    print("="*80)
+    print("TEST 1: Enqueue Rick Astley - Never Gonna Give You Up")
+    print("="*80)
+
+    test_tool_1 = EnqueueTranscription(
         video_id="dQw4w9WgXcQ"
     )
-    
+
     try:
-        result = test_tool.run()
+        result = test_tool_1.run()
         print("EnqueueTranscription test result:")
         print(result)
-        
+
         # Parse and validate result
         data = json.loads(result)
         if "error" in data:
-            print(f"Error: {data['error']}")
+            print(f"❌ Error: {data['error']}")
         elif data.get("job_id"):
-            print(f"Success: Created job {data['job_id']}")
+            print(f"✅ Success: Created job {data['job_id']}")
         else:
-            print(f"Skipped: {data.get('message', 'No job created')}")
-            
+            print(f"⚠️  Skipped: {data.get('message', 'No job created')}")
+
     except Exception as e:
-        print(f"Test error: {str(e)}")
+        print(f"❌ Test error: {str(e)}")
         import traceback
         traceback.print_exc()
+
+    print("\n" + "="*80)
+    print("TEST 2: Enqueue Dan Martell - How to 10x Your Business")
+    print("="*80)
+
+    test_tool_2 = EnqueueTranscription(
+        video_id="mZxDw92UXmA"
+    )
+
+    try:
+        result = test_tool_2.run()
+        print("EnqueueTranscription test result:")
+        print(result)
+
+        # Parse and validate result
+        data = json.loads(result)
+        if "error" in data:
+            print(f"❌ Error: {data['error']}")
+        elif data.get("job_id"):
+            print(f"✅ Success: Created job {data['job_id']}")
+        else:
+            print(f"⚠️  Skipped: {data.get('message', 'No job created')}")
+
+    except Exception as e:
+        print(f"❌ Test error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+    print("\n" + "="*80)
+    print("Testing complete! Two transcription jobs enqueued:")
+    print("- dQw4w9WgXcQ: Rick Astley (will be rejected at summarization)")
+    print("- mZxDw92UXmA: Dan Martell (will be processed normally)")
+    print("="*80)
