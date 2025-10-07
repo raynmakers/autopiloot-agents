@@ -1,0 +1,144 @@
+---
+description: "Add configuration flag to include/exclude YouTube Shorts in discovery."
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-SCR-0092"
+title: "Add YouTube Shorts include/exclude filter in discovery"
+status: "planned"
+priority: "P1"
+labels: ["feature", "scraper", "youtube", "config"]
+dependencies: ["64-firebase-functions-imports-standardization.mdc", "69-tests-orchestrator-policy-and-digest-edges.mdc"]
+created: "2025-10-07"
+
+# 1) High-Level Objective
+
+Allow operators to control whether YouTube Shorts are included in discovery results via configuration (default: exclude shorts), without impacting existing playlist and duration logic.
+
+# 2) Background / Context
+
+Current discovery fetches videos from the channel uploads playlist. Shorts are also returned and treated as regular videos. We need a configurable option to include or exclude shorts, where shorts are defined primarily by duration (≤ 60 seconds) per YouTube conventions.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: YouTube API does not expose an explicit `isShort` flag; we infer shorts by `contentDetails.duration` converted to seconds.
+- Constraint: No extra API calls; rely on existing `videos.list` batch detail fetch already implemented.
+- Constraint: Keep backward compatibility; when the flag is missing, default behavior is to exclude shorts.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `agents/autopiloot/scraper_agent/tools/list_recent_uploads.py`
+- `agents/autopiloot/config/settings.yaml`
+- `agents/autopiloot/tests/test_list_recent_uploads.py`
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- agents/autopiloot/scraper_agent/tools/list_recent_uploads.py
+- agents/autopiloot/config/settings.yaml _(read-only for current baseline)_
+- agents/autopiloot/tests/test*list_recent_uploads.py *(read-only for current baseline)\_
+
+**End state (must exist after completion):**
+
+- agents/autopiloot/config/settings.yaml (updated with `scraper.include_shorts` and `scraper.max_short_duration_sec`)
+- agents/autopiloot/scraper_agent/tools/list_recent_uploads.py (updated filter logic)
+- agents/autopiloot/tests/test_list_recent_uploads.py (new tests for shorts include/exclude)
+- agents/autopiloot/docs/agents_overview.md (brief note on config)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Configuration — add flags**
+
+   - File: `agents/autopiloot/config/settings.yaml`
+   - Add under `scraper`:
+     - `include_shorts: false` (bool, default false)
+     - `max_short_duration_sec: 60` (int, threshold for shorts classification)
+   - Ensure loader access: `from agents.autopiloot.config.loader import get_config_value` usage remains stable.
+
+2. **Implementation — apply filter in discovery tool**
+
+   - File: `agents/autopiloot/scraper_agent/tools/list_recent_uploads.py`
+   - Load settings at runtime:
+     - `include_shorts = get_config_value("scraper.include_shorts", default=False)`
+     - `max_short = int(get_config_value("scraper.max_short_duration_sec", default=60))`
+   - After durations are fetched (`videos.list` response already parsed to `duration_seconds`), and before building final `items`, filter:
+     - If `include_shorts is False`, exclude items where `duration_seconds <= max_short`.
+     - Else, keep all items.
+   - Keep early-exit and checkpoint semantics unchanged.
+
+3. **Optional override — tool parameter (non-breaking)**
+
+   - File: `agents/autopiloot/scraper_agent/tools/list_recent_uploads.py`
+   - Add optional Pydantic field: `include_shorts_override: bool | None = Field(None, description=...)`.
+   - If provided, it takes precedence over config for this run only.
+
+4. **Tests — add coverage for new behavior**
+
+   - File: `agents/autopiloot/tests/test_list_recent_uploads.py`
+   - Add cases:
+     - `test_excludes_shorts_by_default_lines_[X_Y]`: mix of items (30s, 61s) → only 61s returns.
+     - `test_includes_shorts_when_enabled_lines_[X_Y]`: config include_shorts=true → both 30s and 61s return.
+     - `test_edge_case_exact_threshold_lines_[X_Y]`: exactly 60s; excluded when include_shorts=false, included when true.
+     - `test_param_override_takes_precedence_lines_[X_Y]`: config false but override true → includes shorts.
+   - Maintain mocking approach used elsewhere; avoid new network calls.
+
+5. **Docs — configuration note**
+
+   - File: `agents/autopiloot/docs/agents_overview.md`
+   - Add short subsection under Scraper configuration about `include_shorts` and `max_short_duration_sec`.
+
+6. **Quality gates**
+   - Ensure existing discovery behavior remains unchanged when `include_shorts=true`.
+   - Run existing suite for scraper to confirm no regressions.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+# list_recent_uploads.py — new optional field
+include_shorts_override: bool | None  # precedence over config when not None
+```
+
+# 8) Acceptance Criteria
+
+- `scraper.include_shorts` (default false) and `scraper.max_short_duration_sec` (default 60) exist in `settings.yaml`.
+- When `include_shorts=false`, discovery excludes items with `duration_seconds <= max_short_duration_sec`.
+- When `include_shorts=true`, discovery returns shorts and non-shorts unchanged.
+- Optional per-run override works and takes precedence over config.
+- New tests for all scenarios pass; no regressions in existing tests.
+- Minimum 80% coverage for updated tool module; overall standards maintained.
+- Documentation updated to describe new configuration.
+
+# 9) Testing Strategy
+
+- Use existing mocks for YouTube API responses in `test_list_recent_uploads.py`.
+- Create mixed-duration fixtures (e.g., 30s short, 45s short, 61s long).
+- Validate item counts and specific IDs present/absent under both flag states and override.
+- Generate coverage report for `scraper_agent`:
+  - `coverage run --source=agents/autopiloot/scraper_agent -m unittest discover agents/autopiloot/tests -p "test_list_recent_uploads.py" -v`
+  - `coverage report --include="agents/autopiloot/scraper_agent/*" --show-missing`
+  - `coverage html --include="agents/autopiloot/scraper_agent/*" -d agents/autopiloot/coverage/scraper_agent`
+
+# 10) Notes / Links
+
+- Shorts definition by duration aligns with platform guidance; no explicit API flag exists.
+- Keep filtering purely post-fetch to avoid additional API requests.
+- Ensure boundary handling (exactly 60s) is deterministic and documented.

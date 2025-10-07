@@ -1,6 +1,6 @@
 """
 Autopiloot Agency - YouTube Content Discovery and Processing
-Agency Swarm v1.0.0 compliant implementation for automated video transcription and summarization
+Agency Swarm v1.0.2 compliant implementation for automated video transcription and summarization
 
 Modular architecture with config-driven agent loading.
 """

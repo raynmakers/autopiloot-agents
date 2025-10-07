@@ -74,10 +74,6 @@ llm:
       model: "gpt-3.5-turbo"
       temperature: 0.3
       max_output_tokens: 4000
-    transcriber_agent:
-      model: "gpt-3.5-turbo"
-      temperature: 0.1
-      max_output_tokens: 4000
     summarizer_agent:
       model: "gpt-4.1"  # Keep GPT-4.1 for high-quality summarization
       temperature: 0.3
@@ -103,6 +99,7 @@ llm:
       temperature: 0.3
       max_output_tokens: 25000
   tasks:
+    # Summarizer Agent Tasks
     summarizer_generate_short:
       model: "o3-mini"  # GPT-5 reasoning model
       temperature: 1.0  # High reasoning mode
@@ -110,6 +107,36 @@ llm:
       reasoning_effort: "high"  # Maximum reasoning
       prompt_id: "comprehensive_coach_v2"
       prompt_version: "v2"
+
+    # Strategy Agent Tasks
+    strategy_analyze_tone:
+      model: "gpt-4o"
+      temperature: 0.1
+      max_output_tokens: 500
+      prompt_id: "tone_analysis_v1"
+
+    strategy_classify_posts:
+      model: "gpt-4o"
+      temperature: 0.1
+      max_output_tokens: 1000
+      prompt_id: "post_classification_v1"
+
+    strategy_synthesize_playbook:
+      model: "gpt-4o"
+      temperature: 0.3
+      max_output_tokens: 800
+      prompt_id: "playbook_synthesis_v1"
+
+    strategy_generate_briefs:
+      model: "gpt-4o"
+      temperature: 0.7
+      max_output_tokens: 1000
+      prompt_id: "content_briefs_v1"
+
+    strategy_cluster_topics:
+      embedding_model: "text-embedding-3-small"
+      clustering_method: "kmeans"
+      prompt_id: "topic_clustering_v1"
 
 notifications:
   slack:

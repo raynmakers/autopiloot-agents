@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 
 id: "TASK-TRN-0022"
-title: "Build PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord"
+title: "Build PollTranscriptionJob, StoreTranscriptToFirestore, SaveTranscriptRecord"
 status: "done"
 priority: "P1"
 labels: ["transcriber", "drive", "firestore"]
@@ -38,7 +38,7 @@ Beginning:
 End state:
 
 - agents/autopiloot/transcriber/tools/PollTranscriptionJob.py
-- agents/autopiloot/transcriber/tools/StoreTranscriptToDrive.py
+- agents/autopiloot/transcriber/tools/StoreTranscriptToFirestore.py
 - agents/autopiloot/transcriber/tools/SaveTranscriptRecord.py
 - agents/autopiloot/transcriber/tools/WebhookHandler.py
 
@@ -77,12 +77,12 @@ class PollTranscriptionJobResponse(TypedDict):
     transcript_text: str
     transcript_json: dict
 
-class StoreTranscriptToDriveRequest(TypedDict):
+class StoreTranscriptToFirestoreRequest(TypedDict):
     video_id: str
     transcript_text: str
     transcript_json: dict
 
-class StoreTranscriptToDriveResponse(TypedDict):
+class StoreTranscriptToFirestoreResponse(TypedDict):
     drive_id_txt: str
     drive_id_json: str
 

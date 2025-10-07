@@ -11,6 +11,7 @@ from typing import Optional
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -18,8 +19,8 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var
-from loader import load_app_config
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
 
 load_dotenv()
 
@@ -79,10 +80,12 @@ class EnqueueTranscription(BaseTool):
                 })
             
             # Check if transcription job already exists
-            existing_jobs = db.collection('jobs').collection('transcription').where(
-                'video_id', '==', self.video_id
+            # Note: Firestore collection path for transcription jobs
+            jobs_collection = 'jobs_transcription'
+            existing_jobs = db.collection(jobs_collection).where(
+                filter=FieldFilter('video_id', '==', self.video_id)
             ).where(
-                'status', 'in', ['pending', 'processing', 'completed']
+                filter=FieldFilter('status', 'in', ['pending', 'processing', 'completed'])
             ).limit(1).get()
             
             if len(existing_jobs) > 0:
@@ -104,7 +107,7 @@ class EnqueueTranscription(BaseTool):
                 })
             
             # Create transcription job
-            job_ref = db.collection('jobs').collection('transcription').document()
+            job_ref = db.collection(jobs_collection).document()
             
             job_data = {
                 'job_id': job_ref.id,

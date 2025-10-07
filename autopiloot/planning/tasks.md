@@ -115,6 +115,11 @@ Legend: [x] done, [ ] planned
 - [x] 89-modular-cli-scaffold.mdc — CLI scaffold to generate complete agent structures from templates
 - [x] 90-modular-tests-and-docs.mdc — Comprehensive testing and documentation for modular architecture
 
+## Future Enhancement Tasks (91+)
+
+- [ ] 91-assemblyai-webhooks.mdc — Implement AssemblyAI webhooks for real-time transcription completion notifications
+- [ ] 92-env-to-settings-migration.mdc — Migrate environment variables from .env to settings.yaml for centralized configuration
+
 ---
 
 ## Archive Information
@@ -122,6 +127,7 @@ Legend: [x] done, [ ] planned
 🏦 **All 90 tasks have been completed and archived to `planning/archive/`**
 
 The Autopiloot Agency implementation is now complete with:
+
 - 🤖 **8 Production Agents**: Orchestrator (CEO), Scraper, Transcriber, Summarizer, Observability, LinkedIn, Strategy, Drive
 - 🔧 **86 Production Tools**: All implementing Agency Swarm v1.0.0 BaseTool with snake_case naming
 - 🧪 **160+ Test Files**: Comprehensive coverage including modular architecture tests (95%+ coverage)

@@ -72,12 +72,13 @@ tests/{agent}_tools/
 **Root Cause**: Different agents use different import strategies (direct file imports with `importlib.util.spec_from_file_location()`, various module mocking patterns, real vs mocked Pydantic) that conflict when run together. This causes `coverage.py` to misreport line execution, showing artificially low coverage (e.g., 90% drops to 32%).
 
 **Symptoms**:
+
 - Coverage drops dramatically when running full test suite vs isolated tests
 - Same test file shows different coverage percentages depending on what other tests run
 - "Module was never imported" warnings despite tests passing
 - Coverage reports show 0% for tools that have comprehensive tests
 
-**Solution**: ALWAYS use agent-specific test directories to isolate tests:
+**Solution**: ALWAYS use agent-specific test directories **and the unified import strategy above** to isolate tests:
 
 ```bash
 # ✅ CORRECT: Agent-specific directory isolation
@@ -102,19 +103,8 @@ coverage run --source=. -m unittest discover tests -p "test_*.py"
 coverage run --source=transcriber_agent -m unittest discover tests -p "test_*.py"
 ```
 
-**Why This Happens**:
-
-1. **Multiple Import Strategies**: Each agent's tests use different approaches:
-   - Some use `from {agent}.tools.{tool} import {Tool}` (standard imports)
-   - Some use `importlib.util.spec_from_file_location()` (direct file imports)
-   - Some mock `sys.modules` globally, some use context managers
-   - Some use real Pydantic, some mock it
-
-2. **Module Registration Conflicts**: When Test A registers a module in `sys.modules` and Test B tries to import it differently, coverage.py loses track of which lines belong to which module.
-
-3. **Coverage Measurement Confusion**: Coverage.py tracks execution by module identity. When the same source file is imported multiple ways across different tests, coverage tracking breaks.
-
 **Project Context**:
+
 - Total test files: **296+** across all agents
 - Root `tests/` directory: 59 files (mixed agents - legacy organization)
 - Agent-specific subdirectories: 237+ files (organized by agent)
@@ -125,10 +115,12 @@ coverage run --source=transcriber_agent -m unittest discover tests -p "test_*.py
 1. **ALWAYS** use `coverage erase` before running tests
 2. **ALWAYS** specify agent-specific test directory with `discover`
 3. **NEVER** use global `discover tests -p "test_*.py"` without subdirectory
-4. **VERIFY** coverage with HTML report: `coverage html --include="{agent}/*" -d coverage/{agent}`
-5. **CHECK** for "Module was never imported" warnings (indicates interference)
+4. **ENSURE** tests load tools via the canonical importlib strategy with real Pydantic (see “Comprehensive Mocking Strategy”)
+5. **VERIFY** coverage with HTML report: `coverage html --include="{agent}/*" -d coverage/{agent}`
+6. **CHECK** for "Module was never imported" warnings (indicates interference)
 
 **Test Directory Structure**:
+
 ```
 tests/
 ├── drive_tools/              # ✅ Isolated - drive_agent tests only
@@ -137,11 +129,11 @@ tests/
 ├── observability_tools/      # ✅ Isolated - observability_agent tests only
 ├── linkedin_tools/           # ✅ Isolated - linkedin_agent tests only
 ├── strategy_tools/           # ✅ Isolated - strategy_agent tests only
-├── test_*.py                 # ⚠️ Legacy - mixed agents, use specific module names
 └── ...
 ```
 
 **Verification**:
+
 ```bash
 # Run isolated agent test
 coverage erase
@@ -164,14 +156,20 @@ coverage report --include="transcriber_agent/*"
 
 ```python
 import sys
+import importlib.util
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-# Mock ALL external dependencies before any imports
+TOOL_NAME = "{tool}"
+AGENT_NAME = "{agent}_agent"
+MODULE_NAME = f"{AGENT_NAME}.tools.{TOOL_NAME}"
+MODULE_PATH = Path(__file__).resolve().parents[2] / AGENT_NAME / "tools" / f"{tool}.py"
+
+# Mock ALL external dependencies before loading the module (do NOT mock pydantic)
 mock_modules = {
-    # Agency Swarm Framework
+    # Agency Swarm framework
     'agency_swarm': MagicMock(),
     'agency_swarm.tools': MagicMock(),
-    'pydantic': MagicMock(),
 
     # Google Cloud Services
     'google': MagicMock(),
@@ -202,20 +200,24 @@ mock_modules = {
 }
 
 with patch.dict('sys.modules', mock_modules):
-    # Mock BaseTool and Field properly
-    class MockBaseTool:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+    # Always use the real pydantic library
+    from pydantic import BaseModel, Field
 
-    def mock_field(*args, **kwargs):
-        return kwargs.get('default', None)
+    # Provide a lightweight BaseTool stand-in that mimics agency_swarm
+    class MockBaseTool(BaseModel):
+        class Config:
+            arbitrary_types_allowed = True
+
+        def run(self):
+            raise NotImplementedError
 
     sys.modules['agency_swarm.tools'].BaseTool = MockBaseTool
-    sys.modules['pydantic'].Field = mock_field
 
-    # Now import the tool safely
-    from {agent}_agent.tools.{tool} import {ToolClass}
+    spec = importlib.util.spec_from_file_location(MODULE_NAME, MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    ToolClass = getattr(module, TOOL_NAME.title().replace('_', ''))
 ```
 
 ### Mocking Strategy by Tool Type
@@ -422,12 +424,14 @@ When you ask Claude to "pick up low-coverage tests" or "fix low-coverage files,"
 ### Triggering Automatic Improvement
 
 Simply ask in natural language:
+
 - "Can you pick up the low coverage tests?"
 - "Fix the low-coverage files"
 - "Improve coverage for tools below 80%"
 - "Continue with remaining low-coverage tools"
 
 Claude will:
+
 - ✅ Read the HTML coverage report
 - ✅ Identify tools < 80%
 - ✅ Create comprehensive test files (targeting 100%)
@@ -437,15 +441,17 @@ Claude will:
 
 ### What Claude Tests
 
-Each comprehensive test file covers:
-- ✅ Success paths with realistic data
-- ✅ All validation checks and error messages
-- ✅ Edge cases (empty inputs, invalid types, missing fields)
-- ✅ Exception handling paths
-- ✅ External API mocking (Firestore, HTTP, etc.)
-- ✅ Business logic calculations
-- ✅ Configuration overrides
-- ✅ Integration points
+Each comprehensive test file follows the unified strategy:
+
+- ✅ Imports tool via `importlib.util.spec_from_file_location`
+- ✅ Uses real `pydantic.BaseModel` and `Field`
+- ✅ Provides `MockBaseTool` subclassing BaseModel
+- ✅ Covers success paths with realistic data
+- ✅ Exercises validation checks and error messages
+- ✅ Tests edge cases (empty inputs, invalid types, missing fields)
+- ✅ Exercises exception handling paths
+- ✅ Mocks external APIs (Firestore, HTTP, Slack, etc.)
+- ✅ Verifies business logic calculations and configuration overrides
 
 ### Coverage Improvement Standards
 

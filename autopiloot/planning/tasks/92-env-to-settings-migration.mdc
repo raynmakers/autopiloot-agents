@@ -1,0 +1,262 @@
+---
+description: "Migrate environment variables from .env to settings.yaml for centralized configuration"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0092"
+title: "Migrate Environment Variables to Settings.yaml Configuration"
+status: "planned"
+priority: "P1"
+labels: ["configuration", "migration", "centralization"]
+dependencies: []
+created: "2025-01-20"
+
+# 1) High-Level Objective
+
+Migrate all environment variables from `.env` file to `settings.yaml` configuration system for centralized, version-controlled configuration management while maintaining backward compatibility.
+
+# 2) Background / Context
+
+Currently, Autopiloot uses a hybrid configuration approach with both `.env` files and `settings.yaml`. This creates maintenance overhead, deployment complexity, and potential configuration drift. Moving to a unified `settings.yaml`-based system will improve:
+
+- **Centralized Configuration**: All settings in one version-controlled file
+- **Environment Flexibility**: Different settings per deployment environment
+- **Reduced Secrets Management**: Fewer environment variables to manage
+- **Better Documentation**: Self-documenting configuration structure
+- **Easier Testing**: Mock configuration without environment setup
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Existing `.env` file contains all current environment variables
+- ASSUMPTION: `config/loader.py` and `config/env_loader.py` can be extended to support settings.yaml
+- Constraint: Maintain backward compatibility during migration period
+- Constraint: Preserve existing environment variable fallback for production deployments
+- Constraint: Keep sensitive data (API keys) in environment variables for security
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `config/settings.yaml` - Current configuration structure
+- `config/loader.py` - Configuration loading system
+- `config/env_loader.py` - Environment variable handling
+- `.env` or `env.template` - Current environment variables
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- `config/settings.yaml` _(read-only)_
+- `config/loader.py` _(read-only)_
+- `config/env_loader.py` _(read-only)_
+- `.env` or `env.template` _(read-only)_
+- `tests/test_config.py` _(read-only)_
+
+**End state (must exist after completion):**
+
+- `config/settings.yaml` - Enhanced with environment variable equivalents
+- `config/loader.py` - Extended to load from settings.yaml with env fallback
+- `config/env_loader.py` - Updated to support settings.yaml integration
+- `tests/test_env_migration.py` - New test suite for migration validation
+- `docs/configuration_migration.md` - Migration documentation
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Audit Current Environment Variables**
+
+   - File: `config/env_audit.py`
+   - Exported API:
+     ```python
+     def audit_env_variables() -> Dict[str, Any]:
+         """Audit all environment variables used in the codebase."""
+     ```
+   - Details:
+     - Scan all Python files for `os.getenv()`, `os.environ` usage
+     - Identify required vs optional environment variables
+     - Categorize by service (OpenAI, AssemblyAI, Google, Slack, etc.)
+     - Generate migration mapping document
+
+2. **Extend Settings.yaml Structure**
+
+   - File: `config/settings.yaml`
+   - Add new sections:
+     ```yaml
+     # Environment variable equivalents
+     environment:
+       # API Keys and Secrets (still from env vars for security)
+       api_keys:
+         openai: "${OPENAI_API_KEY}"
+         assemblyai: "${ASSEMBLYAI_API_KEY}"
+         slack: "${SLACK_BOT_TOKEN}"
+         youtube: "${YOUTUBE_API_KEY}"
+         zep: "${ZEP_API_KEY}"
+         rapidapi_linkedin: "${RAPIDAPI_LINKEDIN_KEY}"
+
+       # Service Configuration
+       services:
+         firebase:
+           project_id: "${GCP_PROJECT_ID}"
+           credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+         google_drive:
+           folder_id: "${GOOGLE_DRIVE_FOLDER_ID}"
+         slack:
+           channel: "${SLACK_CHANNEL}"
+         zep:
+           base_url: "${ZEP_BASE_URL}"
+           collection: "${ZEP_COLLECTION}"
+     ```
+
+3. **Update Configuration Loader**
+
+   - File: `config/loader.py`
+   - Exported API:
+
+     ```python
+     def load_app_config() -> Dict[str, Any]:
+         """Load configuration with environment variable interpolation."""
+
+     def get_config_value(key_path: str, default: Any = None) -> Any:
+         """Get configuration value with environment variable fallback."""
+     ```
+
+   - Details:
+     - Support `${VAR_NAME}` syntax for environment variable interpolation
+     - Maintain backward compatibility with existing configuration access
+     - Add validation for required environment variables
+     - Implement type conversion for configuration values
+
+4. **Update Environment Loader Integration**
+
+   - File: `config/env_loader.py`
+   - Exported API:
+
+     ```python
+     def get_config_value_with_env_fallback(key_path: str, env_var: str = None) -> str:
+         """Get configuration value with environment variable fallback."""
+
+     def validate_required_config() -> bool:
+         """Validate all required configuration is available."""
+     ```
+
+   - Details:
+     - Integrate with settings.yaml loading
+     - Maintain existing `get_api_key()`, `get_required_var()` functions
+     - Add configuration validation for deployment readiness
+     - Support both settings.yaml and environment variable sources
+
+5. **Create Migration Validation Tests**
+
+   - File: `tests/test_env_migration.py`
+   - Test cases:
+     ```python
+     def test_settings_yaml_loading()
+     def test_environment_variable_interpolation()
+     def test_backward_compatibility()
+     def test_configuration_validation()
+     def test_missing_environment_variables()
+     ```
+   - Details:
+     - Test settings.yaml loading with mock environment variables
+     - Validate environment variable interpolation works correctly
+     - Ensure backward compatibility with existing code
+     - Test configuration validation and error handling
+
+6. **Update Agent Configuration Loading**
+
+   - Files: All agent files (`*_agent.py`)
+   - Update pattern:
+
+     ```python
+     # Before
+     model = "gpt-4o"
+
+     # After
+     config = load_app_config()
+     model = config.get('llm.agents.scraper_agent.model', 'gpt-3.5-turbo')
+     ```
+
+   - Details:
+     - Replace hardcoded values with configuration loading
+     - Use dot notation for nested configuration access
+     - Maintain fallback values for missing configuration
+     - Update all 8 agents consistently
+
+7. **Create Migration Documentation**
+
+   - File: `docs/configuration_migration.md`
+   - Content:
+     - Migration guide for developers
+     - Environment variable mapping table
+     - Configuration validation checklist
+     - Deployment considerations
+     - Rollback procedures
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import Dict, Any, Optional, Union
+from dataclasses import dataclass
+
+@dataclass
+class ConfigValue:
+    """Configuration value with source tracking."""
+    value: Any
+    source: str  # 'settings.yaml', 'environment', 'default'
+    required: bool = False
+
+class ConfigurationManager:
+    """Centralized configuration management."""
+
+    def get(self, key_path: str, default: Any = None) -> Any:
+        """Get configuration value with fallback hierarchy."""
+
+    def get_with_env_fallback(self, key_path: str, env_var: str) -> str:
+        """Get value from settings.yaml with environment variable fallback."""
+
+    def validate_required(self) -> Dict[str, str]:
+        """Validate all required configuration is available."""
+```
+
+# 8) Acceptance Criteria
+
+- All environment variables documented and mapped to settings.yaml equivalents
+- Configuration loading supports environment variable interpolation (`${VAR_NAME}`)
+- Backward compatibility maintained for existing environment variable usage
+- All agents use configuration system instead of hardcoded values
+- Comprehensive test suite validates migration functionality
+- Documentation provides clear migration path for developers
+- Configuration validation prevents deployment with missing required values
+
+# 9) Testing Strategy
+
+- Create integration tests that validate settings.yaml loading with environment variables
+- Test environment variable interpolation with various variable types and formats
+- Verify backward compatibility by running existing tests with new configuration system
+- Test configuration validation with missing required values
+- Validate agent configuration loading with mock settings.yaml data
+- **MANDATORY: Generate test coverage reports with minimum 80% coverage**
+- **Target 100% coverage for critical configuration loading modules**
+
+# 10) Notes / Links
+
+- Reference: Current `.env` file structure and usage patterns
+- Related: Agent configuration migration (TASK-0091)
+- Implementation: Use YAML environment variable interpolation syntax
+- Security: Keep API keys in environment variables, move configuration to settings.yaml
+- Deployment: Ensure production environments can use either configuration method during transition

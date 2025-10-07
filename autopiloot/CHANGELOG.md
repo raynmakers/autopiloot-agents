@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Core Architecture & Framework
-- **Agency Swarm v1.0.0 Framework**: Complete multi-agent system with OrchestratorAgent as CEO
+- **Agency Swarm v1.0.2 Framework**: Complete multi-agent system with OrchestratorAgent as CEO
 - **5 Production Agents**: Orchestrator, Scraper, Transcriber, Summarizer, and Observability agents with 36 total tools
 - **Event-driven Architecture**: Firestore as event broker and data store with Firebase Functions integration
 - **Comprehensive Test Suite**: 32 test files covering all functionality

@@ -6,6 +6,7 @@ Groups content items by semantic similarity to identify topic patterns and trend
 import os
 import sys
 import json
+import yaml
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict, Counter
@@ -64,6 +65,12 @@ class ClusterTopicsEmbeddings(BaseTool):
         description="Minimum items per cluster for meaningful analysis (default: 3)"
     )
 
+    def _load_settings(self) -> Dict[str, Any]:
+        """Load configuration from settings.yaml"""
+        config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'settings.yaml')
+        with open(config_path, 'r') as f:
+            return yaml.safe_load(f)
+
     def run(self) -> str:
         """
         Clusters content items by semantic similarity and identifies topic patterns.
@@ -94,6 +101,12 @@ class ClusterTopicsEmbeddings(BaseTool):
         try:
             load_environment()
 
+            # Load settings for embedding configuration
+            settings = self._load_settings()
+            task_config = settings.get('llm', {}).get('tasks', {}).get('strategy_cluster_topics', {})
+            embedding_model = task_config.get('embedding_model', self.embedding_model)
+            clustering_method = task_config.get('clustering_method', self.clustering_method)
+
             # Validate input
             if not self.items:
                 return json.dumps({
@@ -123,7 +136,7 @@ class ClusterTopicsEmbeddings(BaseTool):
                 })
 
             # Generate embeddings for all items
-            embeddings = self._generate_embeddings([item['_text_content'] for item in valid_items])
+            embeddings = self._generate_embeddings([item['_text_content'] for item in valid_items], embedding_model)
 
             if embeddings is None:
                 return json.dumps({
@@ -135,7 +148,7 @@ class ClusterTopicsEmbeddings(BaseTool):
             num_clusters = self._determine_optimal_clusters(embeddings, len(valid_items))
 
             # Perform clustering
-            cluster_labels = self._perform_clustering(embeddings, num_clusters)
+            cluster_labels = self._perform_clustering(embeddings, num_clusters, clustering_method)
 
             if cluster_labels is None:
                 return json.dumps({
@@ -199,7 +212,7 @@ class ClusterTopicsEmbeddings(BaseTool):
 
         return None
 
-    def _generate_embeddings(self, texts: List[str]) -> Optional[np.ndarray]:
+    def _generate_embeddings(self, texts: List[str], embedding_model: str = None) -> Optional[np.ndarray]:
         """Generate embeddings using OpenAI API."""
         try:
             # Try to import and use OpenAI
@@ -209,6 +222,9 @@ class ClusterTopicsEmbeddings(BaseTool):
             api_key = get_required_env_var("OPENAI_API_KEY")
             client = openai.OpenAI(api_key=api_key)
 
+            # Use provided embedding model or fallback to instance embedding_model
+            model = embedding_model or self.embedding_model
+
             # Generate embeddings in batches to handle API limits
             batch_size = 100
             all_embeddings = []
@@ -217,7 +233,7 @@ class ClusterTopicsEmbeddings(BaseTool):
                 batch_texts = texts[i:i + batch_size]
 
                 response = client.embeddings.create(
-                    model=self.embedding_model,
+                    model=model,
                     input=batch_texts
                 )
 
@@ -295,25 +311,28 @@ class ClusterTopicsEmbeddings(BaseTool):
         # Ensure we don't have more clusters than items
         return min(optimal, num_items - 1)
 
-    def _perform_clustering(self, embeddings: np.ndarray, num_clusters: int) -> Optional[np.ndarray]:
+    def _perform_clustering(self, embeddings: np.ndarray, num_clusters: int, clustering_method: str = None) -> Optional[np.ndarray]:
         """Perform clustering on embeddings."""
         try:
             from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
             from sklearn.preprocessing import StandardScaler
 
+            # Use provided clustering method or fallback to instance method
+            method = clustering_method or self.clustering_method
+
             # Standardize embeddings
             scaler = StandardScaler()
             embeddings_scaled = scaler.fit_transform(embeddings)
 
-            if self.clustering_method == "kmeans":
+            if method == "kmeans":
                 clusterer = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
                 labels = clusterer.fit_predict(embeddings_scaled)
 
-            elif self.clustering_method == "hierarchical":
+            elif method == "hierarchical":
                 clusterer = AgglomerativeClustering(n_clusters=num_clusters)
                 labels = clusterer.fit_predict(embeddings_scaled)
 
-            elif self.clustering_method == "dbscan":
+            elif method == "dbscan":
                 # Use DBSCAN with automatic cluster detection
                 clusterer = DBSCAN(eps=0.5, min_samples=self.min_cluster_size)
                 labels = clusterer.fit_predict(embeddings_scaled)

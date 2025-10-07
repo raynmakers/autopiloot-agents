@@ -24,13 +24,17 @@ class {agent_class_name}(Agent):
     """
 
     def __init__(self):
+        from agency_swarm import ModelSettings
         super().__init__(
             name="{agent_name_title}",
             description="{description}",
             instructions=Path(__file__).parent / "instructions.md",
             tools_folder=Path(__file__).parent / "tools",
-            temperature=0.2,
-            max_prompt_tokens=25000,
+            model_settings=ModelSettings(
+                model="gpt-4o",
+                temperature=0.2,
+                max_completion_tokens=25000,
+            ),
         )
 
 

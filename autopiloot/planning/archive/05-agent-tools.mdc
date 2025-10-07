@@ -45,7 +45,7 @@ End state:
 # 6) Low-Level Steps
 
 1. Scraper tools: ResolveChannelHandle, ListRecentUploads, ReadSheetLinks, ExtractYouTubeFromPage, SaveVideoMetadata, EnqueueTranscription, RemoveSheetRow.
-2. Transcriber tools: GetVideoAudioUrl, SubmitAssemblyAIJob, PollTranscriptionJob, StoreTranscriptToDrive, SaveTranscriptRecord.
+2. Transcriber tools: GetVideoAudioUrl, SubmitAssemblyAIJob, PollTranscriptionJob, StoreTranscriptToFirestore, SaveTranscriptRecord.
 3. Summarizer tools: GenerateShortSummary (gpt-4.1, temp 0.2), StoreShortInZep, StoreShortSummaryToDrive, SaveSummaryRecord.
 4. Assistant tools: FormatSlackBlocks, SendSlackMessage, MonitorTranscriptionBudget, SendErrorAlert.
 5. Ensure each tool has an `if __name__ == "__main__":` test block.

@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Autopiloot Agency Folder Structure
 
-## Agency Swarm v1.0.0 Production Architecture
+## Agency Swarm v1.0.2 Production Architecture
 
 ```
 autopiloot/
@@ -241,7 +241,7 @@ autopiloot/
 
 ## Production Architecture Principles
 
-### 1. Agency Swarm v1.0.0 Full Compliance
+### 1. Agency Swarm v1.0.2 Full Compliance
 - **Agents**: All inherit from `agency_swarm.Agent` with proper ModelSettings (5 production agents)
 - **Tools**: All inherit from `agency_swarm.tools.BaseTool` (42 production tools, all snake_case)
 - **Validation**: Comprehensive Pydantic Field validation throughout
@@ -443,5 +443,5 @@ notifications:
 **Total Tools**: 42 across 5 agents
 **Test Coverage**: 135+ comprehensive tests (TASK-54, TASK-69)
 **CI/CD Pipeline**: GitHub Actions with multi-version support (TASK-54)
-**Framework Compliance**: Agency Swarm v1.0.0 ✅
+**Framework Compliance**: Agency Swarm v1.0.2 ✅
 **Final Tasks Completed**: 64-70 (Functions Standardization, Edge Testing, Documentation)

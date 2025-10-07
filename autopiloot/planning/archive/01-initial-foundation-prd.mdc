@@ -168,7 +168,7 @@ Transcribe videos discovered by Scraper using AssemblyAI. Enforce max video leng
   - **APIs**: AssemblyAI SDK
   - **Output**: JSON `{ transcript_text, transcript_json }`
 
-- **StoreTranscriptToDrive**
+- **StoreTranscriptToFirestore**
 
   - **Description**: Save transcript `.txt` and `.json` to Drive folder.
   - **Inputs**:

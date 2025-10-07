@@ -17,8 +17,8 @@ import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var
-from loader import load_app_config
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
 
 # Google Sheets API
 from googleapiclient.discovery import build
@@ -29,14 +29,14 @@ load_dotenv()
 
 class ReadSheetLinks(BaseTool):
     """
-    Read a Google Sheet containing page links; extract any YouTube video URLs contained in those pages.
-    
-    This tool implements the PRD specification:
-    1. Reads page URLs from a Google Sheet
-    2. Fetches each page and extracts embedded YouTube video URLs
-    3. Returns both source_page_url and video_url for tracking
-    
-    Supports multiple YouTube URL formats including embeds, oEmbed, and direct links.
+    Read a Google Sheet containing links; extract YouTube video URLs from them.
+
+    Handles two cases:
+    1. Direct YouTube URLs: Extracts and normalizes the video URL directly
+    2. External page URLs: Fetches the page and extracts any embedded YouTube videos
+
+    Focus: YouTube videos only (other platforms are skipped)
+    Returns source_page_url, video_url, and platform for tracking.
     """
     
     sheet_id: Optional[str] = Field(
@@ -61,10 +61,11 @@ class ReadSheetLinks(BaseTool):
     
     def run(self) -> str:
         """
-        Read page links from Google Sheet and extract YouTube URLs from those pages.
-        
+        Read page links from Google Sheet and extract YouTube video URLs from those pages.
+
         Returns:
-            str: JSON string containing array of { source_page_url, video_url } objects
+            str: JSON string containing array of { source_page_url, video_url, platform } objects
+            Platform will always be "youtube"
         """
         try:
             # Load configuration
@@ -117,41 +118,69 @@ class ReadSheetLinks(BaseTool):
                 
                 page_url = row[0].strip()
                 processed_count += 1
-                
+
                 # Validate page URL
                 if not self._is_valid_url(page_url):
                     pages_failed += 1
                     continue
-                
-                # Extract YouTube URLs from this page
+
+                # Check if the URL is already a direct YouTube URL
                 try:
-                    youtube_urls = self._extract_youtube_urls_from_page(page_url)
-                    pages_processed += 1
-                    
-                    # Add results with source page tracking
-                    for video_url in youtube_urls:
-                        results.append({
-                            "source_page_url": page_url,
-                            "video_url": video_url
-                        })
-                        
-                    # Small delay to be respectful to servers
-                    time.sleep(0.5)
+                    if self._is_youtube_url(page_url):
+                        # Direct YouTube URL - just extract and return it
+                        normalized_url = self._normalize_youtube_url(page_url)
+                        if normalized_url:
+                            results.append({
+                                "source_page_url": page_url,
+                                "video_url": normalized_url,
+                                "platform": "youtube"
+                            })
+                            pages_processed += 1
+                    else:
+                        # External page - fetch and extract embedded YouTube videos
+                        youtube_urls = self._extract_youtube_urls_from_page(page_url)
+                        pages_processed += 1
+
+                        if not youtube_urls:
+                            print(f"No YouTube videos found on page: {page_url}")
+
+                        # Add results with source page tracking
+                        for video_url in youtube_urls:
+                            results.append({
+                                "source_page_url": page_url,
+                                "video_url": video_url,
+                                "platform": "youtube"
+                            })
+                            print(f"Found YouTube video: {video_url}")
+
+                        # Small delay to be respectful to servers
+                        time.sleep(0.5)
                     
                 except Exception as e:
                     pages_failed += 1
                     print(f"Failed to process page {page_url}: {str(e)}")
                     continue
             
-            # Deduplicate results by video_url while preserving source tracking
+            # Deduplicate results by video ID
             unique_results = []
-            seen_videos = set()
-            
+            seen_video_ids = set()
+
             for result in results:
                 video_url = result["video_url"]
-                if video_url not in seen_videos:
+
+                # Extract YouTube video ID for deduplication
+                match = re.search(r'v=([a-zA-Z0-9_-]{11})', video_url)
+                video_id = match.group(1) if match else video_url
+
+                if video_id not in seen_video_ids:
                     unique_results.append(result)
-                    seen_videos.add(video_url)
+                    seen_video_ids.add(video_id)
+
+            # Count by platform
+            platform_counts = {}
+            for result in unique_results:
+                platform = result.get("platform", "unknown")
+                platform_counts[platform] = platform_counts.get(platform, 0) + 1
             
             response = {
                 "items": unique_results,
@@ -160,7 +189,8 @@ class ReadSheetLinks(BaseTool):
                     "processed_rows": processed_count,
                     "pages_processed": pages_processed,
                     "pages_failed": pages_failed,
-                    "youtube_urls_found": len(unique_results),
+                    "videos_found": len(unique_results),
+                    "by_platform": platform_counts,
                     "sheet_id": sheet_id,
                     "range": self.range_a1
                 }
@@ -182,7 +212,7 @@ class ReadSheetLinks(BaseTool):
             page_url: URL of the page to fetch and parse
 
         Returns:
-            List of unique YouTube URLs found on the page
+            List of YouTube URLs found on the page
         """
         # Import requests and BeautifulSoup inside method for better testability
         import requests
@@ -203,49 +233,47 @@ class ReadSheetLinks(BaseTool):
             # Method 1: Parse HTML with BeautifulSoup
             try:
                 soup = BeautifulSoup(html_content, 'html.parser')
-                
+
                 # Extract from iframe embeds
                 for iframe in soup.find_all('iframe'):
                     src = iframe.get('src', '')
-                    if 'youtube.com/embed' in src or 'youtu.be' in src:
-                        video_url = self._normalize_youtube_url(src)
-                        if video_url:
-                            youtube_urls.add(video_url)
-                
+                    if src and self._is_youtube_url(src):
+                        normalized = self._normalize_youtube_url(src)
+                        if normalized:
+                            youtube_urls.add(normalized)
+
                 # Extract from anchor links
-                for link in soup.find_all('a'):
-                    href = link.get('href', '')
+                for link in soup.find_all('a', href=True):
+                    href = link['href']
                     if self._is_youtube_url(href):
-                        video_url = self._normalize_youtube_url(href)
-                        if video_url:
-                            youtube_urls.add(video_url)
-                
+                        normalized = self._normalize_youtube_url(href)
+                        if normalized:
+                            youtube_urls.add(normalized)
+
                 # Extract from og:video meta tags
                 for meta in soup.find_all('meta', property='og:video'):
                     content = meta.get('content', '')
-                    if self._is_youtube_url(content):
-                        video_url = self._normalize_youtube_url(content)
-                        if video_url:
-                            youtube_urls.add(video_url)
-                            
+                    if content and self._is_youtube_url(content):
+                        normalized = self._normalize_youtube_url(content)
+                        if normalized:
+                            youtube_urls.add(normalized)
+
             except Exception as e:
                 print(f"BeautifulSoup parsing failed for {page_url}: {str(e)}")
-            
+
             # Method 2: Regex extraction from raw HTML
             youtube_patterns = [
                 r'(?:https?://)?(?:www\.)?youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
                 r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',
                 r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
-                r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]{11})'
             ]
-            
+
             for pattern in youtube_patterns:
                 matches = re.finditer(pattern, html_content)
                 for match in matches:
                     video_id = match.group(1)
-                    video_url = f"https://www.youtube.com/watch?v={video_id}"
-                    youtube_urls.add(video_url)
-            
+                    youtube_urls.add(f"https://www.youtube.com/watch?v={video_id}")
+
             return list(youtube_urls)
             
         except requests.RequestException as e:
@@ -344,10 +372,11 @@ if __name__ == "__main__":
             print(f"Error: {data['error']}")
         else:
             print(f"Summary: {data['summary']}")
-            print(f"Found {len(data['items'])} YouTube URLs from pages:")
-            for item in data['items'][:3]:  # Show first 3
+            print(f"Found {len(data['items'])} video(s) from pages:")
+            for item in data['items'][:5]:  # Show first 5
                 print(f"  - Source: {item['source_page_url']}")
                 print(f"    Video:  {item['video_url']}")
+                print(f"    Platform: {item['platform']}")
                 print()
                 
     except Exception as e:

@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import re
+import yaml
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
@@ -57,6 +58,12 @@ class ClassifyPostTypes(BaseTool):
         10,
         description="Number of posts to classify in each LLM batch (default: 10)"
     )
+
+    def _load_settings(self) -> Dict[str, Any]:
+        """Load configuration from settings.yaml"""
+        config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'settings.yaml')
+        with open(config_path, 'r') as f:
+            return yaml.safe_load(f)
 
     def run(self) -> str:
         """
@@ -112,9 +119,14 @@ class ClassifyPostTypes(BaseTool):
                     "message": "No items contain sufficient text for classification"
                 })
 
+            # Load settings for LLM configuration
+            settings = self._load_settings()
+            task_config = settings.get('llm', {}).get('tasks', {}).get('strategy_classify_posts', {})
+            model = task_config.get('model', self.model)
+
             # Classify posts
             if self.use_llm:
-                classified_items = self._classify_with_llm(valid_items, taxonomy)
+                classified_items = self._classify_with_llm(valid_items, taxonomy, model)
             else:
                 classified_items = self._classify_with_heuristics(valid_items, taxonomy)
 
@@ -238,13 +250,14 @@ class ClassifyPostTypes(BaseTool):
 
         return '\n'.join(meaningful_lines)
 
-    def _classify_with_llm(self, items: List[Dict], taxonomy: List[str]) -> List[Dict]:
+    def _classify_with_llm(self, items: List[Dict], taxonomy: List[str], model: str = None) -> List[Dict]:
         """
         Classify posts using LLM.
 
         Args:
             items: Items to classify
             taxonomy: Post type taxonomy
+            model: Model to use (optional, uses self.model if not provided)
 
         Returns:
             List[Dict]: Classified items
@@ -259,12 +272,15 @@ class ClassifyPostTypes(BaseTool):
             # Initialize OpenAI client
             client = self._initialize_openai_client(api_key)
 
+            # Use provided model or fallback to instance model
+            llm_model = model or self.model
+
             classified_items = []
 
             # Process in batches
             for i in range(0, len(items), self.batch_size):
                 batch = items[i:i + self.batch_size]
-                batch_results = self._classify_batch_llm(client, batch, taxonomy)
+                batch_results = self._classify_batch_llm(client, batch, taxonomy, llm_model)
                 classified_items.extend(batch_results)
 
             return classified_items
@@ -282,7 +298,7 @@ class ClassifyPostTypes(BaseTool):
             # Return mock client for testing
             return MockOpenAIClient()
 
-    def _classify_batch_llm(self, client, batch: List[Dict], taxonomy: List[str]) -> List[Dict]:
+    def _classify_batch_llm(self, client, batch: List[Dict], taxonomy: List[str], model: str = None) -> List[Dict]:
         """
         Classify a batch of posts using LLM.
 
@@ -290,6 +306,7 @@ class ClassifyPostTypes(BaseTool):
             client: OpenAI client
             batch: Batch of items
             taxonomy: Post taxonomy
+            model: Model to use (optional, uses self.model if not provided)
 
         Returns:
             List[Dict]: Classified batch
@@ -308,9 +325,12 @@ class ClassifyPostTypes(BaseTool):
             if hasattr(client, '_is_mock'):
                 return self._mock_llm_classification(batch, taxonomy)
 
+            # Use provided model or fallback to instance model
+            llm_model = model or self.model
+
             # Real LLM classification
             response = client.chat.completions.create(
-                model=self.model,
+                model=llm_model,
                 messages=[
                     {"role": "system", "content": "You are an expert content strategist specializing in LinkedIn post classification."},
                     {"role": "user", "content": prompt}

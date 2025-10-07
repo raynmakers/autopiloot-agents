@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import re
+import yaml
 from typing import List, Dict, Any, Optional
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -58,6 +59,12 @@ class AnalyzeToneOfVoice(BaseTool):
         "gpt-4o",
         description="LLM model to use for tone analysis"
     )
+
+    def _load_settings(self) -> Dict[str, Any]:
+        """Load configuration from settings.yaml"""
+        config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'settings.yaml')
+        with open(config_path, 'r') as f:
+            return yaml.safe_load(f)
 
     def run(self) -> str:
         """
@@ -128,7 +135,13 @@ class AnalyzeToneOfVoice(BaseTool):
             llm_analyzer = None
 
             if self.use_llm:
-                llm_analyzer = LLMToneAnalyzer(self.model)
+                # Load settings from YAML
+                settings = self._load_settings()
+                task_config = settings.get('llm', {}).get('tasks', {}).get('strategy_analyze_tone', {})
+
+                # Get model from settings or use default
+                model = task_config.get('model', self.model)
+                llm_analyzer = LLMToneAnalyzer(model)
 
             # Process all content items
             all_content = []

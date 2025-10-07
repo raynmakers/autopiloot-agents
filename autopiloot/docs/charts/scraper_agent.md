@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart TD
-  A[Schedule 01:00 CET] --> B[ListRecentUploads]
+  A[Schedule 01:00 CET] --> RH[ResolveChannelHandles]
+  RH --> B[ListRecentUploads]
   A --> C[ReadSheetLinks]
   C --> D[ExtractYouTubeFromPage]
   B --> E[SaveVideoMetadata]
@@ -11,4 +12,5 @@ flowchart TD
   F -- yes --> G[EnqueueTranscription]
   F -- no --> H[Audit: Skipped]
   G --> I[Status: transcription_queued]
+  I --> J[RemoveSheetRow (backfill)]
 ```

@@ -8,6 +8,7 @@ import sys
 import json
 import re
 import random
+import yaml
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 from agency_swarm.tools import BaseTool
@@ -58,6 +59,12 @@ class GenerateContentBriefs(BaseTool):
         "gpt-4o",
         description="LLM model to use for brief generation"
     )
+
+    def _load_settings(self) -> Dict[str, Any]:
+        """Load configuration from settings.yaml"""
+        config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'settings.yaml')
+        with open(config_path, 'r') as f:
+            return yaml.safe_load(f)
 
     def run(self) -> str:
         """
@@ -119,9 +126,14 @@ class GenerateContentBriefs(BaseTool):
             if validation_error:
                 return json.dumps(validation_error)
 
+            # Load settings for LLM configuration
+            settings = self._load_settings()
+            task_config = settings.get('llm', {}).get('tasks', {}).get('strategy_generate_briefs', {})
+            model = task_config.get('model', self.model)
+
             # Initialize brief generator
             if self.use_llm:
-                generator = LLMBriefGenerator(self.model)
+                generator = LLMBriefGenerator(model)
             else:
                 generator = TemplateBriefGenerator()
 

@@ -1,0 +1,218 @@
+---
+description: "Implement AssemblyAI webhooks for real-time transcription completion notifications"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-91"
+title: "Implement AssemblyAI Webhooks for Real-time Transcription Completion"
+status: "planned"
+priority: "P2"
+labels: ["enhancement", "transcriber", "webhooks", "reliability"]
+dependencies: []
+created: "2025-01-16"
+
+# 1) High-Level Objective
+
+Replace polling-based transcription completion detection with real-time webhook notifications from AssemblyAI to improve system responsiveness and reduce API calls.
+
+# 2) Background / Context
+
+Currently, the TranscriberAgent uses polling (`poll_transcription_job.py`) to check AssemblyAI job completion status. This approach:
+
+- Creates unnecessary API calls during waiting periods
+- Introduces latency between completion and processing
+- Consumes quota unnecessarily
+- Scales poorly with high job volumes
+
+AssemblyAI supports webhooks for real-time completion notifications, which would:
+
+- Eliminate polling overhead
+- Provide instant completion notifications
+- Reduce API quota consumption
+- Improve system responsiveness
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: AssemblyAI webhook endpoint will be publicly accessible
+- Constraint: Webhook endpoint must be secured with signature verification
+- Constraint: Must maintain backward compatibility with existing polling approach
+- Constraint: Webhook failures must fall back to polling mechanism
+- Constraint: Webhook endpoint must handle AssemblyAI's expected payload format
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `transcriber_agent/tools/poll_transcription_job.py` (existing polling implementation)
+- `transcriber_agent/tools/submit_assemblyai_job.py` (webhook URL configuration)
+- `services/firebase/functions/` (webhook endpoint hosting)
+- `config/settings.yaml` (webhook configuration)
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- `transcriber_agent/tools/poll_transcription_job.py` _(read-only)_
+- `transcriber_agent/tools/submit_assemblyai_job.py` _(read-only)_
+- `services/firebase/functions/main.py` _(read-only)_
+- `config/settings.yaml` _(read-only)_
+
+**End state (must exist after completion):**
+
+- `transcriber_agent/tools/webhook_transcription_completion.py`
+- `services/firebase/functions/webhook_handler.py`
+- `config/settings.yaml` (updated with webhook config)
+- `tests/test_webhook_transcription_completion.py`
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Create webhook configuration**
+
+   - File: `config/settings.yaml`
+   - Add webhook section:
+     ```yaml
+     webhooks:
+       assemblyai:
+         enabled: true
+         endpoint_url: "https://your-project.cloudfunctions.net/assemblyai_webhook"
+         secret_key: "your-webhook-secret"
+         timeout_seconds: 30
+     ```
+
+2. **Create webhook handler Firebase Function**
+
+   - File: `services/firebase/functions/webhook_handler.py`
+   - Exported API:
+     ```python
+     @functions_framework.http
+     def assemblyai_webhook(request):
+         """Handle AssemblyAI webhook notifications for transcription completion."""
+     ```
+   - Details:
+     - Verify webhook signature using HMAC-SHA256
+     - Parse AssemblyAI webhook payload
+     - Update Firestore transcription job status
+     - Trigger next workflow step (summarization)
+     - Handle webhook failures gracefully
+
+3. **Create webhook completion tool**
+
+   - File: `transcriber_agent/tools/webhook_transcription_completion.py`
+   - Exported API:
+     ```python
+     class WebhookTranscriptionCompletion(BaseTool):
+         def run(self, job_id: str, webhook_url: str) -> str:
+             """Configure webhook URL for AssemblyAI transcription job."""
+     ```
+   - Details:
+     - Update AssemblyAI job with webhook URL
+     - Store webhook configuration in Firestore
+     - Handle webhook URL validation
+     - Provide fallback to polling if webhook fails
+
+4. **Update job submission tool**
+
+   - File: `transcriber_agent/tools/submit_assemblyai_job.py`
+   - Add webhook URL parameter to job submission
+   - Configure webhook URL from settings
+   - Maintain backward compatibility with polling
+
+5. **Create webhook verification utility**
+
+   - File: `core/webhook_utils.py`
+   - Exported API:
+
+     ```python
+     def verify_assemblyai_signature(payload: str, signature: str, secret: str) -> bool:
+         """Verify AssemblyAI webhook signature."""
+
+     def parse_assemblyai_webhook(payload: dict) -> dict:
+         """Parse AssemblyAI webhook payload into standardized format."""
+     ```
+
+6. **Update Firestore schema**
+
+   - Add webhook tracking fields to transcription jobs:
+     ```typescript
+     interface TranscriptionJobDocument {
+       // ... existing fields
+       webhook_configured: boolean;
+       webhook_url?: string;
+       webhook_received_at?: string;
+       webhook_fallback_used: boolean;
+     }
+     ```
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import TypedDict, Optional
+
+class WebhookConfig(TypedDict):
+    enabled: bool
+    endpoint_url: str
+    secret_key: str
+    timeout_seconds: int
+
+class AssemblyAIWebhookPayload(TypedDict):
+    job_id: str
+    status: str
+    transcript: Optional[str]
+    confidence: Optional[float]
+    error: Optional[str]
+
+class WebhookJobUpdate(TypedDict):
+    job_id: str
+    status: str
+    transcript_text: Optional[str]
+    transcript_json: Optional[dict]
+    confidence: Optional[float]
+    completed_at: str
+    webhook_received_at: str
+```
+
+# 8) Acceptance Criteria
+
+- Webhook endpoint receives and processes AssemblyAI completion notifications
+- Webhook signature verification prevents unauthorized access
+- Transcription jobs update status immediately upon webhook receipt
+- Fallback to polling mechanism if webhook fails
+- Webhook configuration is stored in Firestore for audit purposes
+- Integration tests verify end-to-end webhook flow
+- Backward compatibility maintained with existing polling approach
+
+# 9) Testing Strategy
+
+- Create integration tests that simulate AssemblyAI webhook calls
+- Test webhook signature verification with valid and invalid signatures
+- Verify Firestore updates occur correctly on webhook receipt
+- Test fallback mechanism when webhook fails
+- Mock AssemblyAI webhook payloads for comprehensive testing
+- **MANDATORY: Generate test coverage reports with minimum 80% coverage**
+
+# 10) Notes / Links
+
+- AssemblyAI Webhook Documentation: https://www.assemblyai.com/docs/webhooks
+- Firebase Functions HTTP triggers: https://firebase.google.com/docs/functions/http-events
+- HMAC signature verification: https://docs.python.org/3/library/hmac.html
+- Webhook security best practices: https://webhook.site/security
+
+# 11) Implementation Priority
+
+This enhancement should be implemented after core system stability is achieved, as it introduces external dependencies and requires careful security considerations for webhook endpoint protection.
