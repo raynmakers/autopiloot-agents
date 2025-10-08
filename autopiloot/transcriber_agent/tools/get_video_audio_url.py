@@ -387,16 +387,17 @@ class GetVideoAudioUrl(BaseTool):
             # Upload with retry on connection errors
             for attempt in range(max_retries):
                 try:
-                    # Use resumable upload for files that might be large
+                    # Upload using resumable strategy for large files
+                    # Chunk size helps with large uploads
                     blob.upload_from_file(
                         response.raw,
                         content_type=f"audio/{file_extension}",
                         timeout=600,  # Increased timeout for large files
-                        num_retries=3  # Google Cloud Storage internal retries
+                        checksum=None  # Disable checksum for streaming uploads
                     )
                     break
                 except Exception as e:
-                    if attempt < max_retries - 1 and "Connection" in str(e):
+                    if attempt < max_retries - 1 and ("Connection" in str(e) or "reset" in str(e).lower()):
                         print(f"  ⚠️  Upload error (attempt {attempt + 1}/{max_retries}), retrying...")
                         time.sleep(5)
                         # Re-fetch the stream
