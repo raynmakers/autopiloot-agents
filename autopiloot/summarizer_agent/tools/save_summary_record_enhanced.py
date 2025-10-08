@@ -25,12 +25,15 @@ from google.cloud import firestore
 class SaveSummaryRecordEnhanced(BaseTool):
     """
     Persist enhanced summary references with Zep and RAG linkage to Firestore.
-    
+
     Extends the basic SaveSummaryRecord functionality to include zep_doc_id
-    and rag_refs storage as specified in TASK-ZEP-0006. Creates summaries/{video_id} 
-    document with complete linkage to Zep GraphRAG, Drive storage, transcript documents,
+    and rag_refs storage as specified in TASK-ZEP-0006. Creates summaries/{video_id}
+    document with complete linkage to Zep GraphRAG, transcript documents (stored in Drive),
     and RAG reference artifacts for enhanced retrieval workflows.
-    
+
+    NOTE: Summaries themselves are stored in Firestore (structured data) and Zep (semantic search),
+    NOT in Drive. Drive storage is used only for transcripts.
+
     Maintains full audit trail and reference integrity for coaching workflows.
     """
     
