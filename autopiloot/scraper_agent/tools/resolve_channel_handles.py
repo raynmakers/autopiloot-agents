@@ -38,7 +38,9 @@ class ResolveChannelHandles(BaseTool):
     def run(self) -> str:
         """
         Resolves all configured channel handles to channel IDs.
-        
+
+        Persists successful resolutions to Firestore for downstream reference.
+
         Returns:
             str: JSON string containing mapping of handles to channel IDs
                  Format: '{"@AlexHormozi": "UCfV36TX5AejfAGIbtwTc7Zw", ...}'
@@ -46,27 +48,36 @@ class ResolveChannelHandles(BaseTool):
         try:
             # Load handles from configuration
             handles = self._load_handles_from_config()
-            
+
             if not handles:
                 return '{"error": "No handles configured in settings.yaml"}'
-            
+
             # Initialize YouTube API client
             youtube = self._initialize_youtube_client()
-            
+
             # Resolve each handle to channel ID
             mapping = {}
             for handle in handles:
                 try:
-                    channel_id = self._resolve_single_handle(youtube, handle)
+                    channel_data = self._resolve_single_handle_with_metadata(youtube, handle)
+                    channel_id = channel_data['channel_id']
                     mapping[handle] = channel_id
+
+                    # Persist mapping to Firestore (non-blocking, don't fail on errors)
+                    try:
+                        self._save_channel_mapping(handle, channel_data)
+                    except Exception as save_error:
+                        # Log but don't fail - persistence is best-effort
+                        print(f"Warning: Failed to save mapping for {handle}: {str(save_error)}")
+
                 except Exception as e:
                     # Continue with other handles even if one fails
                     mapping[handle] = f"ERROR: {str(e)}"
-            
+
             # Return as JSON string
             import json
             return json.dumps(mapping, indent=2)
-            
+
         except Exception as e:
             return f'{{"error": "Failed to resolve channel handles: {str(e)}"}}'
     
@@ -88,6 +99,109 @@ class ResolveChannelHandles(BaseTool):
         except Exception as e:
             raise RuntimeError(f"Failed to load handles from config: {str(e)}")
     
+    def _resolve_single_handle_with_metadata(self, youtube, handle: str) -> Dict[str, any]:
+        """
+        Resolve a single channel handle to channel ID with full metadata.
+
+        Args:
+            youtube: Authenticated YouTube API client
+            handle: Channel handle (e.g., "@AlexHormozi")
+
+        Returns:
+            dict: Channel metadata including channel_id, title, custom_url, thumbnails
+
+        Raises:
+            ValueError: If channel not found
+            RuntimeError: If API error persists after retries
+        """
+        clean_handle = handle.lstrip('@')
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                # First try searching for the channel by handle
+                search_response = youtube.search().list(
+                    part="snippet",
+                    q=f"@{clean_handle}",  # Include @ in search
+                    type="channel",
+                    maxResults=5  # Get more results to find exact match
+                ).execute()
+
+                # Look for exact handle match in results
+                if search_response.get('items'):
+                    for item in search_response['items']:
+                        # Check if this is the exact channel we're looking for
+                        channel_id = item['snippet']['channelId']
+
+                        # Get channel details to verify handle and get metadata
+                        channel_response = youtube.channels().list(
+                            part="snippet",
+                            id=channel_id
+                        ).execute()
+
+                        if channel_response.get('items'):
+                            channel_item = channel_response['items'][0]
+                            channel_data = channel_item['snippet']
+
+                            # Build result with metadata
+                            result = {
+                                'channel_id': channel_id,
+                                'title': channel_data.get('title'),
+                                'custom_url': channel_data.get('customUrl'),
+                                'thumbnails': channel_data.get('thumbnails', {})
+                            }
+
+                            # Check custom URL for match
+                            if (channel_data.get('customUrl', '').lower() == f"@{clean_handle.lower()}"):
+                                return result
+                            # If no custom URL, use the first search result on last attempt
+                            if attempt == self.max_retries:
+                                return result
+
+                # Fallback: try by username (legacy channels)
+                channels_response = youtube.channels().list(
+                    part="snippet",
+                    forUsername=clean_handle
+                ).execute()
+
+                if channels_response.get('items'):
+                    channel_item = channels_response['items'][0]
+                    channel_data = channel_item['snippet']
+                    return {
+                        'channel_id': channel_item['id'],
+                        'title': channel_data.get('title'),
+                        'custom_url': channel_data.get('customUrl'),
+                        'thumbnails': channel_data.get('thumbnails', {})
+                    }
+
+                # If this is the last attempt, raise error
+                if attempt == self.max_retries:
+                    raise ValueError(f"Channel not found for handle: {handle}")
+
+                # If no results, try next attempt
+                continue
+
+            except HttpError as e:
+                if e.resp.status in [429, 500, 502, 503, 504]:  # Retryable errors
+                    if attempt < self.max_retries:
+                        # Exponential backoff: 1s, 2s, 4s
+                        sleep_time = 2 ** attempt
+                        time.sleep(sleep_time)
+                        continue
+                    else:
+                        raise RuntimeError(f"API error after {self.max_retries} retries: {str(e)}")
+                else:
+                    # Non-retryable error
+                    raise RuntimeError(f"YouTube API error: {str(e)}")
+
+            except Exception as e:
+                if attempt < self.max_retries:
+                    time.sleep(1)  # Short delay before retry
+                    continue
+                else:
+                    raise RuntimeError(f"Failed to resolve {handle}: {str(e)}")
+
+        raise ValueError(f"Channel not found for handle: {handle}")
+
     def _resolve_single_handle(self, youtube, handle: str) -> str:
         """
         Resolve a single channel handle to channel ID with retry logic.
@@ -175,12 +289,52 @@ class ResolveChannelHandles(BaseTool):
         
         raise ValueError(f"Channel not found for handle: {handle}")
     
+    def _save_channel_mapping(self, handle: str, channel_data: Dict) -> None:
+        """
+        Save channel mapping to Firestore using SaveChannelMapping tool.
+
+        Args:
+            handle: Channel handle (e.g., "@AlexHormozi")
+            channel_data: Dict with channel_id, title, custom_url, thumbnails
+
+        Note: This is non-blocking and errors are logged but not raised.
+        """
+        try:
+            from scraper_agent.tools.save_channel_mapping import SaveChannelMapping
+            import json
+
+            # Prepare parameters
+            thumbnails_json = None
+            if channel_data.get('thumbnails'):
+                thumbnails_json = json.dumps(channel_data['thumbnails'])
+
+            # Create and run tool
+            save_tool = SaveChannelMapping(
+                handle=handle,
+                channel_id=channel_data['channel_id'],
+                title=channel_data.get('title'),
+                custom_url=channel_data.get('custom_url'),
+                thumbnails_json=thumbnails_json
+            )
+
+            result = save_tool.run()
+            result_data = json.loads(result)
+
+            if result_data.get('ok'):
+                print(f"✓ Saved mapping for {handle} → {result_data['channel_id']}")
+            else:
+                print(f"✗ Failed to save mapping for {handle}: {result_data.get('message', 'Unknown error')}")
+
+        except Exception as e:
+            # Log but don't raise - this is best-effort persistence
+            print(f"Warning: Exception saving mapping for {handle}: {str(e)}")
+
     def _initialize_youtube_client(self):
         """Initialize YouTube Data API client with authentication."""
         try:
             # Get API key (required)
             api_key = get_required_env_var("YOUTUBE_API_KEY", "YouTube Data API key")
-            
+
             # Try service account authentication first (if available)
             try:
                 service_account_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials")
@@ -192,10 +346,10 @@ class ResolveChannelHandles(BaseTool):
                     return build('youtube', 'v3', credentials=credentials)
             except Exception:
                 pass  # Fall back to API key
-            
+
             # Use API key authentication
             return build('youtube', 'v3', developerKey=api_key)
-                
+
         except Exception as e:
             raise RuntimeError(f"Failed to initialize YouTube client: {str(e)}")
 

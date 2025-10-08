@@ -81,7 +81,6 @@ Multiple workflows need a consistent way to resolve and reference channels. We a
      - `handles` (list[str]) — unique set including historical handles (if available)
      - `title` (str | null)
      - `custom_url` (str | null)
-     - `thumbnails` (dict | null)
      - `last_resolved_at` (RFC3339/ISO 8601 with `Z`)
      - `created_at` (SERVER_TIMESTAMP)
      - `updated_at` (SERVER_TIMESTAMP)
