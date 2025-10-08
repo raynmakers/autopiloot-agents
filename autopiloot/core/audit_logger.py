@@ -177,13 +177,27 @@ class AuditLogger:
         """Log job failure event for dead letter queue tracking."""
         return self.write_audit_log(
             actor=actor,
-            action="job_failed", 
+            action="job_failed",
             entity="job",
             entity_id=job_id,
             details={
                 "job_type": job_type,
                 "error_message": error_message,
                 "event_type": "system_failure"
+            }
+        )
+
+    def log_video_rejected(self, video_id: str, content_type: str, reason: str, actor: str = "SummarizerAgent") -> bool:
+        """Log video rejection event for non-business content."""
+        return self.write_audit_log(
+            actor=actor,
+            action="video_rejected",
+            entity="video",
+            entity_id=video_id,
+            details={
+                "content_type": content_type,
+                "reason": reason,
+                "event_type": "content_validation"
             }
         )
 

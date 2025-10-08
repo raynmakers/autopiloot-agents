@@ -192,6 +192,24 @@ Extract named frameworks/concepts like:
 
             # Check if content was flagged as non-business
             if not summary_data.get("is_business_content", False):
+                # Mark video as rejected in Firestore to prevent reprocessing
+                try:
+                    from summarizer_agent.tools.mark_video_rejected import MarkVideoRejected
+
+                    rejection_tool = MarkVideoRejected(
+                        video_id=video_id,
+                        content_type=summary_data.get("content_type", "Unknown"),
+                        reason=summary_data.get("reason", "Content does not contain business/educational material"),
+                        title=self.title
+                    )
+                    rejection_result = rejection_tool.run()
+                    rejection_data = json.loads(rejection_result)
+
+                    if not rejection_data.get("ok"):
+                        print(f"Warning: Failed to mark video as rejected: {rejection_data.get('message')}")
+                except Exception as rejection_error:
+                    print(f"Warning: Failed to mark video as rejected: {str(rejection_error)}")
+
                 return json.dumps({
                     "status": "not_business_content",
                     "content_type": summary_data.get("content_type", "Unknown"),
@@ -199,6 +217,7 @@ Extract named frameworks/concepts like:
                     "video_id": video_id,
                     "title": self.title,
                     "message": "This content is not business/educational material and cannot be analyzed for business insights",
+                    "firestore_updated": True,  # Video marked as rejected_non_business
                     "token_usage": {
                         "input_tokens": response.usage.prompt_tokens,
                         "output_tokens": response.usage.completion_tokens,
