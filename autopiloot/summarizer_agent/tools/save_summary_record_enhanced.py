@@ -28,11 +28,11 @@ class SaveSummaryRecordEnhanced(BaseTool):
 
     Extends the basic SaveSummaryRecord functionality to include zep_doc_id
     and rag_refs storage as specified in TASK-ZEP-0006. Creates summaries/{video_id}
-    document with complete linkage to Zep GraphRAG, transcript documents (stored in Drive),
+    document with complete linkage to Zep GraphRAG, transcript documents (stored in Firestore),
     and RAG reference artifacts for enhanced retrieval workflows.
 
-    NOTE: Summaries themselves are stored in Firestore (structured data) and Zep (semantic search),
-    NOT in Drive. Drive storage is used only for transcripts.
+    NOTE: Drive storage is NOT used. All data (transcripts, summaries, metadata) stored in Firestore.
+    Summaries are additionally indexed in Zep for semantic search.
 
     Maintains full audit trail and reference integrity for coaching workflows.
     """

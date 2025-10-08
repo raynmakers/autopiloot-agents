@@ -109,14 +109,14 @@ def validate_environment() -> Dict[str, str]:
         "SLACK_BOT_TOKEN": "Slack bot token for notifications",
         "GOOGLE_APPLICATION_CREDENTIALS": "Path to Google service account JSON file",
         "GCP_PROJECT_ID": "Google Cloud Project ID for Firestore and other GCP services",
-        "GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS": "Google Drive folder ID for transcript storage",
-        "GOOGLE_DRIVE_FOLDER_ID_SUMMARIES": "Google Drive folder ID for summary storage",
         "ZEP_API_KEY": "Zep API key for GraphRAG storage",
     }
-    
+
     # Optional environment variables with defaults
     optional_vars = {
         "ZEP_COLLECTION": "autopiloot_guidelines",
+        "GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS": "DEPRECATED - No longer used. Transcripts stored in Firestore only",
+        "GOOGLE_DRIVE_FOLDER_ID_SUMMARIES": "DEPRECATED - No longer used. Summaries stored in Zep and Firestore only",
         "ZEP_BASE_URL": "https://api.getzep.com",
         "TIMEZONE": "Europe/Amsterdam",
         "LANGFUSE_HOST": "https://cloud.langfuse.com",
