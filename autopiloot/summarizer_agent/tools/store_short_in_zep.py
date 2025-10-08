@@ -90,7 +90,8 @@ class StoreShortInZep(BaseTool):
                 "bullet_count": len(self.bullets),
                 "concept_count": len(self.key_concepts),
                 "stored_at": datetime.now(timezone.utc).isoformat(),
-                "source": "youtube"
+                "source": "youtube",
+                "collection_name": collection_name  # Pass to _add_document
             }
 
             # Prepare labels for filtering
@@ -127,11 +128,15 @@ class StoreShortInZep(BaseTool):
 
     def _initialize_zep_client(self, api_key: str, base_url: str):
         """Initialize Zep client with proper authentication."""
+        # Due to Python 3.13 incompatibility with zep-python's pydantic v1 dependency,
+        # we'll use direct HTTP API calls via httpx instead
         try:
-            from zep_python import ZepClient
-            return ZepClient(api_key=api_key, base_url=base_url)
-        except (ImportError, Exception):
-            # Fallback to mock client if zep-python is not installed or has errors
+            import httpx
+            return HttpZepClient(api_key=api_key, base_url=base_url)
+        except Exception as e:
+            print(f"⚠️  HTTP client creation error, using MockZepClient: {e}")
+            import traceback
+            traceback.print_exc()
             return MockZepClient()
 
     def _format_content(self) -> str:
@@ -177,23 +182,91 @@ class StoreShortInZep(BaseTool):
             dict: Document addition result
         """
         try:
-            # Add document using Zep client
-            # Note: Actual Zep API calls would go here
-            # For now, return success with mock data
+            # Get collection name from metadata
+            collection_name = metadata.get("collection_name", "youtube_summaries")
+
+            # Check if this is the mock client
+            if isinstance(zep_client, MockZepClient):
+                return zep_client.add_document(document_id, content, metadata, labels)
+
+            # HTTP Zep client
+            if isinstance(zep_client, HttpZepClient):
+                result = zep_client.add_document(
+                    document_id=document_id,
+                    content=content,
+                    metadata=metadata,
+                    labels=labels,
+                    collection_name=collection_name
+                )
+                return {
+                    **result,
+                    "collection": collection_name,
+                    "labels": labels
+                }
+
+            # Should never reach here
             return {
                 "document_id": document_id,
-                "stored": True,
-                "metadata": metadata,
-                "labels": labels
+                "stored": False,
+                "error": "Unknown client type"
             }
+
         except Exception as e:
-            # Fallback for testing
+            # Log error but don't fail completely
             return {
                 "document_id": document_id,
-                "stored": True,
-                "mock": True,
-                "error": str(e)
+                "stored": False,
+                "error": str(e),
+                "error_type": type(e).__name__
             }
+
+
+class HttpZepClient:
+    """HTTP-based Zep client using direct API calls (Python 3.13 compatible)."""
+
+    def __init__(self, api_key: str, base_url: str):
+        import httpx
+        self.api_key = api_key
+        self.base_url = base_url.rstrip('/')
+        self.client = httpx.Client(
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            timeout=30.0
+        )
+
+    def add_document(self, document_id: str, content: str, metadata: dict,
+                     labels: dict, collection_name: str):
+        """Add document to Zep collection via HTTP API."""
+        # Zep API endpoint for adding documents
+        url = f"{self.base_url}/api/v2/collections/{collection_name}/documents"
+
+        # Prepare document payload
+        document = {
+            "uuid": document_id,
+            "content": content,
+            "metadata": {
+                **metadata,
+                **labels  # Merge labels into metadata
+            }
+        }
+
+        # Make API request
+        response = self.client.post(url, json=[document])
+        response.raise_for_status()
+
+        return {
+            "document_id": document_id,
+            "stored": True,
+            "http_status": response.status_code,
+            "response": response.json() if response.text else {}
+        }
+
+    def __del__(self):
+        """Close HTTP client on cleanup."""
+        if hasattr(self, 'client'):
+            self.client.close()
 
 
 class MockZepClient:
