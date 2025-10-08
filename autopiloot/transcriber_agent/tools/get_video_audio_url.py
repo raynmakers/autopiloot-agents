@@ -29,6 +29,7 @@ This ensures automatic cleanup even if CleanupTranscriptionAudio tool fails.
 
 import os
 import json
+import time
 import yt_dlp
 import requests
 from agency_swarm.tools import BaseTool
@@ -101,26 +102,37 @@ class GetVideoAudioUrl(BaseTool):
             - format: Audio format (m4a, webm, etc.)
             - cached: Boolean indicating if existing file was reused
         """
+        timings = {}
+        overall_start = time.time()
+
         try:
             # Step 1: Extract video metadata and direct audio URL
+            step_start = time.time()
             print("Extracting video metadata and audio URL from YouTube...")
             video_info = self._extract_video_info()
+            timings['extract_metadata'] = time.time() - step_start
+            print(f"  ⏱️  Metadata extraction: {timings['extract_metadata']:.2f}s")
 
             if "error" in video_info:
                 return json.dumps(video_info)
 
             # Step 2: Check if file already exists and is fresh
+            step_start = time.time()
             print("Checking if audio file already exists in Firebase Storage...")
             existing_file = self._check_existing_file(
                 video_id=video_info["video_id"],
                 file_extension=video_info.get("format", "m4a")
             )
+            timings['check_cache'] = time.time() - step_start
+            print(f"  ⏱️  Cache check: {timings['check_cache']:.2f}s")
 
             if existing_file and existing_file.get("is_fresh"):
+                timings['total'] = time.time() - overall_start
                 print(f"✅ Found fresh audio file (age: {existing_file['age_hours']:.1f} hours)")
                 print("Skipping download, reusing existing file...")
+                print(f"  ⏱️  Total time: {timings['total']:.2f}s")
 
-                return json.dumps({
+                result = {
                     "storage_path": existing_file["storage_path"],
                     "signed_url": existing_file["signed_url"],
                     "video_id": video_info["video_id"],
@@ -128,30 +140,45 @@ class GetVideoAudioUrl(BaseTool):
                     "title": video_info.get("title", "Unknown"),
                     "format": video_info.get("format", "m4a"),
                     "cached": True,
-                    "cache_age_hours": existing_file["age_hours"]
-                }, indent=2)
+                    "cache_age_hours": existing_file["age_hours"],
+                    "timings": timings
+                }
+                return json.dumps(result, indent=2)
 
             # Step 3: Stream audio directly to Firebase Storage
+            step_start = time.time()
             print("Streaming audio to Firebase Storage...")
             storage_result = self._stream_to_firebase_storage(
                 audio_url=video_info["audio_url"],
                 video_id=video_info["video_id"],
                 file_extension=video_info.get("format", "m4a")
             )
+            timings['upload_to_storage'] = time.time() - step_start
+            print(f"  ⏱️  Upload to storage: {timings['upload_to_storage']:.2f}s")
 
             if "error" in storage_result:
                 return json.dumps(storage_result)
 
+            # Calculate totals
+            timings['total'] = time.time() - overall_start
+            duration_min = video_info.get("duration", 0) / 60
+            print(f"\n📊 Performance Summary:")
+            print(f"  Video duration: {duration_min:.1f} min")
+            print(f"  Total time: {timings['total']:.2f}s")
+            print(f"  Speed ratio: {duration_min * 60 / timings['total']:.1f}x realtime")
+
             # Return complete result
-            return json.dumps({
+            result = {
                 "storage_path": storage_result["storage_path"],
                 "signed_url": storage_result["signed_url"],
                 "video_id": video_info["video_id"],
                 "duration": video_info.get("duration", 0),
                 "title": video_info.get("title", "Unknown"),
                 "format": video_info.get("format", "m4a"),
-                "cached": False
-            }, indent=2)
+                "cached": False,
+                "timings": timings
+            }
+            return json.dumps(result, indent=2)
 
         except Exception as e:
             return json.dumps({
@@ -325,19 +352,33 @@ class GetVideoAudioUrl(BaseTool):
 
             # Stream audio from YouTube to Firebase Storage
             print(f"Streaming {file_extension} audio to Firebase Storage...")
+
+            download_start = time.time()
             response = requests.get(audio_url, stream=True, timeout=300)
             response.raise_for_status()
+            print(f"  ⏱️  Started streaming from YouTube ({time.time() - download_start:.2f}s)")
 
             # Set custom metadata for 24-hour expiration tracking
             from datetime import datetime, timezone
             expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
 
             # Upload in chunks to handle large files efficiently
+            upload_start = time.time()
             blob.upload_from_file(
                 response.raw,
                 content_type=f"audio/{file_extension}",
                 timeout=300
             )
+            upload_duration = time.time() - upload_start
+            print(f"  ⏱️  Upload completed: {upload_duration:.2f}s")
+
+            # Estimate file size from content-length if available
+            content_length = response.headers.get('content-length')
+            if content_length:
+                size_mb = int(content_length) / (1024 * 1024)
+                speed_mbps = (size_mb / upload_duration) if upload_duration > 0 else 0
+                print(f"  📦 File size: {size_mb:.1f} MB")
+                print(f"  🚀 Upload speed: {speed_mbps:.2f} MB/s")
 
             # Set metadata after upload (includes 24h expiration marker)
             blob.metadata = {
