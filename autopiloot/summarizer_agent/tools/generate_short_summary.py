@@ -236,25 +236,26 @@ Extract named frameworks/concepts like:
 
 
 if __name__ == "__main__":
-    print("Testing GenerateShortSummary with comprehensive coaching...")
+    print("="*80)
+    print("TEST 1: GenerateShortSummary - Rick Astley (Non-Business Content)")
     print("="*80)
 
-    # Test with Rick Astley video
-    tool = GenerateShortSummary(
+    # Test with Rick Astley video (should be rejected as non-business)
+    tool_rick = GenerateShortSummary(
         transcript_doc_ref="transcripts/dQw4w9WgXcQ",
         title="Never Gonna Give You Up - Rick Astley"
     )
 
     try:
-        print("Generating comprehensive summary (this may take a while with GPT-5 reasoning)...")
-        result = tool.run()
+        print("Generating summary for Rick Astley (expecting rejection)...")
+        result = tool_rick.run()
         data = json.loads(result)
 
         if "error" in data:
             print(f"\n❌ Error: {data['message']}")
             print(f"   Error type: {data['error']}")
         elif data.get("status") == "not_business_content":
-            print(f"\n⚠️  Content Validation Failed")
+            print(f"\n⚠️  Content Validation Failed (Expected)")
             print(f"\n📋 Content Analysis:")
             print(f"   Video: {data.get('title', 'N/A')}")
             print(f"   Content Type: {data.get('content_type', 'Unknown')}")
@@ -267,6 +268,37 @@ if __name__ == "__main__":
             print(f"   Total: {data.get('token_usage', {}).get('total_tokens', 0):,}")
             print(f"\n✅ Hallucination Prevention: Working correctly!")
             print(f"   The tool correctly identified non-business content and refused to generate fake insights.")
+        else:
+            print(f"\n⚠️  Unexpected: Content was NOT rejected")
+            print(f"   This should have been rejected as non-business content")
+
+    except Exception as e:
+        print(f"\n❌ Test error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+    print("\n" + "="*80)
+    print("TEST 2: GenerateShortSummary - Dan Martell (Business Content)")
+    print("="*80)
+
+    # Test with Dan Martell video (should generate business summary)
+    tool_dan = GenerateShortSummary(
+        transcript_doc_ref="transcripts/mZxDw92UXmA",
+        title="How to 10x Your Business - Dan Martell"
+    )
+
+    try:
+        print("Generating summary for Dan Martell (expecting business insights)...")
+        result = tool_dan.run()
+        data = json.loads(result)
+
+        if "error" in data:
+            print(f"\n❌ Error: {data['message']}")
+            print(f"   Error type: {data['error']}")
+        elif data.get("status") == "not_business_content":
+            print(f"\n⚠️  Unexpected: Content was rejected")
+            print(f"   Content Type: {data.get('content_type', 'Unknown')}")
+            print(f"   Reason: {data.get('reason', 'N/A')}")
         else:
             print(f"\n✅ Summary generated successfully!")
             print(f"\n📊 Summary Statistics:")
@@ -299,4 +331,7 @@ if __name__ == "__main__":
         traceback.print_exc()
 
     print("\n" + "="*80)
-    print("Testing complete!")
+    print("Testing complete! Two videos tested:")
+    print("- dQw4w9WgXcQ: Rick Astley (non-business, should be rejected)")
+    print("- mZxDw92UXmA: Dan Martell (business content, should generate insights)")
+    print("="*80)
