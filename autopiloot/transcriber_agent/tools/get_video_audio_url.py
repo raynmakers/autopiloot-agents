@@ -2,6 +2,29 @@
 GetVideoAudioUrl tool for extracting direct audio URLs from YouTube videos.
 Implements TASK-TRN-0020: Resolve audio source for AssemblyAI transcription.
 Streams audio directly to Firebase Storage without local downloads.
+
+IMPORTANT: Configure Firebase Storage Lifecycle Management for automatic cleanup:
+- Files in tmp/transcription/ should auto-delete after 24 hours
+- Set up via Firebase Console > Storage > Rules > Lifecycle
+- Or use gcloud:
+  gsutil lifecycle set lifecycle.json gs://your-bucket.firebasestorage.app
+
+Example lifecycle.json:
+{
+  "lifecycle": {
+    "rule": [
+      {
+        "action": {"type": "Delete"},
+        "condition": {
+          "age": 1,
+          "matchesPrefix": ["tmp/transcription/"]
+        }
+      }
+    ]
+  }
+}
+
+This ensures automatic cleanup even if CleanupTranscriptionAudio tool fails.
 """
 
 import os
@@ -62,9 +85,11 @@ class GetVideoAudioUrl(BaseTool):
 
         Process:
         1. Extract video metadata and direct audio URL from YouTube (no download)
-        2. Stream audio directly to Firebase Storage (tmp/transcription/ folder)
-        3. Generate signed URL with 24-hour expiration
-        4. Return storage_path and signed_url
+        2. Check if audio file already exists in Firebase Storage and is <20 hours old
+        3. If exists and fresh: return existing file's signed URL (skip download)
+        4. If not: stream audio to Firebase Storage (tmp/transcription/ folder)
+        5. Generate signed URL with 24-hour expiration
+        6. Return storage_path and signed_url
 
         Returns:
             str: JSON string with:
@@ -74,6 +99,7 @@ class GetVideoAudioUrl(BaseTool):
             - duration: Video duration in seconds
             - title: Video title
             - format: Audio format (m4a, webm, etc.)
+            - cached: Boolean indicating if existing file was reused
         """
         try:
             # Step 1: Extract video metadata and direct audio URL
@@ -83,7 +109,29 @@ class GetVideoAudioUrl(BaseTool):
             if "error" in video_info:
                 return json.dumps(video_info)
 
-            # Step 2: Stream audio directly to Firebase Storage
+            # Step 2: Check if file already exists and is fresh
+            print("Checking if audio file already exists in Firebase Storage...")
+            existing_file = self._check_existing_file(
+                video_id=video_info["video_id"],
+                file_extension=video_info.get("format", "m4a")
+            )
+
+            if existing_file and existing_file.get("is_fresh"):
+                print(f"✅ Found fresh audio file (age: {existing_file['age_hours']:.1f} hours)")
+                print("Skipping download, reusing existing file...")
+
+                return json.dumps({
+                    "storage_path": existing_file["storage_path"],
+                    "signed_url": existing_file["signed_url"],
+                    "video_id": video_info["video_id"],
+                    "duration": video_info.get("duration", 0),
+                    "title": video_info.get("title", "Unknown"),
+                    "format": video_info.get("format", "m4a"),
+                    "cached": True,
+                    "cache_age_hours": existing_file["age_hours"]
+                }, indent=2)
+
+            # Step 3: Stream audio directly to Firebase Storage
             print("Streaming audio to Firebase Storage...")
             storage_result = self._stream_to_firebase_storage(
                 audio_url=video_info["audio_url"],
@@ -101,7 +149,8 @@ class GetVideoAudioUrl(BaseTool):
                 "video_id": video_info["video_id"],
                 "duration": video_info.get("duration", 0),
                 "title": video_info.get("title", "Unknown"),
-                "format": video_info.get("format", "m4a")
+                "format": video_info.get("format", "m4a"),
+                "cached": False
             }, indent=2)
 
         except Exception as e:
@@ -112,6 +161,72 @@ class GetVideoAudioUrl(BaseTool):
                 "signed_url": None
             })
     
+    def _check_existing_file(self, video_id: str, file_extension: str) -> Optional[dict]:
+        """
+        Check if audio file already exists in Firebase Storage and is fresh (<20 hours old).
+
+        Args:
+            video_id: YouTube video ID
+            file_extension: File extension (e.g., 'm4a', 'webm')
+
+        Returns:
+            dict with storage_path, signed_url, is_fresh, age_hours if file exists and is fresh
+            None if file doesn't exist or is too old
+        """
+        try:
+            # Get project ID for bucket name
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firebase Storage"
+            )
+
+            # Use provided bucket or default to project bucket
+            bucket_name = self.firebase_bucket or f"{project_id}.firebasestorage.app"
+
+            # Initialize Storage client
+            storage_client = storage.Client(project=project_id)
+            bucket = storage_client.bucket(bucket_name)
+
+            # Check if file exists
+            storage_path = f"tmp/transcription/{video_id}.{file_extension}"
+            blob = bucket.blob(storage_path)
+
+            if not blob.exists():
+                print(f"No existing file found at {storage_path}")
+                return None
+
+            # Get file metadata
+            blob.reload()  # Refresh metadata
+
+            # Check file age
+            from datetime import datetime, timezone
+            created_time = blob.time_created
+            current_time = datetime.now(timezone.utc)
+            age_hours = (current_time - created_time).total_seconds() / 3600
+
+            # If file is older than 20 hours, don't reuse it
+            if age_hours >= 20:
+                print(f"Found file but it's too old ({age_hours:.1f} hours)")
+                return None
+
+            # File exists and is fresh - generate signed URL
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(hours=24),
+                method="GET"
+            )
+
+            return {
+                "storage_path": storage_path,
+                "signed_url": signed_url,
+                "is_fresh": True,
+                "age_hours": age_hours
+            }
+
+        except Exception as e:
+            print(f"Error checking existing file: {str(e)}")
+            return None
+
     def _extract_video_info(self) -> dict:
         """
         Extract video metadata and direct audio URL from YouTube without downloading.
@@ -213,12 +328,24 @@ class GetVideoAudioUrl(BaseTool):
             response = requests.get(audio_url, stream=True, timeout=300)
             response.raise_for_status()
 
+            # Set custom metadata for 24-hour expiration tracking
+            from datetime import datetime, timezone
+            expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
+
             # Upload in chunks to handle large files efficiently
             blob.upload_from_file(
                 response.raw,
                 content_type=f"audio/{file_extension}",
                 timeout=300
             )
+
+            # Set metadata after upload (includes 24h expiration marker)
+            blob.metadata = {
+                'expires_at': expiration_time.isoformat(),
+                'video_id': video_id,
+                'purpose': 'temporary_transcription_audio'
+            }
+            blob.patch()
 
             print(f"✅ Successfully uploaded to {storage_path}")
 
