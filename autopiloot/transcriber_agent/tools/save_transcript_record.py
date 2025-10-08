@@ -206,7 +206,8 @@ if __name__ == "__main__":
             aai.settings.api_key = api_key
 
             # Fetch the completed transcript for Rick Astley
-            assemblyai_job_id = "26df5f83-6e47-4419-8e98-33ef380f4a11"
+            # Note: Update this job ID from a recent poll_transcription_job.py run
+            assemblyai_job_id = "d5db2289-fd86-4f7a-a0a2-ec43bbee95b3"  # Fresh from recent test
             print(f"Fetching transcript: {assemblyai_job_id}")
 
             transcript = aai.Transcript.get_by_id(assemblyai_job_id)
@@ -279,8 +280,8 @@ if __name__ == "__main__":
 
     try:
         # Fetch the completed transcript for Dan Martell (if available)
-        # Note: This requires the AssemblyAI job to have completed first
-        assemblyai_job_id_dan = "05389eb3-bdb7-4877-ae5a-3f41db570d9a"  # From previous test run
+        # Note: Update this job ID from a recent poll_transcription_job.py run
+        assemblyai_job_id_dan = "ce9bc2ed-0c76-49a5-bbe5-e8afd68db182"  # Fresh from recent test
         print(f"Fetching transcript: {assemblyai_job_id_dan}")
 
         transcript_dan = aai.Transcript.get_by_id(assemblyai_job_id_dan)
@@ -340,6 +341,14 @@ if __name__ == "__main__":
 
         elif transcript_dan.status == aai.TranscriptStatus.processing:
             print(f"⚠️  Transcript still processing. Run test again after completion.")
+        elif transcript_dan.status == aai.TranscriptStatus.error:
+            print(f"❌ Transcript failed with error status")
+            print(f"   Error: {getattr(transcript_dan, 'error', 'No error message available')}")
+            print(f"   This may be due to:")
+            print(f"   - Expired Firebase Storage signed URL (24-hour limit)")
+            print(f"   - Audio file no longer accessible")
+            print(f"   - AssemblyAI processing error")
+            print(f"\n   Solution: Run poll_transcription_job.py to create a fresh transcription")
         else:
             print(f"⚠️  Transcript status: {transcript_dan.status}")
             print(f"   Run this test again after AssemblyAI completes the transcription")
