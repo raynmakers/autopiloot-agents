@@ -350,25 +350,61 @@ class GetVideoAudioUrl(BaseTool):
             storage_path = f"tmp/transcription/{video_id}.{file_extension}"
             blob = bucket.blob(storage_path)
 
-            # Stream audio from YouTube to Firebase Storage
+            # Stream audio from YouTube to Firebase Storage with retry logic
             print(f"Streaming {file_extension} audio to Firebase Storage...")
 
             download_start = time.time()
-            response = requests.get(audio_url, stream=True, timeout=300)
-            response.raise_for_status()
-            print(f"  ⏱️  Started streaming from YouTube ({time.time() - download_start:.2f}s)")
+
+            # Use requests session for better connection handling
+            session = requests.Session()
+            session.headers.update({'Connection': 'keep-alive'})
+
+            # Download with retry on connection errors
+            max_retries = 3
+            retry_delay = 5
+
+            for attempt in range(max_retries):
+                try:
+                    response = session.get(audio_url, stream=True, timeout=600)
+                    response.raise_for_status()
+                    print(f"  ⏱️  Started streaming from YouTube ({time.time() - download_start:.2f}s)")
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                    if attempt < max_retries - 1:
+                        print(f"  ⚠️  Connection error (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        raise
 
             # Set custom metadata for 24-hour expiration tracking
             from datetime import datetime, timezone
             expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
 
-            # Upload in chunks to handle large files efficiently
+            # Use resumable upload for better reliability with large files
             upload_start = time.time()
-            blob.upload_from_file(
-                response.raw,
-                content_type=f"audio/{file_extension}",
-                timeout=300
-            )
+
+            # Upload with retry on connection errors
+            for attempt in range(max_retries):
+                try:
+                    # Use resumable upload for files that might be large
+                    blob.upload_from_file(
+                        response.raw,
+                        content_type=f"audio/{file_extension}",
+                        timeout=600,  # Increased timeout for large files
+                        num_retries=3  # Google Cloud Storage internal retries
+                    )
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1 and "Connection" in str(e):
+                        print(f"  ⚠️  Upload error (attempt {attempt + 1}/{max_retries}), retrying...")
+                        time.sleep(5)
+                        # Re-fetch the stream
+                        response = session.get(audio_url, stream=True, timeout=600)
+                        response.raise_for_status()
+                    else:
+                        raise
+
             upload_duration = time.time() - upload_start
             print(f"  ⏱️  Upload completed: {upload_duration:.2f}s")
 
@@ -379,6 +415,9 @@ class GetVideoAudioUrl(BaseTool):
                 speed_mbps = (size_mb / upload_duration) if upload_duration > 0 else 0
                 print(f"  📦 File size: {size_mb:.1f} MB")
                 print(f"  🚀 Upload speed: {speed_mbps:.2f} MB/s")
+
+            # Close the session
+            session.close()
 
             # Set metadata after upload (includes 24h expiration marker)
             blob.metadata = {
