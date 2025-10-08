@@ -23,7 +23,7 @@ Follow the steps below when creating new tasks.
 
 id: "TASK-0071"
 title: "Persist YouTube handle → channel_id mapping"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["feature", "scraper", "firestore", "data-model"]
 dependencies: ["planning/tasks/64-firebase-functions-imports-standardization.mdc", "planning/tasks/67-ci-enforce-snake-case-tool-filenames.mdc"]

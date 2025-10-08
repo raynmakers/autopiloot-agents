@@ -255,15 +255,15 @@ if __name__ == "__main__":
     print("SaveChannelMapping Tool Test")
     print("=" * 80)
 
-    # Test 1: Create new channel mapping
-    print("\nTEST 1: Create new channel mapping")
+    # Test 1: Create new channel mapping - Rick Astley
+    print("\nTEST 1: Rick Astley - Never Gonna Give You Up")
     print("-" * 80)
 
     tool1 = SaveChannelMapping(
-        handle="AlexHormozi",  # Without @ prefix
-        channel_id="UCfV36TX5AejfAGIbtwTc7Zw",
-        title="Alex Hormozi",
-        custom_url="@AlexHormozi"
+        handle="RickAstleyYT",  # Without @ prefix
+        channel_id="UCuAXFkgsw1L7xaCfnd5JJOw",
+        title="Rick Astley",
+        custom_url="@RickAstleyYT"
     )
 
     try:
@@ -282,15 +282,15 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
 
-    # Test 2: Update existing mapping with new handle variant
+    # Test 2: Create channel mapping - Dan Martell
     print("\n" + "=" * 80)
-    print("TEST 2: Update with handle variant")
+    print("TEST 2: Dan Martell - How to 10x Your Business")
     print("-" * 80)
 
     tool2 = SaveChannelMapping(
-        handle="@alexhormozi",  # Different case, with @ prefix
-        channel_id="UCfV36TX5AejfAGIbtwTc7Zw",  # Same channel
-        title="Alex Hormozi Updated"
+        handle="@DanMartell",  # With @ prefix
+        channel_id="UCFCu47CJXdhPEX5CmYAdvQg",
+        title="Dan Martell"
     )
 
     try:
@@ -300,9 +300,8 @@ if __name__ == "__main__":
 
         data = json.loads(result)
         if data.get("ok"):
-            print(f"\n✅ Success: Updated channel {data['channel_id']}")
+            print(f"\n✅ Success: Saved channel {data['channel_id']}")
             print(f"   Canonical handle: {data['canonical_handle']}")
-            print(f"   Note: Handles list should now contain both variants (case-insensitive)")
         else:
             print(f"\n❌ Error: {data.get('message', 'Unknown error')}")
     except Exception as e:
