@@ -64,23 +64,32 @@ class StoreShortInZep(BaseTool):
 
 if __name__ == "__main__":
     print("="*80)
-    print("TEST 1: Store summary with channel handle (for Zep label filtering)")
+    print("TEST 1: Store Dan Martell summary with channel handle")
     print("="*80)
 
-    # Test with channel handle
-    tool_with_handle = StoreShortInZep(
-        video_id="dQw4w9WgXcQ",
+    # Test with Dan Martell business content
+    tool_dan = StoreShortInZep(
+        video_id="mZxDw92UXmA",
         bullets=[
-            "Build strong relationships through consistent communication",
-            "Focus on long-term value creation over short-term gains"
+            "Focus on high-leverage activities that drive 80% of results",
+            "Build systems and processes before scaling team size",
+            "Measure what matters - track KPIs that directly impact revenue",
+            "Invest in yourself and your skills before investing in tools",
+            "Create time freedom by delegating low-value tasks"
         ],
-        key_concepts=["Relationship Building", "Long-term Thinking", "Trust"],
-        channel_handle="@AlexHormozi"
+        key_concepts=[
+            "80/20 Principle",
+            "Systems Thinking",
+            "KPI Tracking",
+            "Time Leverage",
+            "Strategic Delegation"
+        ],
+        channel_handle="@DanMartell"
     )
 
     try:
-        result = tool_with_handle.run()
-        print("✅ Success with channel handle:")
+        result = tool_dan.run()
+        print("✅ Success storing Dan Martell summary:")
         print(result)
 
         data = json.loads(result)
@@ -101,9 +110,9 @@ if __name__ == "__main__":
 
     # Test without channel handle
     tool_without_handle = StoreShortInZep(
-        video_id="mZxDw92UXmA",
-        bullets=["Strategic planning insight"],
-        key_concepts=["Strategy", "Planning"]
+        video_id="test_video_123",
+        bullets=["Generic business insight for testing"],
+        key_concepts=["Testing", "Validation"]
     )
 
     try:
@@ -122,4 +131,5 @@ if __name__ == "__main__":
 
     print("\n" + "="*80)
     print("Testing complete! Channel handle is now supported for Zep label filtering.")
+    print("Future usage: Search Zep with labels={'channel': '@DanMartell'}")
     print("="*80)
