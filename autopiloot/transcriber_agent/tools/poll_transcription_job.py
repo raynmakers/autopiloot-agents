@@ -246,10 +246,11 @@ if __name__ == "__main__":
         audio_result_1 = audio_tool_1.run()
         audio_data_1 = json.loads(audio_result_1)
 
-        if "error" not in audio_data_1 and "remote_url" in audio_data_1:
+        if "error" not in audio_data_1 and "signed_url" in audio_data_1:
             # Submit transcription job
             submit_tool_1 = SubmitAssemblyAIJob(
-                remote_url=audio_data_1["remote_url"],
+                audio_url=audio_data_1["signed_url"],
+                storage_path=audio_data_1["storage_path"],
                 video_id=audio_data_1["video_id"],
                 duration_sec=audio_data_1["duration"]
             )
@@ -300,10 +301,11 @@ if __name__ == "__main__":
         audio_result_2 = audio_tool_2.run()
         audio_data_2 = json.loads(audio_result_2)
 
-        if "error" not in audio_data_2 and "remote_url" in audio_data_2:
+        if "error" not in audio_data_2 and "signed_url" in audio_data_2:
             # Submit transcription job
             submit_tool_2 = SubmitAssemblyAIJob(
-                remote_url=audio_data_2["remote_url"],
+                audio_url=audio_data_2["signed_url"],
+                storage_path=audio_data_2["storage_path"],
                 video_id=audio_data_2["video_id"],
                 duration_sec=audio_data_2["duration"]
             )
