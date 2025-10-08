@@ -22,10 +22,10 @@ try:
     from .store_short_in_zep import StoreShortInZep
     from .save_summary_record_enhanced import SaveSummaryRecordEnhanced
 except ImportError:
-    # Fallback for direct execution
-    from generate_short_summary import GenerateShortSummary
-    from store_short_in_zep import StoreShortInZep
-    from save_summary_record_enhanced import SaveSummaryRecordEnhanced
+    # Fallback for direct execution with absolute imports
+    from summarizer_agent.tools.generate_short_summary import GenerateShortSummary
+    from summarizer_agent.tools.store_short_in_zep import StoreShortInZep
+    from summarizer_agent.tools.save_summary_record_enhanced import SaveSummaryRecordEnhanced
 
 
 class ProcessSummaryWorkflow(BaseTool):
