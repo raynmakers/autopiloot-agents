@@ -1,0 +1,164 @@
+---
+description: "Persist YouTube handle → channel_id mapping to Firestore with idempotent upserts and tests"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0071"
+title: "Persist YouTube handle → channel_id mapping"
+status: "planned"
+priority: "P1"
+labels: ["feature", "scraper", "firestore", "data-model"]
+dependencies: ["planning/tasks/64-firebase-functions-imports-standardization.mdc", "planning/tasks/67-ci-enforce-snake-case-tool-filenames.mdc"]
+created: "2025-10-07"
+
+# 1) High-Level Objective
+
+Store and maintain an idempotent mapping of YouTube `handle` to `channel_id` in Firestore so downstream tools can reliably reference channels by either identifier.
+
+# 2) Background / Context
+
+Multiple workflows need a consistent way to resolve and reference channels. We already resolve handles via `scraper_agent/tools/resolve_channel_handles.py`. Persisting these mappings enables reuse, historical tracking, and prevents repeated API lookups.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Firestore is available via Firebase Admin with service account credentials.
+- Constraint: Agency Swarm v1.0.2 compliance; tools inherit `agency_swarm.tools.BaseTool` and return JSON strings.
+- Constraint: No secrets in code; use env vars via `config/env_loader.py`.
+- Constraint: Idempotent upsert semantics to avoid duplicates; use document id = `channel_id`.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `agents/autopiloot/scraper_agent/tools/resolve_channel_handles.py`
+- `agents/autopiloot/config/loader.py`
+- `agents/autopiloot/config/env_loader.py`
+- `agents/autopiloot/core/idempotency.py`
+- Tests under `agents/autopiloot/tests/` related to scraper tools
+
+# 5) Context Plan
+
+**Beginning (add to model context):**
+
+- agents/autopiloot/scraper_agent/tools/resolve_channel_handles.py
+- agents/autopiloot/config/loader.py _(read-only)_
+- agents/autopiloot/config/env*loader.py *(read-only)\_
+- agents/autopiloot/core/idempotency.py _(read-only)_
+- agents/autopiloot/tests/test*resolve_channel_handles.py *(read-only)\_
+
+**End state (must exist after completion):**
+
+- agents/autopiloot/scraper_agent/tools/save_channel_mapping.py
+- agents/autopiloot/scraper_agent/tools/**init**.py (updated export if required)
+- agents/autopiloot/tests/test_save_channel_mapping.py
+- Optional: integration update to `resolve_channel_handles.py` to call `SaveChannelMapping` after resolution
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Define Firestore schema
+
+   - Collection: `channels`
+   - Document ID: `channel_id` (string)
+   - Fields (minimum):
+     - `channel_id` (str)
+     - `canonical_handle` (str) — normalized format starting with `@`
+     - `handles` (list[str]) — unique set including historical handles (if available)
+     - `title` (str | null)
+     - `custom_url` (str | null)
+     - `thumbnails` (dict | null)
+     - `last_resolved_at` (RFC3339/ISO 8601 with `Z`)
+     - `created_at` (SERVER_TIMESTAMP)
+     - `updated_at` (SERVER_TIMESTAMP)
+
+2. Create tool: `agents/autopiloot/scraper_agent/tools/save_channel_mapping.py`
+
+   - Class: `SaveChannelMapping(BaseTool)`
+   - Fields (Pydantic Field):
+     - `handle: str` (required) — must start with `@`; normalize if missing
+     - `channel_id: str` (required)
+     - `title: Optional[str] = None`
+     - `custom_url: Optional[str] = None`
+     - `thumbnails_json: Optional[str] = None` — JSON-encoded thumbnails map
+   - `run()` behavior:
+     - Load Firebase Admin via env (`GOOGLE_APPLICATION_CREDENTIALS`, `GCP_PROJECT_ID`).
+     - Normalize `handle` to `canonical_handle` (ensure `@` prefix, lowercase for matching while storing original in list).
+     - Upsert to `channels/{channel_id}`:
+       - Create if missing with `created_at` SERVER_TIMESTAMP.
+       - Update existing with new `updated_at` SERVER_TIMESTAMP and merge `handles` list (set semantics, case-insensitive uniqueness).
+       - Set `last_resolved_at` to current UTC ISO 8601 with `Z`.
+     - Return JSON string with `{ "ok": true, "channel_id": "...", "canonical_handle": "@..." }` or structured error.
+   - Include `if __name__ == "__main__":` smoke test block.
+
+3. Integrate (optional for this task, but specify hook point)
+
+   - In `resolve_channel_handles.py`, after resolving a handle→channel_id pair, call `SaveChannelMapping` for each successful resolution (guarded; non-blocking on individual errors), or emit an orchestration event for downstream persistence.
+
+4. Tests
+
+   - File: `agents/autopiloot/tests/test_save_channel_mapping.py`
+   - Cover:
+     - Creation path: new `channel_id` creates document with correct fields, timestamps present.
+     - Update path: existing document merges new handle into `handles` without duplicates (case-insensitive).
+     - Normalization: inputs without `@` are normalized; canonical stored with `@` + lowercase for matching.
+     - Error handling: missing env credentials, invalid JSON in `thumbnails_json`, Firestore exceptions.
+     - Return format: JSON string with `ok`, `channel_id`, `canonical_handle` on success.
+
+5. Configuration docs
+   - Ensure `docs/agents_overview.md` and/or `docs/idempotency_implementation.md` reflects new collection `channels` and idempotent upsert policy.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import TypedDict, Optional, List, Dict
+
+class ChannelRecord(TypedDict, total=False):
+    channel_id: str
+    canonical_handle: str
+    handles: List[str]
+    title: Optional[str]
+    custom_url: Optional[str]
+    thumbnails: Optional[Dict[str, str]]
+    last_resolved_at: str  # ISO 8601 Z
+    created_at: str
+    updated_at: str
+```
+
+# 8) Acceptance Criteria
+
+- New tool `SaveChannelMapping` exists, Agency Swarm compliant, returns JSON strings.
+- Firestore document created at `channels/{channel_id}` on first save with SERVER_TIMESTAMPs.
+- Subsequent saves merge `handles` set idempotently and update `updated_at`.
+- Handle normalization enforced (store `canonical_handle` with `@` prefix; match case-insensitive).
+- Tests pass covering create/update/normalize/error paths.
+- Coverage ≥ 80% for the new tool; html report updated.
+
+# 9) Testing Strategy
+
+- Mock Firebase Admin and Firestore; import real source via `importlib.util.spec_from_file_location` per coverage guidance.
+- Validate both success and error JSON return structures.
+- Generate coverage reports and ensure `coverage/autopiloot/index.html` is updated.
+- Final comprehensive run:
+  - `coverage run --source=agents/autopiloot -m unittest discover agents/autopiloot/tests -v`
+  - `coverage html --directory=agents/autopiloot/coverage --include="agents/autopiloot/*"`
+  - `coverage report --include="agents/autopiloot/*" --show-missing`
+
+# 10) Notes / Links
+
+- Aligns with ADR-0009 (YouTube Channel Handle Resolution Tool) to persist results.
+- Reuse normalization patterns from existing scraper tools to ensure consistency.

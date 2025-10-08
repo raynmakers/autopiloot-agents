@@ -35,7 +35,7 @@ class GetVideoAudioUrl(BaseTool):
 
     Workflow:
     1. Extract direct audio URL from YouTube (no download)
-    2. Stream audio to Firebase Storage (transcription_temp/ folder)
+    2. Stream audio to Firebase Storage (tmp/transcription/ folder)
     3. Generate signed URL with 24-hour expiration
     4. Return storage_path and signed_url for AssemblyAI
     5. File should be deleted after successful transcription using CleanupTranscriptionAudio
@@ -62,7 +62,7 @@ class GetVideoAudioUrl(BaseTool):
 
         Process:
         1. Extract video metadata and direct audio URL from YouTube (no download)
-        2. Stream audio directly to Firebase Storage (transcription_temp/ folder)
+        2. Stream audio directly to Firebase Storage (tmp/transcription/ folder)
         3. Generate signed URL with 24-hour expiration
         4. Return storage_path and signed_url
 
@@ -204,8 +204,8 @@ class GetVideoAudioUrl(BaseTool):
             storage_client = storage.Client(project=project_id)
             bucket = storage_client.bucket(bucket_name)
 
-            # Create storage path: transcription_temp/video_id.extension
-            storage_path = f"transcription_temp/{video_id}.{file_extension}"
+            # Create storage path: tmp/transcription/video_id.extension
+            storage_path = f"tmp/transcription/{video_id}.{file_extension}"
             blob = bucket.blob(storage_path)
 
             # Stream audio from YouTube to Firebase Storage
@@ -321,6 +321,6 @@ if __name__ == "__main__":
     print("  - No local filesystem usage (Firebase Functions compatible)")
     print("  - Efficient streaming (no temporary files)")
     print("  - Lower memory footprint")
-    print("\nNOTE: Files stored in transcription_temp/ folder")
+    print("\nNOTE: Files stored in tmp/transcription/ folder")
     print("Clean up after successful transcription using CleanupTranscriptionAudio tool")
     print("=" * 80)

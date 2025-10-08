@@ -32,12 +32,12 @@ class CleanupTranscriptionAudio(BaseTool):
     2. Delete file from Firebase Storage
     3. Return confirmation or error
 
-    Firebase Storage path format: transcription_temp/video_id.{ext}
+    Firebase Storage path format: tmp/transcription/video_id.{ext}
     """
 
     storage_path: str = Field(
         ...,
-        description="Firebase Storage path to delete (e.g., 'transcription_temp/dQw4w9WgXcQ.m4a')"
+        description="Firebase Storage path to delete (e.g., 'tmp/transcription/dQw4w9WgXcQ.m4a')"
     )
 
     def run(self) -> str:
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     print("-" * 80)
 
     tool_1 = CleanupTranscriptionAudio(
-        storage_path="transcription_temp/test_nonexistent.m4a"
+        storage_path="tmp/transcription/test_nonexistent.m4a"
     )
 
     try:

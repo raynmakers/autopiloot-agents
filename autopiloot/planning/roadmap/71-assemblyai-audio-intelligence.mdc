@@ -1,0 +1,118 @@
+---
+title: "AssemblyAI Audio Intelligence Integration"
+id: "ROADMAP-0071"
+created: "2025-10-07"
+status: "planned"
+priority: "P1"
+owners: ["Autopiloot Team"]
+tags:
+  [
+    "assemblyai",
+    "transcriber_agent",
+    "summarizer_agent",
+    "observability",
+    "slack",
+  ]
+---
+
+# High-Level Objective
+
+Add AssemblyAI Audio Intelligence capabilities to enrich transcripts with additional analytics and moderation signals, enabling smarter summaries, better search, safer content handling, and downstream automations.
+
+# Scope
+
+- Automatic Transcript Highlights
+- Topic Detection (IAB taxonomy)
+- Entity Detection
+- Auto Chapters (per-topic summarization)
+- Content Moderation (content_safety_labels)
+- PII Redaction (configurable replacement modes)
+- Sentiment Analysis
+
+# Deliverables
+
+1. New tools (Agency Swarm v1.0.2 compliant) under `transcriber_agent/tools/` and/or `summarizer_agent/tools/`:
+
+   - `analyze_transcript_highlights.py`
+   - `analyze_transcript_topics.py`
+   - `analyze_transcript_entities.py`
+   - `generate_auto_chapters.py`
+   - `analyze_content_moderation.py`
+   - `redact_transcript_pii.py`
+   - `analyze_sentiment.py`
+
+2. Firestore data model extensions:
+
+   - Store analysis results under `transcripts/{video_id}` subfields: `highlights`, `topics`, `entities`, `chapters`, `content_safety`, `pii`, `sentiment`.
+   - Maintain audit logging (TASK-AUDIT-0041) and status progression metadata.
+
+3. Configuration & Env:
+
+   - Extend `config/settings.yaml` with feature toggles and cost guards (daily caps per intelligence feature).
+   - Add env requirements in `env.template` and validation in `config/env_loader.py` (reusing AssemblyAI key).
+
+4. Observability & Alerts:
+
+   - Token/credit tracking via existing LLM observability patterns.
+   - Slack alerts on moderation flags crossing thresholds; daily summary rollups.
+
+5. Testing & Coverage:
+   - 80%+ coverage for new tool modules; 100% for any init/config paths.
+   - Error-path tests for API failures, timeouts, malformed data.
+
+# Milestones
+
+M1 — Foundation (1–2 days)
+
+- Add settings toggles and budgets per feature.
+- Define Firestore schema updates and update documentation.
+- Spike: verify AssemblyAI endpoints/SDKs and structured outputs.
+
+M2 — Core Analytics (3–4 days)
+
+- Implement Highlights, Topics, Entities tools with structured JSON outputs.
+- Persist results on `transcripts/{video_id}`; add audit logs.
+- Add tests with coverage and HTML reports.
+
+M3 — Chapters & Sentiment (2–3 days)
+
+- Implement Auto Chapters and Sentiment tools.
+- Wire into summarizer workflows for richer short summaries.
+- Update tests and coverage.
+
+M4 — Safety & Compliance (2–3 days)
+
+- Implement Content Moderation and PII Redaction tools.
+- Add Slack alerting threshold logic and safe-output pathways.
+- Extend tests for redaction correctness and moderation thresholds.
+
+M5 — Observability & Docs (1–2 days)
+
+- Integrate usage/cost tracking; daily digest updates.
+- Finalize docs in `docs/` and update PRD references.
+
+# Acceptance Criteria
+
+- Tools validate inputs with Pydantic fields and return JSON strings.
+- Feature flags in `settings.yaml` can enable/disable each intelligence pass.
+- Firestore records persist analysis results atomically with audit logs.
+- Summarizer leverages chapters/topics when available.
+- Slack alerts fire on configured moderation severities; PII redaction is verified.
+- Test suites pass; coverage meets standards; HTML coverage reports generated.
+
+# Dependencies
+
+- AssemblyAI API key configured (reuses existing transcriber credentials).
+- Existing transcript storage pipeline (submit → poll → store → save record).
+- Slack channel configuration for alerts.
+
+# Risks & Mitigations
+
+- API cost growth: enforce daily budgets and per-feature caps; graceful degradation.
+- Latency: run intelligence passes asynchronously and cache results per `video_id`.
+- Data size growth in Firestore: store compact summaries and IDs; offload large blobs to Drive if needed.
+
+# References
+
+- AssemblyAI Audio Intelligence overview: https://www.assemblyai.com/blog/what-is-audio-intelligence
+- Autopiloot testing and coverage standards: `docs/testing.md`, `agents/autopiloot/coverage/`

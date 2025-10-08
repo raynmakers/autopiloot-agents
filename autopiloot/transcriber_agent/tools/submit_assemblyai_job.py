@@ -41,13 +41,13 @@ class SubmitAssemblyAIJob(BaseTool):
         default=None,
         description="Firestore job ID from jobs_transcription collection (for job tracking and restart recovery)"
     )
-    remote_url: Optional[str] = Field(
+    audio_url: Optional[str] = Field(
         default=None,
-        description="Direct audio stream URL from YouTube video for transcription (use for quick submissions, may fail due to URL expiration)"
+        description="Audio URL for transcription (Firebase Storage signed URL from GetVideoAudioUrl)"
     )
-    local_path: Optional[str] = Field(
+    storage_path: Optional[str] = Field(
         default=None,
-        description="Local audio file path to upload to AssemblyAI (more reliable than remote_url, prevents YouTube URL expiration issues)"
+        description="Firebase Storage path for cleanup after transcription (e.g., 'transcription_temp/video_id.mp3')"
     )
     video_id: str = Field(
         ...,
@@ -118,10 +118,10 @@ class SubmitAssemblyAIJob(BaseTool):
 
         Process:
         1. Validates duration is within 70-minute limit (handled by validator)
-        2. Validates either remote_url or local_path is provided
-        3. Uploads local file if local_path provided (more reliable)
-        4. Configures AssemblyAI with minimal features for cost efficiency
-        5. Submits job with optional webhook support
+        2. Validates audio_url is provided (Firebase Storage signed URL)
+        3. Configures AssemblyAI with minimal features for cost efficiency
+        4. Submits job with optional webhook support
+        5. Stores storage_path in Firestore job for cleanup after completion
         6. Calculates and returns estimated cost
 
         Returns:
@@ -131,13 +131,13 @@ class SubmitAssemblyAIJob(BaseTool):
             - video_id: YouTube video ID for tracking
             - duration_sec: Video duration
             - webhook_enabled: Whether webhook callback is configured
-            - method: 'remote_url' or 'local_upload'
+            - storage_path: Firebase Storage path for cleanup
         """
-        # Validate that either remote_url or local_path is provided
-        if not self.remote_url and not self.local_path:
+        # Validate that audio_url is provided
+        if not self.audio_url:
             return json.dumps({
                 "error": "configuration_error",
-                "message": "Either remote_url or local_path must be provided"
+                "message": "audio_url must be provided (use Firebase Storage signed URL from GetVideoAudioUrl)"
             })
 
         # Initialize AssemblyAI with API key
@@ -177,23 +177,10 @@ class SubmitAssemblyAIJob(BaseTool):
             # Create transcription configuration
             config = aai.TranscriptionConfig(**config_params)
 
-            # Submit transcription job
+            # Submit transcription job using Firebase Storage URL
             transcriber = aai.Transcriber()
-
-            # Prefer local upload over remote URL (more reliable)
-            if self.local_path:
-                if not os.path.exists(self.local_path):
-                    return json.dumps({
-                        "error": "file_not_found",
-                        "message": f"Local audio file not found: {self.local_path}"
-                    })
-                print(f"Uploading local file: {self.local_path}")
-                transcript = transcriber.submit(self.local_path, config=config)
-                submission_method = "local_upload"
-            else:
-                print(f"Using remote URL: {self.remote_url[:100]}...")
-                transcript = transcriber.submit(self.remote_url, config=config)
-                submission_method = "remote_url"
+            print(f"Submitting to AssemblyAI using Firebase Storage URL...")
+            transcript = transcriber.submit(self.audio_url, config=config)
             
             # Calculate estimated cost
             base_cost = (self.duration_sec / 3600) * ASSEMBLYAI_COST_PER_HOUR
@@ -215,7 +202,8 @@ class SubmitAssemblyAIJob(BaseTool):
                         'assemblyai_job_id': transcript.id,
                         'status': 'processing',
                         'estimated_cost_usd': estimated_cost_usd,
-                        'remote_url': self.remote_url,
+                        'audio_url': self.audio_url,
+                        'storage_path': self.storage_path,  # For cleanup after transcription
                         'features': {
                             'speaker_labels': self.enable_speaker_labels,
                             'language_code': self.language_code or 'auto'
@@ -234,7 +222,7 @@ class SubmitAssemblyAIJob(BaseTool):
                 "duration_sec": self.duration_sec,
                 "webhook_enabled": bool(self.webhook_url),
                 "status": "submitted",
-                "method": submission_method,
+                "storage_path": self.storage_path,  # For cleanup
                 "features": {
                     "speaker_labels": self.enable_speaker_labels,
                     "language_code": self.language_code or "auto"
@@ -264,29 +252,30 @@ if __name__ == "__main__":
     print("TEST 1: Rick Astley - Never Gonna Give You Up (Entertainment/Music)")
     print("=" * 80)
 
-    # Get audio file for Rick Astley (local download for reliability)
+    # Get audio from Firebase Storage for Rick Astley
     from transcriber_agent.tools.get_video_audio_url import GetVideoAudioUrl
 
     audio_tool_1 = GetVideoAudioUrl(
-        video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        prefer_download=True  # Download locally to avoid URL expiration
+        video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
     )
     audio_result_1 = audio_tool_1.run()
     audio_data_1 = json.loads(audio_result_1)
 
     if "error" in audio_data_1:
         print(f"❌ Failed to get audio: {audio_data_1.get('error', 'Unknown error')}")
-    elif "local_path" in audio_data_1:
-        local_path_1 = audio_data_1["local_path"]
+    elif "signed_url" in audio_data_1:
+        signed_url_1 = audio_data_1["signed_url"]
+        storage_path_1 = audio_data_1["storage_path"]
         video_id_1 = audio_data_1["video_id"]
         duration_sec_1 = audio_data_1["duration"]
-        print(f"✅ Downloaded audio for video: {audio_data_1['title']}")
-        print(f"   Local path: {local_path_1}")
+        print(f"✅ Audio uploaded to Firebase Storage: {audio_data_1['title']}")
+        print(f"   Storage path: {storage_path_1}")
         print(f"   Duration: {duration_sec_1} seconds")
 
-        print("\nSubmitting to AssemblyAI (local upload)...")
+        print("\nSubmitting to AssemblyAI (Firebase Storage URL)...")
         tool_1 = SubmitAssemblyAIJob(
-            local_path=local_path_1,
+            audio_url=signed_url_1,
+            storage_path=storage_path_1,
             video_id=video_id_1,
             duration_sec=duration_sec_1
         )
@@ -301,37 +290,38 @@ if __name__ == "__main__":
                 print(f"   Job ID: {data.get('job_id', 'N/A')}")
                 print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
                 print(f"   Duration: {data.get('duration_sec', 0)} seconds")
-                print(f"   Method: {data.get('method', 'N/A')}")
+                print(f"   Storage path: {data.get('storage_path', 'N/A')}")
         except Exception as e:
             print(f"❌ Test error: {str(e)}")
     else:
-        print(f"❌ Expected local_path in audio data, got: {list(audio_data_1.keys())}")
+        print(f"❌ Expected signed_url in audio data, got: {list(audio_data_1.keys())}")
 
     print("\n" + "=" * 80)
     print("TEST 2: Dan Martell - How to 10x Your Business (Business/Educational)")
     print("=" * 80)
 
-    # Get audio file for Dan Martell (local download for reliability)
+    # Get audio from Firebase Storage for Dan Martell
     audio_tool_2 = GetVideoAudioUrl(
-        video_url="https://www.youtube.com/watch?v=mZxDw92UXmA",
-        prefer_download=True  # Download locally to avoid URL expiration
+        video_url="https://www.youtube.com/watch?v=mZxDw92UXmA"
     )
     audio_result_2 = audio_tool_2.run()
     audio_data_2 = json.loads(audio_result_2)
 
     if "error" in audio_data_2:
         print(f"❌ Failed to get audio: {audio_data_2.get('error', 'Unknown error')}")
-    elif "local_path" in audio_data_2:
-        local_path_2 = audio_data_2["local_path"]
+    elif "signed_url" in audio_data_2:
+        signed_url_2 = audio_data_2["signed_url"]
+        storage_path_2 = audio_data_2["storage_path"]
         video_id_2 = audio_data_2["video_id"]
         duration_sec_2 = audio_data_2["duration"]
-        print(f"✅ Downloaded audio for video: {audio_data_2['title']}")
-        print(f"   Local path: {local_path_2}")
+        print(f"✅ Audio uploaded to Firebase Storage: {audio_data_2['title']}")
+        print(f"   Storage path: {storage_path_2}")
         print(f"   Duration: {duration_sec_2} seconds")
 
-        print("\nSubmitting to AssemblyAI (local upload)...")
+        print("\nSubmitting to AssemblyAI (Firebase Storage URL)...")
         tool_2 = SubmitAssemblyAIJob(
-            local_path=local_path_2,
+            audio_url=signed_url_2,
+            storage_path=storage_path_2,
             video_id=video_id_2,
             duration_sec=duration_sec_2
         )
@@ -346,16 +336,17 @@ if __name__ == "__main__":
                 print(f"   Job ID: {data.get('job_id', 'N/A')}")
                 print(f"   Estimated cost: ${data.get('estimated_cost_usd', 0):.4f}")
                 print(f"   Duration: {data.get('duration_sec', 0)} seconds")
-                print(f"   Method: {data.get('method', 'N/A')}")
+                print(f"   Storage path: {data.get('storage_path', 'N/A')}")
         except Exception as e:
             print(f"❌ Test error: {str(e)}")
     else:
-        print(f"❌ Expected local_path in audio data, got: {list(audio_data_2.keys())}")
+        print(f"❌ Expected signed_url in audio data, got: {list(audio_data_2.keys())}")
     
     print("\n" + "="*50)
-    print("Testing complete! Both videos submitted to AssemblyAI successfully.")
+    print("Testing complete! Both videos submitted to AssemblyAI via Firebase Storage.")
     print("- Rick Astley: Will be rejected at summarization")
     print("- Dan Martell: Will be processed normally")
+    print("\nNOTE: Clean up Firebase Storage files after transcription completes")
     print("="*50)
 
     print("\n" + "="*50)

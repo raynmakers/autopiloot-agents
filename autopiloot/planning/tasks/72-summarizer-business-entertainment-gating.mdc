@@ -1,0 +1,166 @@
+---
+description: "Gate summarization with business/entertainment classifier; flag entertainment in Firestore; skip Zep for non-business"
+globs:
+  [
+    "summarizer_agent/tools/process_summary_workflow.py",
+    "summarizer_agent/tools/generate_short_summary.py",
+    "summarizer_agent/tools/classify_business_intent.py",
+    "config/settings.yaml",
+    "tests/test_process_summary_workflow.py",
+    "tests/test_generate_short_summary.py",
+    "tests/test_upsert_summary_to_zep.py",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests; mock external APIs.
+
+---
+
+id: "TASK-0072"
+title: "Gate summarization by classifying business vs entertainment and skip Zep for non-business"
+status: "planned"
+priority: "P1"
+labels: ["summarizer", "classification", "firestore", "zep", "workflow"]
+dependencies: ["69-tests-orchestrator-policy-and-digest-edges.mdc"]
+created: "2025-10-07"
+
+# 1) High-Level Objective
+
+Before generating summaries, classify each transcript as business-relevant or entertainment; if entertainment, skip summarization and Zep storage, and persist a flag in Firestore indicating `content_category: entertainment` (with a reason), ensuring downstream tools respect this gating.
+
+# 2) Background / Context
+
+Currently, all transcripts proceed to summarization and Zep storage. We need to prevent non-business/entertainment content from consuming LLM/Zep resources and polluting search, while preserving an audit trail that explains why summarization was skipped.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Classification can be performed via lightweight LLM or heuristic model with configurable threshold.
+- Constraint: No PII; follow existing environment/config patterns; no hardcoded secrets.
+- Constraint: Agency Swarm v1.0.2 compliance; tool returns JSON strings; Pydantic validation.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `summarizer_agent/tools/process_summary_workflow.py` (existing orchestration)
+- `summarizer_agent/tools/generate_short_summary.py` (existing)
+- `tests/test_process_summary_workflow.py` (existing end-to-end tests)
+- `config/settings.yaml` (LLM settings and new classification config)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- `summarizer_agent/tools/process_summary_workflow.py`
+- `summarizer_agent/tools/generate_short_summary.py`
+- `config/settings.yaml` (read-only)
+- `tests/test_process_summary_workflow.py` (read-only)
+
+End state (must exist after completion):
+
+- `summarizer_agent/tools/classify_business_intent.py`
+- Updated `summarizer_agent/tools/process_summary_workflow.py`
+- Updated `config/settings.yaml` (classification block)
+- Tests: `tests/test_classify_business_intent.py`, `tests/test_process_summary_workflow.py` (gating cases)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create classifier tool
+
+   - File: `summarizer_agent/tools/classify_business_intent.py`
+   - API:
+     - Class: `ClassifyBusinessIntent(BaseTool)`
+     - Fields (Pydantic): `transcript_doc_ref: str`, `title: str = Field(\"\", description=...)`, `min_business_confidence: float = Field(0.6, ge=0, le=1)`
+     - Returns (JSON string): `{ "is_business": bool, "confidence": float, "label": "business|entertainment", "reason": str, "prompt_version": str }`
+   - Behavior:
+     - Load transcript text from Firestore using `transcript_doc_ref`.
+     - Use LLM (config-driven) or heuristic to classify; configurable `min_business_confidence` threshold from `settings.yaml.llm.tasks.summarizer_business_gate`.
+     - Do not write side effects; just return classification result.
+
+2. Extend workflow to gate summarization
+
+   - File: `summarizer_agent/tools/process_summary_workflow.py`
+   - Add step 0: call `ClassifyBusinessIntent` before `GenerateShortSummary`.
+   - If `label == "entertainment"` or `confidence < min_business_confidence`:
+     - Write Firestore flag on transcript doc: `content_category: "entertainment"`, `analysis_skipped: true`, `analysis_skipped_reason: "non_business"`, `analysis_model: "business_gate"`.
+     - Ensure status remains `transcribed` and skip calls to `StoreShortInZep`, `SaveSummaryRecord`, etc.
+     - Return JSON with `skipped: true` and classification payload.
+   - Else proceed with existing summarization flow; include `content_category: "business"` in saved summary metadata.
+
+3. Configuration updates
+
+   - File: `config/settings.yaml`
+   - Add:
+     - `llm.tasks.summarizer_business_gate`: `model`, `temperature`, `max_output_tokens`, `prompt_version`.
+     - `summarizer.classification.min_business_confidence` default 0.6.
+
+4. Ensure Zep storage is gated
+
+   - Files: `summarizer_agent/tools/store_short_in_zep.py` and/or workflow
+   - Workflow must skip Zep calls if `is_business == false`.
+
+5. Tests
+   - New `tests/test_classify_business_intent.py`
+     - Success path: returns business with confidence >= threshold.
+     - Entertainment path: returns entertainment with reason and skips downstream.
+     - Threshold edge cases (exactly equals threshold, below threshold).
+     - Error handling when transcript missing.
+   - Update `tests/test_process_summary_workflow.py`
+     - Verify entertainment classification prevents summary + Zep, writes Firestore flags.
+     - Verify business classification proceeds fully and persists category.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import TypedDict
+
+class BusinessGateResult(TypedDict):
+    is_business: bool
+    confidence: float
+    label: str  # "business" | "entertainment"
+    reason: str
+    prompt_version: str
+```
+
+# 8) Acceptance Criteria
+
+- Classification tool exists and returns JSON string with required fields.
+- Workflow calls classifier first and gates downstream steps accordingly.
+- Firestore transcript doc flagged when non-business with: `content_category`, `analysis_skipped`, `analysis_skipped_reason`.
+- No Zep storage occurs for non-business transcripts.
+- Settings updated with classification config and threshold; defaults applied when missing.
+- Tests pass for both branches (business vs entertainment) and edge thresholds.
+
+# 9) Testing Strategy
+
+- Mock Firestore, LLM client, and Zep SDK; import real tool code for coverage.
+- Run targeted and module-wide coverage with minimum 80% per tool and 85% overall.
+- Commands:
+
+```bash
+export PYTHONPATH=.
+coverage run --source=agents/autopiloot/summarizer_agent -m unittest discover agents/autopiloot/tests -p "test_*summary*test*.py" -v
+coverage report --include="agents/autopiloot/summarizer_agent/*" --show-missing
+coverage html --include="agents/autopiloot/summarizer_agent/*" -d agents/autopiloot/coverage/summarizer_agent
+```
+
+- Include error-path tests (missing transcript, low confidence).
+- Verify HTML report updated and stored under `agents/autopiloot/coverage/summarizer_agent/index.html`.
+
+# 10) Notes / Links
+
+- Align with status progression: `discovered → transcription_queued → transcribed → summarized`. Skipped items remain `transcribed` with flags.
+- Respect Agency Swarm v1.0.2: tools inherit `agency_swarm.tools.BaseTool`, JSON string returns, Pydantic Fields.
+- Ensure prompt_version recorded for classifier just like summary generation.

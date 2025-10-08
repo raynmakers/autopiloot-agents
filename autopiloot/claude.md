@@ -209,6 +209,11 @@ cp .env.template .env
 - **ALWAYS** validate required environment variables in tool initialization
 - **ALWAYS** include test block with `if __name__ == "__main__":` in every tool
 - **ALWAYS** use JSON string returns from `run()` methods
+- **ALWAYS** use OpenAI Structured Outputs with JSON schema for LLM responses
+  - Define strict JSON schema with `response_format={"type": "json_schema", ...}`
+  - Eliminates parsing errors and guarantees valid output format
+  - Example: See `summarizer_agent/tools/generate_short_summary.py`
+  - Benefits: 100% reliable parsing, no regex needed, schema validation enforced
 
 ### Agent Communication Patterns
 

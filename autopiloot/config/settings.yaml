@@ -194,5 +194,5 @@ drive:
 rag:
   zep:
     namespace:
-      drive: "autopiloot_drive_content"  # Zep namespace for Drive content indexing
+      drive: "autopiloot-dev"  # Zep namespace for Drive content indexing
 
