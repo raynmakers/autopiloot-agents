@@ -177,13 +177,19 @@ class DispatchSummarizer(BaseTool):
             raise ValueError(f"Invalid job_type: {self.job_type}. Must be 'single_summary' or 'batch_summarize'")
     
     def _check_prerequisites(self) -> Dict[str, Any]:
-        """Check if videos are ready for summarization (transcribed status)."""
+        """Check if videos are ready for summarization (transcribed status).
+
+        Note: Videos with status 'rejected_non_business' are automatically excluded
+        because queries filter for status == 'transcribed'. Once a video is rejected,
+        its status changes to 'rejected_non_business', removing it from processing queues.
+        """
         # In production, this would check Firestore for video status
         # For now, assume prerequisites are met
-        
+
         if self.job_type == "single_summary":
             video_id = self.inputs.get("video_id")
             # Stub: would check videos/{video_id} status == "transcribed"
+            # Rejected videos (status='rejected_non_business') are automatically excluded
             return {
                 "satisfied": True,
                 "reason": "Video transcript available",

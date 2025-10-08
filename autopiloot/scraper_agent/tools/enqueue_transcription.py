@@ -69,7 +69,19 @@ class EnqueueTranscription(BaseTool):
                 })
             
             video_data = video_doc.to_dict()
-            
+
+            # Check if video was rejected as non-business content
+            video_status = video_data.get('status')
+            if video_status == 'rejected_non_business':
+                rejection_info = video_data.get('rejection', {})
+                return json.dumps({
+                    "job_id": None,
+                    "message": f"Video was rejected as non-business content ({rejection_info.get('content_type', 'Unknown')}) - skipping",
+                    "video_id": self.video_id,
+                    "status": "rejected_non_business",
+                    "reason": rejection_info.get('reason', 'Not applicable')
+                })
+
             # Check if video already has a transcript
             transcript_ref = db.collection('transcripts').document(self.video_id)
             if transcript_ref.get().exists:
