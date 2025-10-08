@@ -77,7 +77,7 @@ class GetVideoAudioUrl(BaseTool):
 
     firebase_bucket: Optional[str] = Field(
         default=None,
-        description="Firebase Storage bucket name (defaults to GCP_PROJECT_ID.appspot.com)"
+        description="Firebase Storage bucket name (defaults to GCP_PROJECT_ID.firebasestorage.app)"
     )
     
     def run(self) -> str:
@@ -208,6 +208,7 @@ class GetVideoAudioUrl(BaseTool):
             )
 
             # Use provided bucket or default to project bucket
+            # Firebase Storage bucket (newer projects use .firebasestorage.app)
             bucket_name = self.firebase_bucket or f"{project_id}.firebasestorage.app"
 
             # Initialize Storage client
@@ -339,7 +340,7 @@ class GetVideoAudioUrl(BaseTool):
             )
 
             # Use provided bucket or default to project bucket
-            # Firebase now uses .firebasestorage.app for new projects
+            # Firebase Storage bucket (newer projects use .firebasestorage.app)
             bucket_name = self.firebase_bucket or f"{project_id}.firebasestorage.app"
 
             # Initialize Storage client

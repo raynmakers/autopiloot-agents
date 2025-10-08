@@ -58,7 +58,7 @@ class CleanupTranscriptionAudio(BaseTool):
             )
 
             # Default to project bucket
-            # Firebase now uses .firebasestorage.app for new projects
+            # Firebase Storage bucket (newer projects use .firebasestorage.app)
             bucket_name = f"{project_id}.firebasestorage.app"
 
             # Initialize Storage client
