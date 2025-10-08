@@ -47,7 +47,7 @@ class SubmitAssemblyAIJob(BaseTool):
     )
     storage_path: Optional[str] = Field(
         default=None,
-        description="Firebase Storage path for cleanup after transcription (e.g., 'transcription_temp/video_id.mp3')"
+        description="Firebase Storage path for cleanup after transcription (e.g., 'tmp/transcription/video_id.m4a')"
     )
     video_id: str = Field(
         ...,
