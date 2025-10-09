@@ -163,13 +163,12 @@ scraper:
 | --------------------------------- | ------------------------------------------- | ----------------------------- |
 | `generate_short_summary.py`       | Create actionable business summaries        | OpenAI GPT-4.1 + Langfuse     |
 | `store_short_in_zep.py`           | Save to Zep GraphRAG for semantic search    | Zep API                       |
-| `save_summary_record.py` | Dual-format Drive storage (JSON + Markdown) | Google Drive API              |
-| `save_summary_record.py`          | Basic Firestore summary records             | Firestore                     |
-| `SaveSummaryRecordEnhanced.py`    | Enhanced records with Zep references        | Firestore + Enhanced Metadata |
-| `ProcessSummaryWorkflow.py`       | End-to-end orchestration tool               | Multi-platform Coordination   |
+| `save_summary_record.py`          | Firestore summary records with Zep refs     | Firestore                     |
+| `mark_video_rejected.py`          | Mark non-business content as rejected       | Firestore                     |
 
 ### Key Features
 
+- **Agent-Driven Orchestration**: Workflow managed by agent instructions, not hardcoded tool chains
 - **Adaptive Chunking**: Model-specific context optimization (GPT-4: 8k, GPT-4.1: 128k)
 - **Coaching Focus**: Prompts optimized for actionable business insights
 - **Observability**: Langfuse tracing with token usage and prompt versioning

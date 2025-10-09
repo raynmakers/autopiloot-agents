@@ -150,8 +150,15 @@ orchestrator:
 
 summarizer:
   zep:
-    collection_name: "youtube_summaries"  # Zep collection for video summaries
-    group_prefix: "summary"  # Prefix for Zep group names (e.g., "summary_danmartell")
+    # Zep v3 Architecture (Threads API via HTTP - no SDK due to Python 3.13 incompatibility)
+    # - Users: Represent YouTube channels (user_id = channel_handle without @, lowercase)
+    # - Threads: Represent individual videos (thread_id = "summary_{video_id}")
+    # - Messages: Contain summary content with metadata
+    # - Knowledge Graph: Zep automatically builds from message content
+    enabled: true
+    api_version: "v3"  # Using Threads API with direct HTTP calls
+    user_id_format: "channel_handle_lowercase"  # e.g., "@DanMartell" -> "danmartell"
+    thread_id_format: "summary_{video_id}"  # e.g., "summary_mZxDw92UXmA"
 
 linkedin:
   api:

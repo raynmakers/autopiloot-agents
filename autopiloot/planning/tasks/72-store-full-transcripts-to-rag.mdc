@@ -1,0 +1,109 @@
+---
+title: "Full Transcript Storage in Hybrid RAG (Zep + OpenSearch)"
+id: "ROADMAP-0072"
+created: "2025-10-08"
+status: "planned"
+priority: "P1"
+owners: ["Autopiloot Team"]
+tags:
+  [
+    "zep",
+    "rag",
+    "summarizer_agent",
+    "transcriber_agent",
+    "firestore",
+    "observability",
+  ]
+---
+
+# High-Level Objective
+
+Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semantic retrieval and OpenSearch for keyword/boolean and faceted filtering. Include rich metadata and references to enable high-recall retrieval, precise filtering, and downstream analysis.
+
+# Scope
+
+- End-to-end ingestion of full transcripts into Zep collections with chunking and metadata
+- Metadata linking: `video_id`, `title`, `published_at`, `channel_id`, `transcript_doc_ref`, `duration_sec`, `prompt_version`
+- Idempotent upsert and deduplication via content hash (SHA-256) and `video_id`
+- Backfill pipeline for existing transcripts; streaming path for new transcripts
+- Configurable chunking (token-aware) and embeddings parameters
+- Parallel indexing into OpenSearch index for BM25/phrase/filters on the same chunks and fields
+- Firestore references: persist `zep_transcript_doc_id` under `transcripts/{video_id}`
+- Observability: token/embedding usage tracking and error alerts
+
+# Deliverables
+
+1. New tools (Agency Swarm v1.0.2 compliant):
+
+   - `summarizer_agent/tools/upsert_full_transcript_to_zep.py`
+   - `summarizer_agent/tools/backfill_full_transcripts_to_zep.py`
+   - `summarizer_agent/tools/index_full_transcript_to_opensearch.py`
+   - `summarizer_agent/tools/backfill_full_transcripts_to_opensearch.py`
+
+2. Firestore schema updates:
+
+   - `transcripts/{video_id}` fields: `zep_transcript_doc_id` (str), `rag_ingested_at` (ISO 8601 Z), `content_sha256` (str)
+
+3. Configuration & Env:
+
+   - Extend `config/settings.yaml` with `zep.transcripts` and `rag.opensearch` sections (host, index name, chunking, weights)
+   - Ensure `ZEP_API_KEY`, `ZEP_BASE_URL`, `OPENSEARCH_HOST`, and either `OPENSEARCH_API_KEY` or `OPENSEARCH_USERNAME`/`OPENSEARCH_PASSWORD` present in env template and validated in `config/env_loader.py`
+
+4. Orchestration:
+
+   - Wire ingestion after successful transcript storage (post `save_transcript_record`) to both Zep and OpenSearch
+   - Optional scheduled backfill job over historical `transcripts/*`
+   - Add `summarizer_agent/tools/hybrid_retrieval.py` to fan-out queries to Zep (semantic) and OpenSearch (keyword) and fuse (RRF/weighted)
+
+5. Testing & Coverage:
+
+- 80%+ coverage for new tools; 100% for any init/config paths
+   - Error-path tests for API failures, timeouts, large transcript chunking, duplicate detection
+
+# Milestones
+
+M1 — Design & Config (1 day)
+
+- Define Zep collection schema for transcripts and metadata
+- Add settings/env validation and docs
+
+M2 — Core Upsert (2–3 days)
+
+- Implement `upsert_full_transcript_to_zep.py` with chunking, hashing, metadata
+- Persist `zep_transcript_doc_id` to Firestore; idempotent behavior
+
+M3 — Backfill & Orchestration (2 days)
+
+- Implement `backfill_full_transcripts_to_zep.py` with pagination and rate limits
+- Hook streaming path post-transcription
+
+M4 — Observability & Alerts (1 day)
+
+- Token/embedding usage tracking; Slack alerts on failures
+- Add coverage HTML reports and docs
+
+# Acceptance Criteria
+
+- New transcripts are ingested into Zep automatically with correct metadata and chunking
+- Identical chunks are indexed into OpenSearch with fields for filterable facets
+- Backfill covers existing `transcripts/*` with deduplication via `content_sha256`
+- Firestore updated with `zep_transcript_doc_id` and `rag_ingested_at`
+- Tools validate inputs with Pydantic and return JSON strings
+- Tests pass; coverage meets standards; HTML coverage reports generated
+
+# Dependencies
+
+- Existing transcript pipeline (submit → poll → store → save record)
+- Zep credentials and connectivity
+- Observability/Slack configuration
+
+# Risks & Mitigations
+
+- Storage/embedding cost growth → batching, rate limits, configurable chunk sizes, deduplication via hash
+- Very long transcripts → token-aware chunking with overlap and streaming upload
+- PII/Compliance → leverage existing redaction options when enabled; store hashes for audit
+
+# References
+
+- Existing Zep integration for short summaries: `summarizer_agent/tools/store_short_in_zep.py`
+- Coverage/testing standards: `docs/testing.md`, `agents/autopiloot/coverage/`

@@ -1,0 +1,44 @@
+---
+description: "Create tools to index full transcripts to Zep and OpenSearch"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072B"
+title: "Index full transcripts to Zep and OpenSearch"
+status: "planned"
+priority: "P1"
+labels: ["opensearch", "zep", "summarizer_agent", "tools"]
+dependencies: ["TASK-RAG-0072A"]
+created: "2025-10-08"
+
+# 1) High-Level Objective
+
+Implement production tools to upsert full transcripts to Zep (semantic) and OpenSearch (keyword) with shared chunking and metadata.
+
+# 2) Assumptions & Constraints
+
+- Use Agency Swarm BaseTool; return JSON strings.
+- Idempotent upserts using `content_sha256` and `video_id`.
+
+# 3) End State
+
+- `summarizer_agent/tools/upsert_full_transcript_to_zep.py`
+- `summarizer_agent/tools/index_full_transcript_to_opensearch.py`
+
+# 4) Low-Level Steps
+
+1. Shared chunking helper (in the tool): sentence/paragraph-aware, token-aware caps, small overlap.
+2. Zep upsert tool: push chunks + metadata; return `{ ok, zep_transcript_doc_id }`.
+3. OpenSearch index tool: create index if missing (mappings for fields + fulltext); index chunks with fields: video_id, title, channel_id, published_at (date), duration_sec, content_sha256, chunk_id, text.
+4. Wire both tools to be callable after `save_transcript_record`.
+
+# 5) Acceptance Criteria
+
+- Both tools validate env/config and return JSON.
+- Duplicate runs do not create duplicate docs (hash/idempotency).
+
+# 6) Testing Strategy
+
+- Mock HTTP for Zep; mock OpenSearch client.
+- Coverage ≥ 80%; HTML report updated.

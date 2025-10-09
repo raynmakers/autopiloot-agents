@@ -39,7 +39,11 @@ class GenerateShortSummary(BaseTool):
         Generate comprehensive business summary with deep analysis across multiple coaching domains.
 
         Returns:
-            JSON string with bullets, key_concepts, prompt_id, prompt_version, and token_usage
+            JSON string with:
+            - bullets: Actionable insights with implementation details
+            - key_concepts: Names of frameworks and methodologies
+            - concept_explanations: Detailed explanations of HOW/WHEN/WHY for each concept
+            - prompt_id, prompt_version, token_usage, video_id, model, reasoning_effort
         """
         # Validate required environment variables
         openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -131,7 +135,12 @@ Provide comprehensive analysis covering:
 Extract named frameworks/concepts like:
 - "80/20 Principle", "Jobs to Be Done"
 - "Flywheel Effect", "Loss Aversion"
-- "Brand Promise Framework", etc."""
+- "Brand Promise Framework", etc.
+
+IMPORTANT: For each concept/framework, provide detailed explanation of:
+1. HOW it works (mechanics, implementation steps)
+2. WHEN to use it (scenarios, context, business situations)
+3. WHY it's effective (underlying principles, real-world application)"""
 
             # Define JSON schema for structured output
             response_schema = {
@@ -158,9 +167,28 @@ Extract named frameworks/concepts like:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Names of frameworks, principles, or methodologies mentioned"
+                    },
+                    "concept_explanations": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "concept": {
+                                    "type": "string",
+                                    "description": "Name of the concept or framework"
+                                },
+                                "explanation": {
+                                    "type": "string",
+                                    "description": "Comprehensive explanation covering: (1) HOW it works - mechanics and implementation steps, (2) WHEN to use it - specific scenarios and business contexts, (3) WHY it's effective - underlying principles and real-world application"
+                                }
+                            },
+                            "required": ["concept", "explanation"],
+                            "additionalProperties": False
+                        },
+                        "description": "Detailed explanations for each key concept showing HOW it works"
                     }
                 },
-                "required": ["is_business_content", "content_type", "reason", "actionable_insights", "key_concepts"],
+                "required": ["is_business_content", "content_type", "reason", "actionable_insights", "key_concepts", "concept_explanations"],
                 "additionalProperties": False
             }
 
@@ -209,10 +237,12 @@ Extract named frameworks/concepts like:
             # Extract insights and concepts from structured response
             bullets = summary_data.get("actionable_insights", [])
             key_concepts = summary_data.get("key_concepts", [])
+            concept_explanations = summary_data.get("concept_explanations", [])
 
             result = {
                 "bullets": bullets,
                 "key_concepts": key_concepts,
+                "concept_explanations": concept_explanations,
                 "prompt_id": prompt_id,
                 "prompt_version": prompt_version,
                 "token_usage": {

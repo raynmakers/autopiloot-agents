@@ -1,0 +1,31 @@
+---
+description: "Update agent instructions for Hybrid RAG (Zep + OpenSearch)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072D"
+title: "Update agent instructions for Hybrid RAG"
+status: "planned"
+priority: "P1"
+labels: ["instructions", "summarizer_agent", "orchestrator_agent"]
+dependencies: ["TASK-RAG-0072A", "TASK-RAG-0072B", "TASK-RAG-0072C"]
+created: "2025-10-08"
+
+# 1) High-Level Objective
+
+Revise instructions to include indexing (Zep + OpenSearch) and hybrid retrieval usage.
+
+# 2) Low-Level Steps
+
+1. In `summarizer_agent/instructions.md`:
+   - After saving transcript, instruct to call both upsert-to-Zep and index-to-OpenSearch tools.
+   - Document hybrid retrieval usage and when to apply filters.
+
+2. In `orchestrator_agent/instructions.md`:
+   - Add responsibility to trigger backfill jobs and hybrid retrieval for downstream consumers.
+   - Emphasize Firestore as broker, but retrieval from Zep/OpenSearch.
+
+# 3) Acceptance Criteria
+
+- Instructions clearly describe Hybrid RAG steps and tool names.

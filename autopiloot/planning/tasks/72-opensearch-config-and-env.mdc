@@ -1,0 +1,70 @@
+---
+description: "Add OpenSearch configuration and environment variables for Hybrid RAG"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072A"
+title: "Configure OpenSearch for Hybrid RAG"
+status: "planned"
+priority: "P1"
+labels: ["opensearch", "rag", "config"]
+dependencies: ["agents/autopiloot/planning/roadmap/72-store-full-transcripts-to-rag.mdc"]
+created: "2025-10-08"
+
+# 1) High-Level Objective
+
+Add OpenSearch as the keyword/boolean retrieval surface in Hybrid RAG alongside Zep.
+
+# 2) Assumptions & Constraints
+
+- ASSUMPTION: Managed OpenSearch is available or provisioned externally.
+- Constraint: No secrets in code; use env + validation.
+- Constraint: Keep Firestore as operational source-of-truth.
+
+# 3) Dependencies
+
+- `agents/autopiloot/config/settings.yaml`
+- `agents/autopiloot/config/env_loader.py`
+
+# 4) Context Plan
+
+Beginning (read-only):
+- agents/autopiloot/config/settings.yaml
+- agents/autopiloot/config/env_loader.py
+
+End state:
+- settings.yaml extended with `rag.opensearch` (host, index, top_k, weights)
+- env_loader validates `OPENSEARCH_HOST` and either `OPENSEARCH_API_KEY` or basic auth.
+- `.env.template` updated (if present in repo).
+
+# 5) Low-Level Steps
+
+1. Extend settings.yaml:
+   - Add `rag.opensearch`:
+     - `host` (string URL)
+     - `index_transcripts` (string, default: "autopiloot_transcripts")
+     - `top_k` (int, default: 20)
+     - `weights` (semantic: 0.6, keyword: 0.4 by default)
+     - `timeout_ms` (default: 1500)
+
+2. Update env_loader.py:
+   - Add optional vars: `OPENSEARCH_HOST`, `OPENSEARCH_API_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`.
+   - Validate at least one auth method is provided.
+
+3. Documentation:
+   - Add brief notes to `docs/testing.md` on configuring OpenSearch env.
+
+# 6) Acceptance Criteria
+
+- Application loads OpenSearch config without errors.
+- Env validation provides clear messages if auth/host missing.
+
+# 7) Testing Strategy
+
+- Unit test env_loader optional path (mock os.environ).
+- Verify settings access pattern in a dry-run tool.
+
+# 8) Notes
+
+- Keep compatibility with current Zep-only flows.
