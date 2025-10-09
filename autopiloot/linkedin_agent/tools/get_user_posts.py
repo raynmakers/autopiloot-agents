@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
-from loader import load_app_config, get_config_value
+from loader import get_config_value
 
 
 class GetUserPosts(BaseTool):
@@ -75,12 +75,30 @@ class GetUserPosts(BaseTool):
                  }
         """
         try:
-            # Load environment variables
+            # Load environment
             load_environment()
 
-            # Get RapidAPI credentials
-            rapidapi_host = get_required_env_var("RAPIDAPI_LINKEDIN_HOST", "RapidAPI LinkedIn host")
-            rapidapi_key = get_required_env_var("RAPIDAPI_LINKEDIN_KEY", "RapidAPI key for LinkedIn")
+            # Get plugin name from linkedin.api.rapidapi_plugin
+            plugin_name = get_config_value("linkedin.api.rapidapi_plugin", "linkedin_scraper")
+
+            # Load plugin configuration from rapidapi.plugins[plugin_name]
+            plugin_config = get_config_value(f"rapidapi.plugins.{plugin_name}", None)
+            if not plugin_config:
+                raise ValueError(f"RapidAPI plugin '{plugin_name}' not found in settings.yaml")
+
+            # Get host and API key env var name from plugin config
+            rapidapi_host = plugin_config.get("host")
+            api_key_env = plugin_config.get("api_key_env")
+            endpoints = plugin_config.get("endpoints", {})
+
+            if not rapidapi_host or not api_key_env:
+                raise ValueError(f"Plugin '{plugin_name}' missing 'host' or 'api_key_env' in settings.yaml")
+
+            # Get actual API key from environment variable
+            rapidapi_key = get_required_env_var(api_key_env, f"RapidAPI key for {plugin_name}")
+
+            # Get endpoint path from plugin config
+            endpoint_path = endpoints.get("user_posts", "/user-posts")
 
             # Validate inputs
             if self.page_size > 100:
@@ -89,7 +107,7 @@ class GetUserPosts(BaseTool):
                 self.max_items = 1000
 
             # Prepare API endpoint and headers
-            base_url = f"https://{rapidapi_host}/user-posts"
+            base_url = f"https://{rapidapi_host}{endpoint_path}"
             headers = {
                 "X-RapidAPI-Host": rapidapi_host,
                 "X-RapidAPI-Key": rapidapi_key,
@@ -226,7 +244,7 @@ class GetUserPosts(BaseTool):
 if __name__ == "__main__":
     # Test the tool
     tool = GetUserPosts(
-        user_urn="alexhormozi",
+        user_urn="ilke-oner",
         page=1,
         page_size=10,
         max_items=20

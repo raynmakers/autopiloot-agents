@@ -148,6 +148,22 @@ orchestrator:
     quota_enforcement: true  # Enable API quota enforcement
     max_retries_per_video: 3  # Global retry limit per video
 
+rapidapi:
+  # Centralized RapidAPI plugin configuration
+  # Each plugin has its own host and API key
+  # Multiple tools can reference the same plugin
+  plugins:
+    linkedin_scraper:
+      host: "fresh-linkedin-scraper-api.p.rapidapi.com"
+      api_key_env: "RAPIDAPI_LINKEDIN_SCRAPER_KEY"  # References env var in .env
+      endpoints:
+        user_posts: "/api/v1/user/posts"
+        user_profile: "/api/v1/user/profile"
+    # Add more plugins as needed:
+    # example_plugin:
+    #   host: "another-api.p.rapidapi.com"
+    #   api_key_env: "RAPIDAPI_EXAMPLE_KEY"
+
 summarizer:
   zep:
     # Zep v3 Architecture (Threads API via HTTP - no SDK due to Python 3.13 incompatibility)
@@ -162,10 +178,10 @@ summarizer:
 
 linkedin:
   api:
-    # RapidAPI host and key via environment variables:
-    # RAPIDAPI_LINKEDIN_HOST and RAPIDAPI_LINKEDIN_KEY
+    # RapidAPI configuration is in rapidapi.plugins.linkedin_scraper section
     rate_limit_per_minute: 60  # Rate limiting for LinkedIn API calls
     max_posts_per_profile: 50  # Maximum posts to fetch per profile
+    rapidapi_plugin: "linkedin_scraper"  # References rapidapi.plugins.linkedin_scraper
   profiles:
     # Target LinkedIn profiles for content ingestion
     - "alexhormozi"  # Example LinkedIn username/handle
