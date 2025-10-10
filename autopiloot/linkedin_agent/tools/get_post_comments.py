@@ -1,6 +1,7 @@
 """
 GetPostComments tool for fetching comments on LinkedIn posts via RapidAPI.
 Supports batch fetching of comments for multiple posts with pagination.
+Stores comments to Firestore linked to their parent posts.
 """
 
 import os
@@ -10,15 +11,17 @@ import time
 import requests
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
+from urllib.parse import unquote
 from agency_swarm.tools import BaseTool
 from pydantic import Field
+from google.cloud import firestore
 
 # Add core and config directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
-from loader import load_app_config, get_config_value
+from loader import get_config_value
 
 
 class GetPostComments(BaseTool):
@@ -27,6 +30,14 @@ class GetPostComments(BaseTool):
 
     Handles batch processing of multiple posts and pagination for comments.
     Uses the Fresh LinkedIn Scraper API via RapidAPI to retrieve comments.
+    Recursively processes nested replies to any depth.
+
+    Comment nesting structure:
+        Top-level comment
+        ├── Reply 1
+        │   └── Reply to Reply 1
+        │       └── Nested Reply 3+ levels deep
+        └── Reply 2
     """
 
     post_ids: List[str] = Field(
@@ -72,12 +83,30 @@ class GetPostComments(BaseTool):
                  }
         """
         try:
-            # Load environment variables
+            # Load environment
             load_environment()
 
-            # Get RapidAPI credentials
-            rapidapi_host = get_required_env_var("RAPIDAPI_LINKEDIN_HOST", "RapidAPI LinkedIn host")
-            rapidapi_key = get_required_env_var("RAPIDAPI_LINKEDIN_KEY", "RapidAPI key for LinkedIn")
+            # Get plugin name from linkedin.api.rapidapi_plugin
+            plugin_name = get_config_value("linkedin.api.rapidapi_plugin", "linkedin_scraper")
+
+            # Load plugin configuration from rapidapi.plugins[plugin_name]
+            plugin_config = get_config_value(f"rapidapi.plugins.{plugin_name}", None)
+            if not plugin_config:
+                raise ValueError(f"RapidAPI plugin '{plugin_name}' not found in settings.yaml")
+
+            # Get host and API key env var name from plugin config
+            rapidapi_host = plugin_config.get("host")
+            api_key_env = plugin_config.get("api_key_env")
+            endpoints = plugin_config.get("endpoints", {})
+
+            if not rapidapi_host or not api_key_env:
+                raise ValueError(f"Plugin '{plugin_name}' missing 'host' or 'api_key_env' in settings.yaml")
+
+            # Get actual API key from environment variable
+            rapidapi_key = get_required_env_var(api_key_env, f"RapidAPI key for {plugin_name}")
+
+            # Get endpoint path from plugin config
+            endpoint_path = endpoints.get("post_comments", "/api/v1/post/comments")
 
             # Validate inputs
             if self.page_size > 100:
@@ -90,7 +119,7 @@ class GetPostComments(BaseTool):
                 })
 
             # Prepare API endpoint and headers
-            base_url = f"https://{rapidapi_host}/post-comments"
+            base_url = f"https://{rapidapi_host}{endpoint_path}"
             headers = {
                 "X-RapidAPI-Host": rapidapi_host,
                 "X-RapidAPI-Key": rapidapi_key,
@@ -102,40 +131,72 @@ class GetPostComments(BaseTool):
             total_comments = 0
 
             for post_id in self.post_ids:
-                # Build query parameters for this post
-                params = {
-                    "postId": post_id,
-                    "page": self.page,
-                    "pageSize": self.page_size
-                }
+                # Fetch all pages for this post
+                all_comments = []
+                current_page = 1
+                has_more = True
 
-                if self.include_replies:
-                    params["includeReplies"] = "true"
+                while has_more:
+                    # Build query parameters for this page
+                    params = {
+                        "post_id": post_id,
+                        "page": current_page,
+                        "page_size": self.page_size
+                    }
 
-                # Make API request with retry logic
-                response_data = self._make_request_with_retry(base_url, headers, params)
+                    if self.include_replies:
+                        params["include_replies"] = "true"
 
-                if response_data:
-                    comments = response_data.get("data", [])
-                    pagination = response_data.get("pagination", {})
+                    # Make API request with retry logic
+                    response_data = self._make_request_with_retry(base_url, headers, params)
 
-                    # Process comments to extract key information
-                    processed_comments = self._process_comments(comments)
+                    if response_data:
+                        comments = response_data.get("data", [])
+
+                        # If no comments returned, we're done
+                        if not comments:
+                            has_more = False
+                            break
+
+                        # Add to our collection
+                        all_comments.extend(comments)
+
+                        # Always try next page until we get zero results
+                        # The API might return exactly page_size on last full page
+                        current_page += 1
+
+                        # Small delay between pages to respect rate limits
+                        time.sleep(0.3)
+                    else:
+                        # Failed to fetch this page
+                        has_more = False
+
+                # Process all comments for this post
+                if all_comments:
+                    # Fetch additional paginated replies if needed
+                    all_comments = self._fetch_paginated_replies(
+                        post_id, all_comments, rapidapi_host, rapidapi_key, endpoints
+                    )
+
+                    processed_comments = self._process_comments(all_comments)
+
+                    # Store comments to Firestore
+                    storage_result = self._store_comments_to_firestore(post_id, processed_comments)
 
                     comments_by_post[post_id] = {
                         "comments": processed_comments,
                         "total_count": len(processed_comments),
-                        "has_more": pagination.get("hasMore", False),
-                        "page": self.page
+                        "pages_fetched": current_page - 1 if current_page > 1 else 1,
+                        "storage": storage_result
                     }
                     total_comments += len(processed_comments)
                 else:
-                    # Failed to fetch comments for this post
+                    # No comments found for this post
                     comments_by_post[post_id] = {
                         "comments": [],
                         "total_count": 0,
-                        "has_more": False,
-                        "error": "fetch_failed"
+                        "pages_fetched": 0,
+                        "storage": {"total_stored": 0, "created": 0, "updated": 0, "errors": 0}
                     }
 
                 # Rate limiting between posts
@@ -149,9 +210,9 @@ class GetPostComments(BaseTool):
                     "total_posts": len(self.post_ids),
                     "total_comments": total_comments,
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    "page": self.page,
                     "page_size": self.page_size,
-                    "include_replies": self.include_replies
+                    "include_replies": self.include_replies,
+                    "pagination": "automatic"  # Fetches all pages automatically
                 }
             }
 
@@ -164,6 +225,72 @@ class GetPostComments(BaseTool):
                 "post_ids": self.post_ids
             }
             return json.dumps(error_result)
+
+    def _fetch_paginated_replies(
+        self,
+        post_id: str,
+        comments: List[Dict],
+        rapidapi_host: str,
+        rapidapi_key: str,
+        endpoints: Dict
+    ) -> List[Dict]:
+        """
+        Fetch additional paginated replies for comments that have more replies than returned.
+
+        Args:
+            post_id: Post ID these comments belong to
+            comments: List of comments with initial replies
+            rapidapi_host: RapidAPI host
+            rapidapi_key: RapidAPI key
+            endpoints: Endpoint paths dictionary
+
+        Returns:
+            List[Dict]: Comments with all replies fetched
+        """
+        if not self.include_replies:
+            return comments
+
+        # Get replies endpoint
+        replies_endpoint = endpoints.get("post_comment_replies", "/api/v1/post/comments/replies")
+        replies_url = f"https://{rapidapi_host}{replies_endpoint}"
+
+        headers = {
+            "X-RapidAPI-Host": rapidapi_host,
+            "X-RapidAPI-Key": rapidapi_key,
+            "Accept": "application/json"
+        }
+
+        # Check each comment for paginated replies
+        for comment in comments:
+            num_replies = comment.get("num_replies", 0)
+            current_replies = len(comment.get("replies", []))
+
+            # If comment has more replies than returned, fetch them
+            if num_replies > current_replies and "previous_replies_token" in comment:
+                comment_id = comment.get("id", "")
+                token = comment.get("previous_replies_token", "")
+
+                # Fetch additional replies
+                params = {
+                    "post_id": post_id,
+                    "comment_id": comment_id,
+                    "previous_replies_token": token
+                }
+
+                response_data = self._make_request_with_retry(replies_url, headers, params)
+
+                if response_data and "data" in response_data:
+                    additional_replies = response_data.get("data", [])
+
+                    # Merge with existing replies
+                    if "replies" not in comment:
+                        comment["replies"] = []
+                    comment["replies"].extend(additional_replies)
+
+                # Small delay to respect rate limits
+                time.sleep(0.3)
+
+        return comments
 
     def _process_comments(self, comments: List[Dict]) -> List[Dict]:
         """
@@ -178,27 +305,266 @@ class GetPostComments(BaseTool):
         processed = []
 
         for comment in comments:
-            processed_comment = {
-                "comment_id": comment.get("id", ""),
-                "author": {
-                    "name": comment.get("authorName", "Unknown"),
-                    "headline": comment.get("authorHeadline", ""),
-                    "profile_url": comment.get("authorProfileUrl", "")
-                },
-                "text": comment.get("text", ""),
-                "likes": comment.get("likes", 0),
-                "replies_count": comment.get("repliesCount", 0),
-                "created_at": comment.get("createdAt", ""),
-                "is_reply": comment.get("isReply", False)
-            }
-
-            # Include replies if present
-            if self.include_replies and "replies" in comment:
-                processed_comment["replies"] = self._process_comments(comment["replies"])
-
+            processed_comment = self._process_single_comment(comment, is_reply=False)
             processed.append(processed_comment)
 
         return processed
+
+    def _process_single_comment(self, comment: Dict, is_reply: bool = False) -> Dict:
+        """
+        Process a single comment with recursive reply handling.
+
+        Args:
+            comment: Raw comment data from API
+            is_reply: Whether this is a reply to another comment
+
+        Returns:
+            Dict: Processed comment with nested replies
+        """
+        # Get commenter info
+        commenter = comment.get("commenter", {})
+
+        # Calculate total likes from reaction_counts
+        reaction_counts = comment.get("reaction_counts", [])
+        total_reactions = sum(r.get("count", 0) for r in reaction_counts)
+
+        processed_comment = {
+            "comment_id": comment.get("id", ""),
+            "author": {
+                "name": commenter.get("name", "Unknown"),
+                "headline": commenter.get("description", ""),
+                "profile_url": commenter.get("url", "")
+            },
+            "text": comment.get("comment", ""),
+            "likes": total_reactions,
+            "replies_count": comment.get("num_replies", 0),
+            "created_at": comment.get("created_at", ""),
+            "is_reply": is_reply
+        }
+
+        # Recursively process nested replies
+        if self.include_replies and "replies" in comment:
+            replies = comment.get("replies", [])
+            processed_replies = []
+            for reply in replies:
+                # Recursive call to handle nested replies
+                processed_reply = self._process_single_comment(reply, is_reply=True)
+                processed_replies.append(processed_reply)
+            processed_comment["replies"] = processed_replies
+
+        return processed_comment
+
+    def _decode_url_encoded_string(self, value: str) -> str:
+        """
+        Decode URL-encoded characters from strings.
+        Removes encoded characters like %C3, %B6, etc.
+
+        Args:
+            value: String potentially containing URL-encoded characters
+
+        Returns:
+            str: Decoded string with proper UTF-8 characters
+        """
+        if not value or not isinstance(value, str):
+            return value
+
+        try:
+            # URL decode the string to convert %XX to actual characters
+            return unquote(value)
+        except Exception:
+            # If decoding fails, return original value
+            return value
+
+    def _initialize_firestore(self):
+        """Initialize Firestore client with proper authentication."""
+        try:
+            # Get required project ID
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firestore"
+            )
+
+            # Get service account credentials path
+            credentials_path = get_required_env_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "Google service account credentials file path"
+            )
+
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
+
+            # Initialize Firestore client with project ID
+            return firestore.Client(project=project_id)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+
+    def _store_profile_to_firestore(self, db, author: Dict) -> str:
+        """
+        Store LinkedIn profile to Firestore with idempotent upsert.
+        Decodes URL-encoded characters from all string fields.
+
+        Args:
+            db: Firestore client
+            author: Author/profile dictionary from comment
+
+        Returns:
+            str: Author profile ID extracted from URL
+        """
+        try:
+            # Comments have profile_url instead of URN, use that as ID
+            profile_url = self._decode_url_encoded_string(author.get('profile_url', ''))
+            if not profile_url:
+                return ''
+
+            # Extract identifier from URL (e.g., "https://www.linkedin.com/in/ilke-oner" -> "ilke-oner")
+            profile_id = profile_url.rstrip('/').split('/')[-1] if profile_url else ''
+            if not profile_id:
+                return profile_url
+
+            # Create document reference using profile ID
+            doc_ref = db.collection('linkedin_profiles').document(profile_id)
+            existing_doc = doc_ref.get()
+
+            # Split name into first and last name
+            full_name = self._decode_url_encoded_string(author.get('name', ''))
+            name_parts = full_name.split(' ', 1) if full_name else ['', '']
+            first_name = name_parts[0] if len(name_parts) > 0 else ''
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+            # Prepare profile data with URL decoding
+            profile_data = {
+                'public_identifier': profile_id,
+                'first_name': first_name,
+                'last_name': last_name,
+                'headline': self._decode_url_encoded_string(author.get('headline', '')),
+                'profile_url': profile_url,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }
+
+            # Idempotent upsert
+            if not existing_doc.exists:
+                profile_data['created_at'] = firestore.SERVER_TIMESTAMP
+                doc_ref.set(profile_data)
+            else:
+                doc_ref.update(profile_data)
+
+            return profile_id
+
+        except Exception as e:
+            print(f"Error storing profile {author.get('profile_url', 'unknown')}: {str(e)}")
+            return ''
+
+    def _store_comments_to_firestore(self, post_id: str, comments: List[Dict]) -> Dict[str, int]:
+        """
+        Store LinkedIn comments to Firestore with post_id linking.
+        Extracts author profiles and stores them separately.
+
+        Args:
+            post_id: LinkedIn post ID these comments belong to
+            comments: List of processed comment dictionaries
+
+        Returns:
+            dict: Storage statistics with counts for created, updated, errors
+        """
+        created = 0
+        updated = 0
+        errors = 0
+
+        if not comments:
+            return {"total_stored": 0, "created": 0, "updated": 0, "errors": 0}
+
+        try:
+            db = self._initialize_firestore()
+
+            # Flatten nested comments for storage (recursively)
+            all_comments = self._flatten_comments(comments)
+
+            for comment in all_comments:
+                try:
+                    # Use comment_id as document ID, or generate one if missing
+                    comment_id = comment.get("comment_id") or f"{post_id}_{len(all_comments)}_{datetime.now(timezone.utc).timestamp()}"
+
+                    if not comment_id:
+                        errors += 1
+                        continue
+
+                    # Store author profile separately and get profile ID
+                    author = comment.get('author', {})
+                    author_profile_id = self._store_profile_to_firestore(db, author) if author else ''
+
+                    # Create document reference
+                    doc_ref = db.collection('linkedin_comments').document(comment_id)
+                    existing_doc = doc_ref.get()
+
+                    # Prepare comment data with author reference only
+                    comment_data = {
+                        'comment_id': comment_id,
+                        'post_id': post_id,  # Link to parent post
+                        'author_profile_id': author_profile_id,  # Reference to linkedin_profiles
+                        'text': comment.get('text', ''),
+                        'likes': comment.get('likes', 0),
+                        'replies_count': comment.get('replies_count', 0),
+                        'created_at': comment.get('created_at', ''),
+                        'is_reply': comment.get('is_reply', False),
+                        'status': 'discovered',
+                        'updated_at': firestore.SERVER_TIMESTAMP
+                    }
+
+                    # Idempotent upsert
+                    if not existing_doc.exists:
+                        comment_data['created_at_firestore'] = firestore.SERVER_TIMESTAMP
+                        doc_ref.set(comment_data)
+                        created += 1
+                    else:
+                        doc_ref.update(comment_data)
+                        updated += 1
+
+                except Exception as e:
+                    print(f"Error storing comment {comment.get('comment_id', 'unknown')}: {str(e)}")
+                    errors += 1
+                    continue
+
+            return {
+                "total_stored": created + updated,
+                "created": created,
+                "updated": updated,
+                "errors": errors
+            }
+
+        except Exception as e:
+            print(f"Firestore storage error: {str(e)}")
+            return {
+                "total_stored": 0,
+                "created": 0,
+                "updated": 0,
+                "errors": len(comments)
+            }
+
+    def _flatten_comments(self, comments: List[Dict], flattened: Optional[List[Dict]] = None) -> List[Dict]:
+        """
+        Recursively flatten nested comment structure for storage.
+
+        Args:
+            comments: List of comments (may contain nested replies)
+            flattened: Accumulator for flattened comments
+
+        Returns:
+            List[Dict]: Flat list of all comments including nested replies
+        """
+        if flattened is None:
+            flattened = []
+
+        for comment in comments:
+            # Add this comment (without replies key to avoid circular storage)
+            comment_copy = {k: v for k, v in comment.items() if k != 'replies'}
+            flattened.append(comment_copy)
+
+            # Recursively flatten nested replies
+            if 'replies' in comment and comment['replies']:
+                self._flatten_comments(comment['replies'], flattened)
+
+        return flattened
 
     def _make_request_with_retry(self, url: str, headers: Dict, params: Dict, max_retries: int = 3) -> Optional[Dict]:
         """
@@ -254,11 +620,11 @@ class GetPostComments(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test the tool with numeric post IDs (not URNs)
     tool = GetPostComments(
-        post_ids=["urn:li:activity:7240371806548066304", "urn:li:activity:7240371806548066305"],
+        post_ids=["7373607106899263488","7363442070256062464"],  # ilke-oner's post ID
         page=1,
-        page_size=10,
+        page_size=50,  # Default page size for full test
         include_replies=True
     )
     print("Testing GetPostComments tool...")

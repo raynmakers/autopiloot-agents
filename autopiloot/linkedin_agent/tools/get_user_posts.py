@@ -1,6 +1,7 @@
 """
 GetUserPosts tool for fetching LinkedIn user posts via RapidAPI.
 Supports pagination, date filtering, and backfill of historical posts.
+Stores posts to Firestore for persistence and tracking.
 """
 
 import os
@@ -10,8 +11,10 @@ import time
 import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
 from agency_swarm.tools import BaseTool
 from pydantic import Field
+from google.cloud import firestore
 
 # Add core and config directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
@@ -23,10 +26,11 @@ from loader import get_config_value
 
 class GetUserPosts(BaseTool):
     """
-    Fetches LinkedIn posts from a user profile using RapidAPI.
+    Fetches LinkedIn posts from a user profile using RapidAPI and stores to Firestore.
 
-    Handles pagination, rate limiting, and historical backfill.
+    Handles pagination, rate limiting, historical backfill, and persistent storage.
     Uses the Fresh LinkedIn Scraper API via RapidAPI to retrieve posts.
+    Stores posts to linkedin_posts/{post_id} collection with idempotent upsert.
     """
 
     user_urn: str = Field(
@@ -56,10 +60,10 @@ class GetUserPosts(BaseTool):
 
     def run(self) -> str:
         """
-        Fetches LinkedIn posts for the specified user.
+        Fetches LinkedIn posts for the specified user and stores to Firestore.
 
         Returns:
-            str: JSON string containing posts data with pagination info
+            str: JSON string containing posts data with pagination and storage info
                  Format: {
                      "posts": [...],
                      "pagination": {
@@ -67,6 +71,12 @@ class GetUserPosts(BaseTool):
                          "page_size": 25,
                          "has_more": true,
                          "total_fetched": 25
+                     },
+                     "storage": {
+                         "total_stored": 25,
+                         "created": 20,
+                         "updated": 5,
+                         "errors": 0
                      },
                      "metadata": {
                          "user_urn": "...",
@@ -160,6 +170,9 @@ class GetUserPosts(BaseTool):
                 if has_more:
                     time.sleep(1)  # 1 second delay between pages
 
+            # Store posts to Firestore
+            storage_results = self._store_posts_to_firestore(posts)
+
             # Prepare response
             result = {
                 "posts": posts,
@@ -168,6 +181,12 @@ class GetUserPosts(BaseTool):
                     "page_size": self.page_size,
                     "has_more": has_more,
                     "total_fetched": total_fetched
+                },
+                "storage": {
+                    "total_stored": storage_results["total_stored"],
+                    "created": storage_results["created"],
+                    "updated": storage_results["updated"],
+                    "errors": storage_results["errors"]
                 },
                 "metadata": {
                     "user_urn": self.user_urn,
@@ -187,6 +206,178 @@ class GetUserPosts(BaseTool):
                 "user_urn": self.user_urn
             }
             return json.dumps(error_result)
+
+    def _decode_url_encoded_string(self, value: str) -> str:
+        """
+        Decode URL-encoded characters from strings.
+        Removes encoded characters like %C3, %B6, etc.
+
+        Args:
+            value: String potentially containing URL-encoded characters
+
+        Returns:
+            str: Decoded string with proper UTF-8 characters
+        """
+        if not value or not isinstance(value, str):
+            return value
+
+        try:
+            # URL decode the string to convert %XX to actual characters
+            return unquote(value)
+        except Exception:
+            # If decoding fails, return original value
+            return value
+
+    def _initialize_firestore(self):
+        """Initialize Firestore client with proper authentication."""
+        try:
+            # Get required project ID
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firestore"
+            )
+
+            # Get service account credentials path
+            credentials_path = get_required_env_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "Google service account credentials file path"
+            )
+
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
+
+            # Initialize Firestore client with project ID
+            return firestore.Client(project=project_id)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+
+    def _store_profile_to_firestore(self, db, author: Dict) -> str:
+        """
+        Store LinkedIn profile to Firestore with idempotent upsert.
+        Decodes URL-encoded characters from all string fields.
+
+        Args:
+            db: Firestore client
+            author: Author/profile dictionary from API
+
+        Returns:
+            str: Author URN (profile ID)
+        """
+        try:
+            author_urn = author.get('urn', '')
+            if not author_urn:
+                return ''
+
+            # Create document reference using URN as ID
+            doc_ref = db.collection('linkedin_profiles').document(author_urn)
+            existing_doc = doc_ref.get()
+
+            # Prepare profile data with URL decoding
+            profile_data = {
+                'id': self._decode_url_encoded_string(author.get('id', '')),
+                'urn': author_urn,
+                'public_identifier': self._decode_url_encoded_string(author.get('public_identifier', '')),
+                'first_name': self._decode_url_encoded_string(author.get('first_name', '')),
+                'last_name': self._decode_url_encoded_string(author.get('last_name', '')),
+                'headline': self._decode_url_encoded_string(author.get('description', '')),
+                'profile_url': self._decode_url_encoded_string(author.get('url', '')),
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }
+
+            # Idempotent upsert
+            if not existing_doc.exists:
+                profile_data['created_at'] = firestore.SERVER_TIMESTAMP
+                doc_ref.set(profile_data)
+            else:
+                doc_ref.update(profile_data)
+
+            return author_urn
+
+        except Exception as e:
+            print(f"Error storing profile {author.get('urn', 'unknown')}: {str(e)}")
+            return ''
+
+    def _store_posts_to_firestore(self, posts: List[Dict]) -> Dict[str, int]:
+        """
+        Store LinkedIn posts to Firestore with idempotent upsert.
+        Extracts author profiles and stores them separately.
+
+        Args:
+            posts: List of post dictionaries from API
+
+        Returns:
+            dict: Storage statistics with counts for created, updated, errors
+        """
+        created = 0
+        updated = 0
+        errors = 0
+
+        if not posts:
+            return {"total_stored": 0, "created": 0, "updated": 0, "errors": 0}
+
+        try:
+            db = self._initialize_firestore()
+
+            for post in posts:
+                try:
+                    # Extract post ID from URN or use 'id' field
+                    post_id = post.get("id", post.get("urn", "")).replace("urn:li:share:", "")
+
+                    if not post_id:
+                        errors += 1
+                        continue
+
+                    # Store author profile separately and get URN
+                    author = post.get('author', {})
+                    author_urn = self._store_profile_to_firestore(db, author) if author else ''
+
+                    # Create document reference
+                    doc_ref = db.collection('linkedin_posts').document(post_id)
+                    existing_doc = doc_ref.get()
+
+                    # Prepare post data with author reference only
+                    post_data = {
+                        'post_id': post_id,
+                        'author_urn': author_urn,  # Reference to linkedin_profiles
+                        'urn': post.get('share_urn', ''),  # LinkedIn share URN
+                        'text': post.get('text', ''),
+                        'posted_at': post.get('created_at', ''),  # Post timestamp
+                        'post_url': post.get('url', ''),  # LinkedIn post URL
+                        'activity': post.get('activity', {}),  # Engagement metrics
+                        'status': 'discovered',
+                        'updated_at': firestore.SERVER_TIMESTAMP
+                    }
+
+                    # Idempotent upsert
+                    if not existing_doc.exists:
+                        post_data['created_at'] = firestore.SERVER_TIMESTAMP
+                        doc_ref.set(post_data)
+                        created += 1
+                    else:
+                        doc_ref.update(post_data)
+                        updated += 1
+
+                except Exception as e:
+                    print(f"Error storing post {post.get('id', 'unknown')}: {str(e)}")
+                    errors += 1
+                    continue
+
+            return {
+                "total_stored": created + updated,
+                "created": created,
+                "updated": updated,
+                "errors": errors
+            }
+
+        except Exception as e:
+            print(f"Firestore storage error: {str(e)}")
+            return {
+                "total_stored": 0,
+                "created": 0,
+                "updated": 0,
+                "errors": len(posts)
+            }
 
     def _make_request_with_retry(self, url: str, headers: Dict, params: Dict, max_retries: int = 3) -> Optional[Dict]:
         """
@@ -242,9 +433,9 @@ class GetUserPosts(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test the tool with ilke-oner's URN
     tool = GetUserPosts(
-        user_urn="ilke-oner",
+        user_urn="ACoAAAHgd4AByBB_-yxtC25kj4Kmlw9ubw8Vmtk",  # ilke-oner
         page=1,
         page_size=10,
         max_items=20

@@ -1,0 +1,155 @@
+---
+description: "Respect per-plugin RapidAPI rate limits from settings.yaml via shared limiter"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-RAPI-0074"
+title: "Respect RapidAPI per-plugin rate limits from settings.yaml"
+status: "planned"
+priority: "P1"
+labels: ["reliability", "rate-limiting", "rapidapi", "config"]
+dependencies: []
+created: "2025-10-10"
+
+# 1) High-Level Objective
+
+Enforce per-plugin RapidAPI rate limits configured in `agents/autopiloot/config/settings.yaml` across all tools that call RapidAPI providers, preventing 429s and smoothing traffic.
+
+# 2) Background / Context
+
+Several tools rely on RapidAPI plugins subject to provider-specific quotas (e.g., requests per minute/second, bursts). Centralizing rate limiting ensures consistent behavior, avoids throttling, and aligns with production reliability patterns.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: `settings.yaml` exposes configuration under `rapidapi.plugins.<plugin_name>.limits` such as `rpm`, `rps`, and optional `burst`.
+- Constraint: Implement limiter as a shared utility in `core/` and keep tools framework-compliant (Agency Swarm v1.0.2).
+- Constraint: Deterministic, no external network calls in tests; use time mocking.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- agents/autopiloot/config/settings.yaml _(read-only)_
+- agents/autopiloot/core/reliability.py _(read-only)_
+- agents/autopiloot/linkedin*agent/tools/get_user_posts.py *(read-only)\_
+- agents/autopiloot/linkedin*agent/tools/get_post_comments.py *(read-only)\_
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/config/settings.yaml _(read-only)_
+- agents/autopiloot/core/reliability.py _(read-only)_
+- agents/autopiloot/linkedin*agent/tools/get_user_posts.py *(read-only)\_
+- agents/autopiloot/linkedin*agent/tools/get_post_comments.py *(read-only)\_
+
+End state (must exist after completion):
+
+- agents/autopiloot/core/rate_limiter.py
+- agents/autopiloot/tests/core/test_rapidapi_rate_limiter_integration.py
+- agents/autopiloot/tests/core/test_rapidapi_rate_limiter_error_handling.py
+- coverage/core/index.html (updated)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Define settings contract
+
+   - In `agents/autopiloot/config/settings.yaml`, under `rapidapi.plugins.<plugin_name>.limits`, support keys:
+     - `rpm` (int, requests per minute), optional `rps` (int), `burst` (int), `concurrency` (int, optional)
+     - Provide sensible defaults if absent; document format in comments.
+
+2. Create shared limiter module
+
+   - File: `agents/autopiloot/core/rate_limiter.py`
+   - Public API:
+     ```python
+     class RapidAPIRateLimiter:
+         def __init__(self, config: dict): ...
+         def acquire(self, plugin: str, now: float | None = None) -> None:
+             """Blocks until a token is available per configured limits for `plugin`."""
+         def try_acquire(self, plugin: str, now: float | None = None) -> bool:
+             """Non-blocking; returns True if acquired immediately, else False."""
+     def respect_rapidapi_limits(plugin: str):
+         """Decorator wrapping a function to call `acquire(plugin)` before execution."""
+     ```
+   - Implementation details:
+     - Token-bucket per plugin keyed by name; compute refill from `rpm`/`rps`.
+     - Respect `burst` as bucket capacity; default capacity = rpm/60 or rps.
+     - Use `time.monotonic()` for consistent timing; allow injection via `now` for testing.
+     - Thread-safe with `threading.Lock`; avoid external deps.
+
+3. Configuration loading helper
+
+   - Add a small loader that reads `rapidapi.plugins` section via existing config loader (`config/loader.py`).
+   - Validate presence of plugin names and numeric limits; fall back to safe defaults if missing.
+
+4. Tests — integration-style
+
+   - File: `agents/autopiloot/tests/core/test_rapidapi_rate_limiter_integration.py`
+   - Use `importlib.util.spec_from_file_location` to import `core/rate_limiter.py`.
+   - Patch `time.monotonic` to simulate time; verify:
+     - With `rpm=60`, at t=0 acquire 1 token succeeds; 60 tokens in 60s; 61st blocks until t>=60.
+     - `burst` allows immediate short spikes up to capacity.
+     - Decorator `@respect_rapidapi_limits("plugin")` gates function calls.
+
+5. Tests — error handling
+
+   - File: `agents/autopiloot/tests/core/test_rapidapi_rate_limiter_error_handling.py`
+   - Validate behavior for missing plugin configuration (uses defaults), invalid values (raises ValueError), and concurrency edge cases.
+
+6. Optional wiring (follow-up task)
+
+   - In subsequent tasks, wrap RapidAPI-calling functions in `linkedin_agent` with the decorator to enforce limits without changing call sites significantly.
+
+7. Coverage generation (MANDATORY)
+   - Commands (documentation):
+     - `export PYTHONPATH=.`
+     - `coverage run --source=agents/autopiloot/core -m unittest discover agents/autopiloot/tests/core -p "test_rapidapi_rate_limiter*.py" -v`
+     - `coverage report --include="agents/autopiloot/core/*" --show-missing`
+     - `coverage html --include="agents/autopiloot/core/*" -d agents/autopiloot/coverage/core`
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+class RapidAPIRateLimiter:
+    def __init__(self, config: dict): ...
+    def acquire(self, plugin: str, now: float | None = None) -> None: ...
+    def try_acquire(self, plugin: str, now: float | None = None) -> bool: ...
+
+def respect_rapidapi_limits(plugin: str):
+    def decorator(fn): ...
+```
+
+# 8) Acceptance Criteria
+
+- Shared limiter exists at `core/rate_limiter.py` with the specified API and behavior.
+- Reads limits from `settings.yaml` per plugin; sensible defaults when missing.
+- Tests pass and demonstrate correct throttling, burst handling, and decorator gating.
+- Coverage HTML generated at `agents/autopiloot/coverage/core/index.html` with ≥ 80% coverage for the new module.
+
+# 9) Testing Strategy
+
+- Integration-style tests with direct file import and time mocking; no network calls.
+- Parameterized cases covering rpm-only, rps-only, and burst configurations.
+- Error-path tests for invalid configurations and missing plugins.
+
+# 10) Notes / Links
+
+- Start with a token-bucket implementation; extend later with jittered backoff and distributed locks if needed.
+- Keep limiter framework-agnostic so it can be reused by other agents/services.

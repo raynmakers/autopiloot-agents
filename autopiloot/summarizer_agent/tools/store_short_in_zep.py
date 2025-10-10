@@ -1,9 +1,9 @@
 """
 StoreShortInZep tool for storing video summaries in Zep v3 using Threads API.
-Enables semantic search and retrieval with user-based organization by channel.
+Enables semantic search and retrieval organized by YouTube channel.
 
 Zep v3 Architecture:
-- Users: Represent YouTube channels (e.g., user_id = "danmartell")
+- Groups: Per-channel organization (e.g., "youtube_summaries_UC1234567890")
 - Threads: Represent individual videos (e.g., thread_id = "summary_VIDEO_ID")
 - Messages: Contain the actual summary content with metadata
 - Context: Zep automatically builds knowledge graph from thread messages
@@ -28,8 +28,9 @@ class StoreShortInZep(BaseTool):
     """
     Store summary content in Zep v3 for semantic search and retrieval.
 
-    Uses Zep v3 Threads API with users representing channels and threads representing videos.
-    Zep automatically builds a knowledge graph from the stored content for enhanced discovery.
+    Uses Zep v3 Threads API with per-channel group organization (youtube_summaries_{channel_id}).
+    Threads represent individual videos. Zep automatically builds a knowledge graph
+    from the stored content for enhanced discovery.
     """
 
     video_id: str = Field(
@@ -48,9 +49,13 @@ class StoreShortInZep(BaseTool):
         default_factory=list,
         description="Detailed explanations for each concept (array of {concept, explanation} objects)"
     )
+    channel_id: str = Field(
+        ...,
+        description="YouTube channel ID (e.g., 'UC1234567890') for group-based organization in Zep"
+    )
     channel_handle: Optional[str] = Field(
         default=None,
-        description="YouTube channel handle (e.g., '@DanMartell') for user-based organization in Zep"
+        description="YouTube channel handle (e.g., '@DanMartell') for metadata"
     )
     title: Optional[str] = Field(
         default=None,
@@ -62,14 +67,14 @@ class StoreShortInZep(BaseTool):
         Store summary content in Zep v3 using Threads API.
 
         Process:
-        1. Extract user_id from channel_handle (e.g., "@DanMartell" -> "danmartell")
-        2. Create or verify user exists in Zep
-        3. Create thread for this video summary
+        1. Ensure user exists (user_id: youtube_{channel_id})
+        2. Ensure group exists (group: youtube_summaries_{channel_id})
+        3. Create thread for this video summary in the group
         4. Add summary content as messages to the thread
         5. Zep automatically builds knowledge graph from content
 
         Returns:
-            JSON string with thread_id, user_id, and storage confirmation
+            JSON string with thread_id, group, and storage confirmation
         """
         try:
             # Load environment and configuration
@@ -79,8 +84,9 @@ class StoreShortInZep(BaseTool):
             zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for GraphRAG")
             zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
 
-            # Extract user_id from channel_handle
-            user_id = self._extract_user_id(self.channel_handle)
+            # Define user ID, group, and thread ID
+            user_id = f"youtube_{self.channel_id}"
+            group = f"youtube_summaries_{self.channel_id}"
             thread_id = f"summary_{self.video_id}"
 
             # Initialize HTTP client
@@ -88,19 +94,29 @@ class StoreShortInZep(BaseTool):
 
             print(f"📤 Storing summary in Zep v3...")
             print(f"   User ID: {user_id}")
+            print(f"   Group: {group}")
             print(f"   Thread ID: {thread_id}")
 
             # Step 1: Ensure user exists
-            user_result = self._ensure_user_exists(zep_client, zep_base_url, user_id, self.channel_handle)
+            user_result = self._ensure_user_exists(zep_client, zep_base_url, user_id)
             if not user_result.get("success"):
                 return json.dumps({
                     "error": "zep_user_creation_failed",
-                    "message": f"Failed to create/verify user: {user_result.get('error', 'Unknown error')}",
-                    "video_id": self.video_id
+                    "message": f"Failed to create user: {user_result.get('error', 'Unknown error')}",
+                    "channel_id": self.channel_id
                 }, indent=2)
 
-            # Step 2: Create thread for this video
-            thread_result = self._create_thread(zep_client, zep_base_url, thread_id, user_id)
+            # Step 2: Ensure group exists
+            group_result = self._ensure_group_exists(zep_client, zep_base_url, group)
+            if not group_result.get("success"):
+                return json.dumps({
+                    "error": "zep_group_creation_failed",
+                    "message": f"Failed to create group: {group_result.get('error', 'Unknown error')}",
+                    "group": group
+                }, indent=2)
+
+            # Step 3: Create thread for this video
+            thread_result = self._create_thread(zep_client, zep_base_url, thread_id, user_id, group)
             if not thread_result.get("success"):
                 return json.dumps({
                     "error": "zep_thread_creation_failed",
@@ -108,7 +124,7 @@ class StoreShortInZep(BaseTool):
                     "video_id": self.video_id
                 }, indent=2)
 
-            # Step 3: Add summary content as messages
+            # Step 4: Add summary content as messages
             content = self._format_content()
             message_result = self._add_messages(zep_client, zep_base_url, thread_id, content)
             if not message_result.get("success"):
@@ -124,13 +140,13 @@ class StoreShortInZep(BaseTool):
 
             return json.dumps({
                 "thread_id": thread_id,
-                "user_id": user_id,
+                "group": group,
                 "message_uuids": message_result.get("message_uuids", []),
                 "stored_bullets": len(self.bullets),
                 "stored_concepts": len(self.key_concepts),
                 "channel_handle": self.channel_handle,
                 "status": "stored",
-                "message": f"Summary stored in Zep v3 for user '{user_id}', thread '{thread_id}'"
+                "message": f"Summary stored in Zep v3 group '{group}', thread '{thread_id}'"
             }, indent=2)
 
         except Exception as e:
@@ -139,22 +155,6 @@ class StoreShortInZep(BaseTool):
                 "message": f"Failed to store summary in Zep: {str(e)}",
                 "video_id": self.video_id
             })
-
-    def _extract_user_id(self, channel_handle: Optional[str]) -> str:
-        """
-        Extract user_id from channel_handle.
-
-        Examples:
-            "@DanMartell" -> "danmartell"
-            "@AlexHormozi" -> "alexhormozi"
-            None -> "unknown_channel"
-        """
-        if not channel_handle:
-            return "unknown_channel"
-
-        # Remove @ prefix and convert to lowercase
-        user_id = channel_handle.lstrip('@').lower()
-        return user_id
 
     def _initialize_http_client(self, api_key: str, base_url: str):
         """Initialize HTTP client for Zep v3 API."""
@@ -169,44 +169,42 @@ class StoreShortInZep(BaseTool):
         )
         return client
 
-    def _ensure_user_exists(self, client, base_url: str, user_id: str, channel_handle: Optional[str]) -> dict:
+    def _ensure_user_exists(self, client, base_url: str, user_id: str) -> dict:
         """
-        Ensure user exists in Zep. Create if not exists.
+        Ensure user exists in Zep (idempotent operation).
 
         Args:
             client: HTTP client
             base_url: Zep base URL
-            user_id: Zep user ID (lowercase channel name)
-            channel_handle: Original channel handle for metadata
+            user_id: User ID (e.g., "youtube_UC1234567890")
 
         Returns:
-            dict: {"success": bool, "user_uuid": str, "error": str}
+            dict: {"success": bool, "user_id": str, "error": str}
         """
         try:
-            # Try to create user (409 if already exists is OK)
             user_data = {
                 "user_id": user_id,
                 "metadata": {
-                    "channel_handle": channel_handle,
-                    "source": "youtube"
+                    "source": "youtube",
+                    "type": "channel"
                 }
             }
 
             response = client.post(f"{base_url}/api/v2/users", json=user_data)
 
             if response.status_code in [200, 201]:
-                result = response.json()
                 return {
                     "success": True,
-                    "user_uuid": result.get("uuid"),
+                    "user_id": user_id,
                     "status": "created"
                 }
             elif response.status_code in [400, 409]:
                 # User already exists - check error message
                 error_text = response.text.lower()
-                if "already exists" in error_text or "user_id: " + user_id in error_text:
+                if "already exists" in error_text or "user_id" in error_text:
                     return {
                         "success": True,
+                        "user_id": user_id,
                         "status": "already_exists"
                     }
                 else:
@@ -226,7 +224,63 @@ class StoreShortInZep(BaseTool):
                 "error": str(e)
             }
 
-    def _create_thread(self, client, base_url: str, thread_id: str, user_id: str) -> dict:
+    def _ensure_group_exists(self, client, base_url: str, group_name: str) -> dict:
+        """
+        Ensure group exists in Zep (idempotent operation).
+
+        Args:
+            client: HTTP client
+            base_url: Zep base URL
+            group_name: Group name (e.g., "youtube_summaries_UC1234567890")
+
+        Returns:
+            dict: {"success": bool, "group_name": str, "error": str}
+        """
+        try:
+            group_data = {
+                "group_id": group_name,
+                "name": group_name,
+                "metadata": {
+                    "source": "youtube",
+                    "type": "summaries"
+                }
+            }
+
+            response = client.post(f"{base_url}/api/v2/groups", json=group_data)
+
+            if response.status_code in [200, 201]:
+                return {
+                    "success": True,
+                    "group_name": group_name,
+                    "status": "created"
+                }
+            elif response.status_code in [400, 409]:
+                # Group already exists - check error message
+                error_text = response.text.lower()
+                if "already exists" in error_text or ("group_id" in error_text and group_name in response.text):
+                    return {
+                        "success": True,
+                        "group_name": group_name,
+                        "status": "already_exists"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}: {response.text[:200]}"
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}: {response.text[:200]}"
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _create_thread(self, client, base_url: str, thread_id: str, user_id: str, group: str) -> dict:
         """
         Create thread in Zep for this video summary.
 
@@ -234,7 +288,8 @@ class StoreShortInZep(BaseTool):
             client: HTTP client
             base_url: Zep base URL
             thread_id: Thread ID (e.g., "summary_VIDEO_ID")
-            user_id: User ID (channel name)
+            user_id: User ID (e.g., "youtube_UC1234567890")
+            group: Group name (e.g., "youtube_summaries_{channel_id}")
 
         Returns:
             dict: {"success": bool, "thread_uuid": str, "error": str}
@@ -246,9 +301,11 @@ class StoreShortInZep(BaseTool):
                 "metadata": {
                     "video_id": self.video_id,
                     "title": self.title,
+                    "channel_id": self.channel_id,
                     "channel_handle": self.channel_handle,
                     "source": "youtube",
-                    "type": "summary"
+                    "type": "summary",
+                    "group": group
                 }
             }
 
@@ -388,6 +445,7 @@ if __name__ == "__main__":
         # Test with Dan Martell business content
         tool_dan = StoreShortInZep(
             video_id="mZxDw92UXmA",
+            channel_id="UCkP5J0pXI11VE81q7S7V1Jw",  # Dan Martell's channel ID
             title="How to 10x Your Business - Dan Martell",
             bullets=[
                 "Focus on hiring A-players who can scale with your business, not just fill immediate gaps",
@@ -437,17 +495,17 @@ if __name__ == "__main__":
         else:
             print(f"\n📊 Storage Summary:")
             print(f"   Thread ID: {data['thread_id']}")
-            print(f"   User ID: {data['user_id']}")
+            print(f"   Group: {data['group']}")
             print(f"   Channel Handle: {data['channel_handle']}")
             print(f"   Message UUIDs: {data['message_uuids']}")
             print(f"   Bullets Stored: {data['stored_bullets']}")
             print(f"   Concepts Stored: {data['stored_concepts']}")
             print(f"\n💡 {data['message']}")
             print(f"\n🔍 Zep v3 Architecture:")
-            print(f"   - Users represent YouTube channels (user_id: {data['user_id']})")
+            print(f"   - Group: Channel-specific organization '{data['group']}' (youtube_summaries_{{channel_id}})")
             print(f"   - Threads represent individual videos (thread_id: {data['thread_id']})")
             print(f"   - Messages contain summary content with automatic knowledge graph building")
-            print(f"   - Search and retrieve via Zep's context API")
+            print(f"   - Search and retrieve via Zep's context API per channel")
 
     except Exception as e:
         print(f"❌ Test error: {str(e)}")

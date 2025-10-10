@@ -1,12 +1,13 @@
 """
-ComputeLinkedInStats tool for calculating comprehensive analytics and insights from LinkedIn data.
-Generates statistical analysis for strategy optimization and performance tracking.
+ComputeLinkedInStats tool for calculating comprehensive analytics from LinkedIn data.
+Analyzes posts, comments, reactions, and engagement patterns for strategy insights.
+Works with data from get_user_posts, get_post_comments, and get_post_reactions tools.
 """
 
 import json
 import statistics
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from collections import Counter, defaultdict
 from agency_swarm.tools import BaseTool
 from pydantic import Field
@@ -16,33 +17,28 @@ class ComputeLinkedInStats(BaseTool):
     """
     Computes comprehensive statistics and analytics from LinkedIn content.
 
-    Analyzes posts, comments, reactions, and engagement patterns to provide
-    insights for content strategy and performance optimization.
+    Analyzes posts, comments, reactions, and reposts to provide insights for
+    content strategy and performance optimization.
+
+    Input data format matches output from:
+    - get_user_posts.py (posts with activity object)
+    - get_post_comments.py (comments with direct fields)
+    - get_post_reactions.py (top_reactors format)
     """
 
     posts: Optional[List[Dict]] = Field(
         None,
-        description="Normalized LinkedIn posts data for analysis"
+        description="LinkedIn posts data from get_user_posts tool"
     )
 
     comments: Optional[List[Dict]] = Field(
         None,
-        description="Normalized LinkedIn comments data for analysis"
+        description="LinkedIn comments data from get_post_comments tool"
     )
 
-    reactions: Optional[Dict] = Field(
+    reactions: Optional[List[Dict]] = Field(
         None,
-        description="Normalized LinkedIn reactions data for analysis"
-    )
-
-    user_activity: Optional[List[Dict]] = Field(
-        None,
-        description="User comment activity data for analysis"
-    )
-
-    include_histograms: bool = Field(
-        True,
-        description="Whether to include engagement distribution histograms (default: True)"
+        description="Top reactors data from get_post_reactions tool"
     )
 
     include_trends: bool = Field(
@@ -55,57 +51,22 @@ class ComputeLinkedInStats(BaseTool):
         Computes comprehensive LinkedIn statistics and analytics.
 
         Returns:
-            str: JSON string containing statistical analysis
+            str: JSON string with statistical analysis
                  Format: {
-                     "overview": {
-                         "total_posts": 150,
-                         "total_comments": 500,
-                         "total_reactions": 2500,
-                         "analysis_period": "2024-01-01 to 2024-01-31"
-                     },
-                     "engagement_stats": {
-                         "average_likes_per_post": 45.2,
-                         "engagement_rate": 0.045,
-                         "top_performing_posts": [...],
-                         "engagement_distribution": {...}
-                     },
-                     "content_analysis": {
-                         "most_common_topics": [...],
-                         "optimal_posting_times": [...],
-                         "content_type_performance": {...}
-                     },
-                     "user_insights": {
-                         "most_active_commenters": [...],
-                         "engagement_patterns": {...}
-                     },
-                     "trends": {
-                         "engagement_over_time": [...],
-                         "growth_metrics": {...}
-                     }
+                     "overview": {...},
+                     "engagement_stats": {...},
+                     "content_analysis": {...},
+                     "reaction_insights": {...},
+                     "trends": {...}
                  }
         """
         try:
-            # Initialize result structure
             result = {
                 "analysis_metadata": {
                     "computed_at": datetime.now(timezone.utc).isoformat(),
-                    "data_sources": [],
-                    "analysis_period": None
+                    "data_sources": self._get_data_sources()
                 }
             }
-
-            # Determine what data sources are available
-            data_sources = []
-            if self.posts:
-                data_sources.append(f"posts ({len(self.posts)})")
-            if self.comments:
-                data_sources.append(f"comments ({len(self.comments)})")
-            if self.reactions:
-                data_sources.append("reactions")
-            if self.user_activity:
-                data_sources.append(f"user_activity ({len(self.user_activity)})")
-
-            result["analysis_metadata"]["data_sources"] = data_sources
 
             # Calculate overview statistics
             result["overview"] = self._calculate_overview()
@@ -118,17 +79,13 @@ class ComputeLinkedInStats(BaseTool):
             if self.posts:
                 result["content_analysis"] = self._analyze_content_patterns()
 
-            # Calculate user insights
-            if self.comments or self.user_activity:
-                result["user_insights"] = self._calculate_user_insights()
-
-            # Calculate trends if requested
-            if self.include_trends:
-                result["trends"] = self._calculate_trends()
-
-            # Add reaction analysis if available
+            # Analyze reactions and top engagers
             if self.reactions:
-                result["reaction_analysis"] = self._analyze_reactions()
+                result["reaction_insights"] = self._analyze_reactions()
+
+            # Calculate trends
+            if self.include_trends and self.posts:
+                result["trends"] = self._calculate_trends()
 
             return json.dumps(result)
 
@@ -139,11 +96,21 @@ class ComputeLinkedInStats(BaseTool):
                 "data_available": {
                     "posts": len(self.posts) if self.posts else 0,
                     "comments": len(self.comments) if self.comments else 0,
-                    "has_reactions": bool(self.reactions),
-                    "user_activity": len(self.user_activity) if self.user_activity else 0
+                    "reactions": len(self.reactions) if self.reactions else 0
                 }
             }
             return json.dumps(error_result)
+
+    def _get_data_sources(self) -> List[str]:
+        """Identify available data sources."""
+        sources = []
+        if self.posts:
+            sources.append(f"posts ({len(self.posts)})")
+        if self.comments:
+            sources.append(f"comments ({len(self.comments)})")
+        if self.reactions:
+            sources.append(f"top_reactors ({len(self.reactions)})")
+        return sources
 
     def _calculate_overview(self) -> Dict:
         """Calculate high-level overview statistics."""
@@ -151,35 +118,66 @@ class ComputeLinkedInStats(BaseTool):
 
         if self.posts:
             overview["total_posts"] = len(self.posts)
-            overview["unique_authors"] = len(set(
-                p.get("author", {}).get("name", "Unknown") for p in self.posts
-            ))
+
+            # Count unique authors
+            authors = set()
+            for post in self.posts:
+                if post.get("author_urn"):
+                    authors.add(post.get("author_urn"))
+            overview["unique_authors"] = len(authors)
+
+            # Sum total engagement
+            total_likes = sum(
+                post.get("activity", {}).get("num_likes", 0)
+                for post in self.posts
+            )
+            total_comments = sum(
+                post.get("activity", {}).get("num_comments", 0)
+                for post in self.posts
+            )
+            total_shares = sum(
+                post.get("activity", {}).get("num_shares", 0)
+                for post in self.posts
+            )
+
+            overview["total_likes"] = total_likes
+            overview["total_comments"] = total_comments
+            overview["total_shares"] = total_shares
+            overview["total_engagement"] = total_likes + total_comments + total_shares
 
         if self.comments:
-            overview["total_comments"] = len(self.comments)
+            overview["total_comment_records"] = len(self.comments)
+            overview["total_comment_likes"] = sum(
+                c.get("likes", 0) for c in self.comments
+            )
 
         if self.reactions:
-            overview["total_reactions"] = self.reactions.get("summary", {}).get("total_reactions", 0)
-
-        if self.user_activity:
-            overview["user_activities_tracked"] = len(self.user_activity)
+            overview["unique_reactors"] = len(self.reactions)
+            overview["total_reactions_tracked"] = sum(
+                r.get("total_reactions", 0) for r in self.reactions
+            )
 
         # Calculate analysis period
         dates = []
         if self.posts:
-            dates.extend([p.get("created_at") for p in self.posts if p.get("created_at")])
-        if self.comments:
-            dates.extend([c.get("created_at") for c in self.comments if c.get("created_at")])
+            dates.extend([p.get("posted_at") for p in self.posts if p.get("posted_at")])
 
         if dates:
-            dates = [d for d in dates if d]  # Filter out None values
+            dates = [d for d in dates if d]
             if dates:
-                overview["analysis_period"] = {
-                    "start": min(dates),
-                    "end": max(dates),
-                    "days_covered": (datetime.fromisoformat(max(dates).replace("Z", "")) -
-                                   datetime.fromisoformat(min(dates).replace("Z", ""))).days
-                }
+                try:
+                    start_dt = min(dates)
+                    end_dt = max(dates)
+                    overview["analysis_period"] = {
+                        "start": start_dt,
+                        "end": end_dt,
+                        "days_covered": (
+                            datetime.fromisoformat(end_dt.replace("Z", "+00:00")) -
+                            datetime.fromisoformat(start_dt.replace("Z", "+00:00"))
+                        ).days
+                    }
+                except:
+                    pass
 
         return overview
 
@@ -188,56 +186,100 @@ class ComputeLinkedInStats(BaseTool):
         stats = {}
 
         if self.posts:
-            # Calculate post engagement metrics
-            likes = [p.get("metrics", {}).get("likes", 0) for p in self.posts]
-            comments = [p.get("metrics", {}).get("comments", 0) for p in self.posts]
-            shares = [p.get("metrics", {}).get("shares", 0) for p in self.posts]
-            views = [p.get("metrics", {}).get("views", 0) for p in self.posts if p.get("metrics", {}).get("views", 0) > 0]
+            # Extract engagement metrics from activity object
+            likes = [p.get("activity", {}).get("num_likes", 0) for p in self.posts]
+            comments = [p.get("activity", {}).get("num_comments", 0) for p in self.posts]
+            shares = [p.get("activity", {}).get("num_shares", 0) for p in self.posts]
 
             stats["post_metrics"] = {
                 "average_likes": round(statistics.mean(likes), 2) if likes else 0,
                 "median_likes": statistics.median(likes) if likes else 0,
                 "max_likes": max(likes) if likes else 0,
+                "min_likes": min(likes) if likes else 0,
                 "average_comments": round(statistics.mean(comments), 2) if comments else 0,
+                "median_comments": statistics.median(comments) if comments else 0,
                 "average_shares": round(statistics.mean(shares), 2) if shares else 0,
-                "average_engagement_rate": round(statistics.mean([
-                    p.get("metrics", {}).get("engagement_rate", 0) for p in self.posts
-                ]), 4) if self.posts else 0
+                "median_shares": statistics.median(shares) if shares else 0
             }
 
             # Top performing posts
-            sorted_posts = sorted(self.posts, key=lambda p: p.get("metrics", {}).get("likes", 0), reverse=True)
+            sorted_posts = sorted(
+                self.posts,
+                key=lambda p: p.get("activity", {}).get("num_likes", 0),
+                reverse=True
+            )
+
             stats["top_performing_posts"] = [
                 {
-                    "id": p.get("id"),
-                    "text_preview": p.get("text", "")[:100] + "..." if len(p.get("text", "")) > 100 else p.get("text", ""),
-                    "likes": p.get("metrics", {}).get("likes", 0),
-                    "comments": p.get("metrics", {}).get("comments", 0),
-                    "engagement_rate": p.get("metrics", {}).get("engagement_rate", 0),
-                    "author": p.get("author", {}).get("name", "Unknown")
-                } for p in sorted_posts[:5]
+                    "post_id": p.get("post_id"),
+                    "text_preview": (p.get("text", "")[:100] + "...") if len(p.get("text", "")) > 100 else p.get("text", ""),
+                    "likes": p.get("activity", {}).get("num_likes", 0),
+                    "comments": p.get("activity", {}).get("num_comments", 0),
+                    "shares": p.get("activity", {}).get("num_shares", 0),
+                    "total_engagement": (
+                        p.get("activity", {}).get("num_likes", 0) +
+                        p.get("activity", {}).get("num_comments", 0) +
+                        p.get("activity", {}).get("num_shares", 0)
+                    ),
+                    "posted_at": p.get("posted_at"),
+                    "post_url": p.get("post_url")
+                } for p in sorted_posts[:10]
             ]
 
-            # Engagement distribution histograms
-            if self.include_histograms:
-                stats["engagement_distribution"] = {
-                    "likes_histogram": self._create_histogram(likes, "likes"),
-                    "comments_histogram": self._create_histogram(comments, "comments")
+            # Reaction type analysis
+            reaction_types_count = defaultdict(int)
+            for post in self.posts:
+                reaction_counts = post.get("activity", {}).get("reaction_counts", [])
+                for reaction in reaction_counts:
+                    reaction_type = reaction.get("type", "LIKE")
+                    count = reaction.get("count", 0)
+                    reaction_types_count[reaction_type] += count
+
+            if reaction_types_count:
+                total_reactions = sum(reaction_types_count.values())
+                stats["reaction_breakdown"] = {
+                    reaction_type: {
+                        "count": count,
+                        "percentage": round((count / total_reactions) * 100, 1) if total_reactions > 0 else 0
+                    } for reaction_type, count in reaction_types_count.items()
                 }
 
         if self.comments:
-            # Calculate comment engagement
-            comment_likes = [c.get("metrics", {}).get("likes", 0) for c in self.comments]
+            # Comment engagement
+            comment_likes = [c.get("likes", 0) for c in self.comments]
+
             stats["comment_metrics"] = {
+                "total_comments": len(self.comments),
                 "average_likes_per_comment": round(statistics.mean(comment_likes), 2) if comment_likes else 0,
+                "median_likes_per_comment": statistics.median(comment_likes) if comment_likes else 0,
                 "comments_with_likes": sum(1 for likes in comment_likes if likes > 0),
-                "like_rate": round(sum(1 for likes in comment_likes if likes > 0) / len(comment_likes), 3) if comment_likes else 0
+                "like_rate": round(
+                    sum(1 for likes in comment_likes if likes > 0) / len(comment_likes),
+                    3
+                ) if comment_likes else 0
             }
+
+            # Top comments by likes
+            sorted_comments = sorted(
+                self.comments,
+                key=lambda c: c.get("likes", 0),
+                reverse=True
+            )
+
+            stats["top_comments"] = [
+                {
+                    "comment_id": c.get("comment_id"),
+                    "text_preview": (c.get("text", "")[:80] + "...") if len(c.get("text", "")) > 80 else c.get("text", ""),
+                    "likes": c.get("likes", 0),
+                    "author_profile_id": c.get("author_profile_id"),
+                    "created_at": c.get("created_at")
+                } for c in sorted_comments[:5]
+            ]
 
         return stats
 
     def _analyze_content_patterns(self) -> Dict:
-        """Analyze content patterns and topics."""
+        """Analyze content patterns and posting behavior."""
         analysis = {}
 
         if not self.posts:
@@ -248,10 +290,10 @@ class ComputeLinkedInStats(BaseTool):
         posting_days = []
 
         for post in self.posts:
-            created_at = post.get("created_at")
-            if created_at:
+            posted_at = post.get("posted_at")
+            if posted_at:
                 try:
-                    dt = datetime.fromisoformat(created_at.replace("Z", ""))
+                    dt = datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
                     posting_hours.append(dt.hour)
                     posting_days.append(dt.strftime("%A"))
                 except:
@@ -260,286 +302,259 @@ class ComputeLinkedInStats(BaseTool):
         if posting_hours:
             hour_counts = Counter(posting_hours)
             analysis["optimal_posting_times"] = {
-                "best_hours": [{"hour": h, "count": c} for h, c in hour_counts.most_common(3)],
+                "best_hours": [
+                    {"hour": f"{h}:00", "post_count": c}
+                    for h, c in hour_counts.most_common(5)
+                ],
                 "hour_distribution": dict(hour_counts)
             }
 
         if posting_days:
             day_counts = Counter(posting_days)
             analysis["optimal_posting_days"] = {
-                "best_days": [{"day": d, "count": c} for d, c in day_counts.most_common(3)],
+                "best_days": [
+                    {"day": d, "post_count": c}
+                    for d, c in day_counts.most_common(3)
+                ],
                 "day_distribution": dict(day_counts)
             }
 
-        # Analyze content types by media presence
-        media_analysis = {
-            "text_only": 0,
-            "with_images": 0,
-            "with_videos": 0,
-            "with_articles": 0
-        }
-
-        engagement_by_type = defaultdict(list)
-
-        for post in self.posts:
-            media = post.get("media", [])
-            likes = post.get("metrics", {}).get("likes", 0)
-
-            if not media:
-                media_analysis["text_only"] += 1
-                engagement_by_type["text_only"].append(likes)
-            else:
-                has_image = any(m.get("type") == "image" for m in media)
-                has_video = any(m.get("type") == "video" for m in media)
-                has_article = any(m.get("type") == "article" for m in media)
-
-                if has_image:
-                    media_analysis["with_images"] += 1
-                    engagement_by_type["with_images"].append(likes)
-                if has_video:
-                    media_analysis["with_videos"] += 1
-                    engagement_by_type["with_videos"].append(likes)
-                if has_article:
-                    media_analysis["with_articles"] += 1
-                    engagement_by_type["with_articles"].append(likes)
-
-        analysis["content_type_analysis"] = {
-            "distribution": media_analysis,
-            "performance_by_type": {
-                content_type: {
-                    "average_likes": round(statistics.mean(likes), 2) if likes else 0,
-                    "post_count": len(likes)
-                } for content_type, likes in engagement_by_type.items()
+        # Analyze content length
+        text_lengths = [len(post.get("text", "")) for post in self.posts]
+        if text_lengths:
+            analysis["content_length"] = {
+                "average_length": round(statistics.mean(text_lengths), 0),
+                "median_length": statistics.median(text_lengths),
+                "min_length": min(text_lengths),
+                "max_length": max(text_lengths)
             }
-        }
 
-        # Simple text analysis for common themes
+        # Simple keyword analysis
         text_words = []
         for post in self.posts:
             text = post.get("text", "").lower()
-            # Simple word extraction (could be enhanced with NLP)
-            words = [word.strip(".,!?;:") for word in text.split() if len(word) > 4]
+            words = [
+                word.strip(".,!?;:\"'()[]{}")
+                for word in text.split()
+                if len(word) > 5  # Only words longer than 5 chars
+            ]
             text_words.extend(words)
 
         if text_words:
             word_counts = Counter(text_words)
-            analysis["common_terms"] = [
-                {"term": word, "frequency": count}
-                for word, count in word_counts.most_common(10)
+            analysis["common_keywords"] = [
+                {"keyword": word, "frequency": count}
+                for word, count in word_counts.most_common(15)
             ]
 
         return analysis
 
-    def _calculate_user_insights(self) -> Dict:
-        """Calculate insights about user engagement patterns."""
-        insights = {}
-
-        if self.comments:
-            # Most active commenters
-            commenter_counts = Counter(
-                c.get("author", {}).get("name", "Unknown") for c in self.comments
-            )
-            insights["most_active_commenters"] = [
-                {"name": name, "comment_count": count}
-                for name, count in commenter_counts.most_common(5)
-            ]
-
-            # Comment engagement patterns
-            comment_likes = [c.get("metrics", {}).get("likes", 0) for c in self.comments]
-            insights["comment_engagement"] = {
-                "total_comment_likes": sum(comment_likes),
-                "comments_with_high_engagement": sum(1 for likes in comment_likes if likes >= 5),
-                "average_likes_per_commenter": {}
-            }
-
-            # Likes by commenter
-            commenter_likes = defaultdict(list)
-            for comment in self.comments:
-                name = comment.get("author", {}).get("name", "Unknown")
-                likes = comment.get("metrics", {}).get("likes", 0)
-                commenter_likes[name].append(likes)
-
-            insights["comment_engagement"]["average_likes_per_commenter"] = {
-                name: round(statistics.mean(likes), 2)
-                for name, likes in commenter_likes.items()
-            }
-
-        if self.user_activity:
-            # User activity patterns
-            activity_metrics = []
-            for activity in self.user_activity:
-                if isinstance(activity, dict) and "activity_metrics" in activity:
-                    activity_metrics.append(activity["activity_metrics"])
-
-            if activity_metrics:
-                insights["user_activity_patterns"] = {
-                    "users_analyzed": len(activity_metrics),
-                    "average_comments_per_user": round(statistics.mean([
-                        m.get("total_comments", 0) for m in activity_metrics
-                    ]), 2) if activity_metrics else 0
-                }
-
-        return insights
-
-    def _calculate_trends(self) -> Dict:
-        """Calculate time-based trends and patterns."""
-        trends = {}
-
-        if not (self.posts or self.comments):
-            return trends
-
-        # Combine posts and comments with timestamps
-        time_series_data = []
-
-        if self.posts:
-            for post in self.posts:
-                if post.get("created_at"):
-                    time_series_data.append({
-                        "timestamp": post["created_at"],
-                        "type": "post",
-                        "likes": post.get("metrics", {}).get("likes", 0),
-                        "engagement": post.get("metrics", {}).get("likes", 0) + post.get("metrics", {}).get("comments", 0)
-                    })
-
-        if self.comments:
-            for comment in self.comments:
-                if comment.get("created_at"):
-                    time_series_data.append({
-                        "timestamp": comment["created_at"],
-                        "type": "comment",
-                        "likes": comment.get("metrics", {}).get("likes", 0),
-                        "engagement": comment.get("metrics", {}).get("likes", 0)
-                    })
-
-        if time_series_data:
-            # Sort by timestamp
-            time_series_data.sort(key=lambda x: x["timestamp"])
-
-            # Weekly aggregation
-            weekly_stats = defaultdict(lambda: {"posts": 0, "comments": 0, "total_engagement": 0})
-
-            for item in time_series_data:
-                try:
-                    dt = datetime.fromisoformat(item["timestamp"].replace("Z", ""))
-                    week_key = dt.strftime("%Y-W%U")  # Year-Week format
-                    weekly_stats[week_key][item["type"] + "s"] += 1
-                    weekly_stats[week_key]["total_engagement"] += item["engagement"]
-                except:
-                    continue
-
-            trends["weekly_activity"] = [
-                {"week": week, **stats} for week, stats in sorted(weekly_stats.items())
-            ]
-
-            # Calculate growth metrics
-            if len(weekly_stats) >= 2:
-                weeks = sorted(weekly_stats.keys())
-                recent_weeks = weeks[-2:]
-                if len(recent_weeks) == 2:
-                    prev_week = weekly_stats[recent_weeks[0]]
-                    curr_week = weekly_stats[recent_weeks[1]]
-
-                    trends["growth_metrics"] = {
-                        "posts_growth": curr_week["posts"] - prev_week["posts"],
-                        "engagement_growth": curr_week["total_engagement"] - prev_week["total_engagement"],
-                        "week_over_week_change": round(
-                            ((curr_week["total_engagement"] - prev_week["total_engagement"]) /
-                             prev_week["total_engagement"] * 100) if prev_week["total_engagement"] > 0 else 0, 2
-                        )
-                    }
-
-        return trends
-
     def _analyze_reactions(self) -> Dict:
-        """Analyze reaction patterns and preferences."""
+        """Analyze reactor patterns and top engagers."""
         if not self.reactions:
             return {}
 
         analysis = {}
 
-        # Overall reaction distribution
-        summary = self.reactions.get("summary", {})
-        analysis["reaction_summary"] = {
-            "total_reactions": summary.get("total_reactions", 0),
-            "posts_with_reactions": summary.get("unique_posts", 0),
-            "reaction_types": summary.get("reaction_types", {})
-        }
+        # Top engagers (sorted by total reactions)
+        sorted_reactors = sorted(
+            self.reactions,
+            key=lambda r: r.get("total_reactions", 0),
+            reverse=True
+        )
 
-        # Reaction type preferences
-        if "reaction_types" in summary:
-            total_reactions = sum(summary["reaction_types"].values())
-            analysis["reaction_preferences"] = {
-                reaction_type: {
-                    "count": count,
-                    "percentage": round((count / total_reactions) * 100, 1) if total_reactions > 0 else 0
-                } for reaction_type, count in summary["reaction_types"].items()
+        analysis["top_engagers"] = [
+            {
+                "profile_id": r.get("profile_id"),
+                "name": r.get("name"),
+                "total_reactions": r.get("total_reactions", 0),
+                "posts_engaged": len(r.get("posts_reacted_to", [])),
+                "reaction_breakdown": r.get("reaction_breakdown", {})
+            } for r in sorted_reactors[:20]
+        ]
+
+        # Engagement distribution
+        reaction_counts = [r.get("total_reactions", 0) for r in self.reactions]
+        if reaction_counts:
+            analysis["engagement_distribution"] = {
+                "average_reactions_per_engager": round(statistics.mean(reaction_counts), 2),
+                "median_reactions": statistics.median(reaction_counts),
+                "max_reactions": max(reaction_counts),
+                "highly_engaged_users": sum(1 for count in reaction_counts if count >= 3),
+                "total_unique_engagers": len(reaction_counts)
             }
 
-        # Post-level reaction analysis
-        if "posts_with_reactions" in self.reactions:
-            post_reactions = self.reactions["posts_with_reactions"]
-            reaction_totals = [pr.get("total", 0) for pr in post_reactions]
+        # Reaction type preferences across all engagers
+        all_reaction_types = defaultdict(int)
+        for reactor in self.reactions:
+            for reaction_type, count in reactor.get("reaction_breakdown", {}).items():
+                all_reaction_types[reaction_type] += count
 
-            if reaction_totals:
-                analysis["reaction_distribution"] = {
-                    "average_reactions_per_post": round(statistics.mean(reaction_totals), 2),
-                    "median_reactions": statistics.median(reaction_totals),
-                    "max_reactions": max(reaction_totals),
-                    "posts_with_high_reactions": sum(1 for r in reaction_totals if r >= 50)
-                }
+        if all_reaction_types:
+            total = sum(all_reaction_types.values())
+            analysis["reaction_type_preferences"] = {
+                reaction_type: {
+                    "count": count,
+                    "percentage": round((count / total) * 100, 1)
+                } for reaction_type, count in sorted(
+                    all_reaction_types.items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+            }
+
+        # Multi-post engagers (engaged with 2+ posts)
+        multi_post_engagers = [
+            r for r in self.reactions
+            if len(r.get("posts_reacted_to", [])) >= 2
+        ]
+
+        analysis["engagement_depth"] = {
+            "multi_post_engagers": len(multi_post_engagers),
+            "single_post_engagers": len(self.reactions) - len(multi_post_engagers),
+            "retention_rate": round(
+                len(multi_post_engagers) / len(self.reactions) * 100, 1
+            ) if self.reactions else 0
+        }
 
         return analysis
 
-    def _create_histogram(self, values: List[int], metric_name: str) -> Dict:
-        """Create a histogram distribution for a metric."""
-        if not values:
-            return {}
+    def _calculate_trends(self) -> Dict:
+        """Calculate time-based trends and patterns."""
+        trends = {}
 
-        # Define bins based on data range
-        max_val = max(values)
-        if max_val <= 10:
-            bins = list(range(0, max_val + 2))
-        elif max_val <= 100:
-            bins = list(range(0, max_val + 10, 10))
-        else:
-            bins = list(range(0, max_val + 50, 50))
+        if not self.posts:
+            return trends
 
-        histogram = {}
-        for i in range(len(bins) - 1):
-            count = sum(1 for v in values if bins[i] <= v < bins[i + 1])
-            histogram[f"{bins[i]}-{bins[i + 1] - 1}"] = count
+        # Time series engagement data
+        time_series = []
 
-        return {
-            "bins": histogram,
-            "total_items": len(values),
-            "metric": metric_name
-        }
+        for post in self.posts:
+            if post.get("posted_at"):
+                try:
+                    dt = datetime.fromisoformat(post.get("posted_at").replace("Z", "+00:00"))
+                    engagement = (
+                        post.get("activity", {}).get("num_likes", 0) +
+                        post.get("activity", {}).get("num_comments", 0) +
+                        post.get("activity", {}).get("num_shares", 0)
+                    )
+
+                    time_series.append({
+                        "date": dt.date().isoformat(),
+                        "datetime": dt,
+                        "engagement": engagement,
+                        "likes": post.get("activity", {}).get("num_likes", 0),
+                        "comments": post.get("activity", {}).get("num_comments", 0),
+                        "shares": post.get("activity", {}).get("num_shares", 0)
+                    })
+                except:
+                    continue
+
+        if time_series:
+            # Sort by date
+            time_series.sort(key=lambda x: x["datetime"])
+
+            # Daily aggregation
+            daily_stats = defaultdict(lambda: {
+                "posts": 0,
+                "total_engagement": 0,
+                "total_likes": 0,
+                "total_comments": 0,
+                "total_shares": 0
+            })
+
+            for item in time_series:
+                date_key = item["date"]
+                daily_stats[date_key]["posts"] += 1
+                daily_stats[date_key]["total_engagement"] += item["engagement"]
+                daily_stats[date_key]["total_likes"] += item["likes"]
+                daily_stats[date_key]["total_comments"] += item["comments"]
+                daily_stats[date_key]["total_shares"] += item["shares"]
+
+            trends["daily_activity"] = [
+                {"date": date, **stats}
+                for date, stats in sorted(daily_stats.items())
+            ]
+
+            # Calculate growth metrics (last 7 days vs previous 7 days)
+            if len(daily_stats) >= 7:
+                dates = sorted(daily_stats.keys())
+                recent_7_days = dates[-7:]
+                previous_7_days = dates[-14:-7] if len(dates) >= 14 else []
+
+                recent_engagement = sum(
+                    daily_stats[d]["total_engagement"] for d in recent_7_days
+                )
+
+                if previous_7_days:
+                    previous_engagement = sum(
+                        daily_stats[d]["total_engagement"] for d in previous_7_days
+                    )
+
+                    trends["growth_metrics"] = {
+                        "recent_7_days_engagement": recent_engagement,
+                        "previous_7_days_engagement": previous_engagement,
+                        "engagement_change": recent_engagement - previous_engagement,
+                        "percentage_change": round(
+                            ((recent_engagement - previous_engagement) / previous_engagement * 100)
+                            if previous_engagement > 0 else 0,
+                            1
+                        )
+                    }
+
+        return trends
 
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test with new data structure
     test_posts = [
         {
-            "id": "post_1",
+            "post_id": "7381924494396891136",
+            "author_urn": "ilke-oner",
             "text": "Great content about business strategy",
-            "created_at": "2024-01-15T10:00:00Z",
-            "author": {"name": "John Doe"},
-            "metrics": {"likes": 150, "comments": 25, "shares": 5, "engagement_rate": 0.05}
-        },
+            "posted_at": "2025-10-09T12:04:58.424Z",
+            "post_url": "https://linkedin.com/...",
+            "activity": {
+                "num_likes": 21,
+                "num_comments": 5,
+                "num_shares": 2,
+                "reaction_counts": [
+                    {"type": "LIKE", "count": 13},
+                    {"type": "INTEREST", "count": 5},
+                    {"type": "EMPATHY", "count": 3}
+                ]
+            }
+        }
+    ]
+
+    test_comments = [
         {
-            "id": "post_2",
-            "text": "Another post about entrepreneurship",
-            "created_at": "2024-01-16T14:00:00Z",
-            "author": {"name": "Jane Smith"},
-            "metrics": {"likes": 200, "comments": 30, "shares": 10, "engagement_rate": 0.07}
+            "comment_id": "123",
+            "post_id": "7381924494396891136",
+            "author_profile_id": "john-doe",
+            "text": "Great post!",
+            "likes": 3,
+            "created_at": "2025-10-09T13:00:00Z"
+        }
+    ]
+
+    test_reactions = [
+        {
+            "profile_id": "laurence-blairon",
+            "name": "Laurence Blairon",
+            "total_reactions": 2,
+            "posts_reacted_to": ["post1", "post2"],
+            "reaction_breakdown": {"LIKE": 1, "EMPATHY": 1}
         }
     ]
 
     tool = ComputeLinkedInStats(
         posts=test_posts,
-        include_histograms=True,
+        comments=test_comments,
+        reactions=test_reactions,
         include_trends=True
     )
+
     print("Testing ComputeLinkedInStats tool...")
     result = tool.run()
     print(json.dumps(json.loads(result), indent=2))

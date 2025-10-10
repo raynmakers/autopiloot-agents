@@ -1,6 +1,7 @@
 """
-GetPostReactions tool for fetching reactions on LinkedIn posts via RapidAPI.
-Provides aggregated reaction metrics and breakdown by reaction type.
+GetPostReactions tool for tracking LinkedIn post reactions via RapidAPI.
+Focuses on identifying which profiles are engaging with an author's content.
+Stores reactor-author interaction data to Firestore.
 """
 
 import os
@@ -10,88 +11,96 @@ import time
 import requests
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
+from urllib.parse import unquote
 from agency_swarm.tools import BaseTool
 from pydantic import Field
+from google.cloud import firestore
 
 # Add core and config directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
-from loader import load_app_config, get_config_value
+from loader import get_config_value
 
 
 class GetPostReactions(BaseTool):
     """
-    Fetches reaction metrics for one or more LinkedIn posts using RapidAPI.
+    Fetches reactions for LinkedIn posts to track which profiles engage with an author.
 
-    Provides aggregated totals and breakdown by reaction type (like, celebrate,
-    support, love, insightful, funny, etc.) for engagement analysis.
+    Use case: Identify top engagers who frequently react to a specific author's content.
+    Stores aggregated reactor-author interaction data in Firestore for analysis.
+
+    Output: Reactor profiles with total reactions and list of posts they engaged with.
     """
 
     post_ids: List[str] = Field(
         ...,
-        description="List of LinkedIn post IDs/URNs to fetch reactions for"
+        description="List of LinkedIn post IDs to fetch reactions for (typically from one author)"
     )
 
-    include_details: bool = Field(
-        False,
-        description="Whether to include individual reactor details (default: False, just aggregates)"
+    author_profile_id: str = Field(
+        ...,
+        description="LinkedIn profile ID/URN of the post author (for tracking engagement)"
     )
 
-    page: int = Field(
-        1,
-        description="Page number for detailed reactions if include_details=True (default: 1)"
-    )
-
-    page_size: int = Field(
+    max_reactions_per_post: int = Field(
         100,
-        description="Number of detailed reactions per page if include_details=True (default: 100)"
+        description="Maximum reactions to fetch per post (default: 100)"
     )
 
     def run(self) -> str:
         """
-        Fetches reactions for the specified LinkedIn posts.
+        Fetches reactions and identifies top engagers with the author.
 
         Returns:
-            str: JSON string containing reaction metrics grouped by post
+            str: JSON string with reactor engagement summary
                  Format: {
-                     "reactions_by_post": {
-                         "post_id_1": {
-                             "total_reactions": 245,
-                             "breakdown": {
-                                 "like": 180,
-                                 "celebrate": 32,
-                                 "support": 15,
-                                 "love": 10,
-                                 "insightful": 5,
-                                 "funny": 3
-                             },
-                             "engagement_rate": 0.045,
-                             "top_reaction": "like",
-                             "reactors": [...] // if include_details=True
-                         },
-                         "post_id_2": {...}
-                     },
-                     "aggregate_metrics": {
-                         "total_reactions": 489,
-                         "average_reactions_per_post": 244.5,
-                         "most_engaging_post": "post_id_1",
-                         "reaction_distribution": {...}
+                     "top_reactors": [
+                         {
+                             "profile_id": "john-doe",
+                             "name": "John Doe",
+                             "total_reactions": 5,
+                             "posts_reacted_to": ["post1", "post2"],
+                             "reaction_breakdown": {"like": 3, "celebrate": 2}
+                         }
+                     ],
+                     "storage": {
+                         "profiles_stored": 15,
+                         "reactions_stored": 48
                      },
                      "metadata": {
-                         "posts_analyzed": 2,
-                         "fetched_at": "2024-01-15T10:30:00Z"
+                         "author_profile_id": "ilke-oner",
+                         "posts_analyzed": 3,
+                         "fetched_at": "2025-10-10T12:00:00Z"
                      }
                  }
         """
         try:
-            # Load environment variables
+            # Load environment
             load_environment()
 
-            # Get RapidAPI credentials
-            rapidapi_host = get_required_env_var("RAPIDAPI_LINKEDIN_HOST", "RapidAPI LinkedIn host")
-            rapidapi_key = get_required_env_var("RAPIDAPI_LINKEDIN_KEY", "RapidAPI key for LinkedIn")
+            # Get plugin name from linkedin.api.rapidapi_plugin
+            plugin_name = get_config_value("linkedin.api.rapidapi_plugin", "linkedin_scraper")
+
+            # Load plugin configuration
+            plugin_config = get_config_value(f"rapidapi.plugins.{plugin_name}", None)
+            if not plugin_config:
+                raise ValueError(f"RapidAPI plugin '{plugin_name}' not found in settings.yaml")
+
+            # Get host and API key env var name
+            rapidapi_host = plugin_config.get("host")
+            api_key_env = plugin_config.get("api_key_env")
+            endpoints = plugin_config.get("endpoints", {})
+
+            if not rapidapi_host or not api_key_env:
+                raise ValueError(f"Plugin '{plugin_name}' missing 'host' or 'api_key_env'")
+
+            # Get actual API key
+            rapidapi_key = get_required_env_var(api_key_env, f"RapidAPI key for {plugin_name}")
+
+            # Get endpoint path
+            endpoint_path = endpoints.get("post_reactions", "/post-reactions")
 
             if not self.post_ids:
                 return json.dumps({
@@ -100,82 +109,92 @@ class GetPostReactions(BaseTool):
                 })
 
             # Prepare API endpoint and headers
-            base_url = f"https://{rapidapi_host}/post-reactions"
+            base_url = f"https://{rapidapi_host}{endpoint_path}"
             headers = {
                 "X-RapidAPI-Host": rapidapi_host,
                 "X-RapidAPI-Key": rapidapi_key,
                 "Accept": "application/json"
             }
 
+            # Track reactors across all posts
+            reactor_data = {}  # {profile_id: {name, reactions_count, posts_list, reaction_types}}
+
             # Fetch reactions for each post
-            reactions_by_post = {}
-            total_reactions_all = 0
-            reaction_distribution_all = {}
-
             for post_id in self.post_ids:
-                # Build query parameters for this post
                 params = {
-                    "postId": post_id,
-                    "aggregateOnly": "false" if self.include_details else "true"
+                    "post_id": post_id,
+                    "page": 1,
+                    "type": "all"  # Fetch all reaction types
                 }
-
-                if self.include_details:
-                    params["page"] = self.page
-                    params["pageSize"] = self.page_size
 
                 # Make API request with retry logic
                 response_data = self._make_request_with_retry(base_url, headers, params)
 
                 if response_data:
-                    # Process reaction data
-                    post_reactions = self._process_reactions(response_data, post_id)
-                    reactions_by_post[post_id] = post_reactions
+                    # Process reactors from this post
+                    reactions = response_data.get("data", [])
 
-                    # Update aggregates
-                    total_reactions_all += post_reactions.get("total_reactions", 0)
+                    for reaction in reactions:
+                        # Extract user data from nested structure
+                        user = reaction.get("user", {})
+                        profile_url = user.get("url", "")
+                        profile_id = self._extract_profile_id(profile_url)
 
-                    # Merge reaction distributions
-                    for reaction_type, count in post_reactions.get("breakdown", {}).items():
-                        reaction_distribution_all[reaction_type] = \
-                            reaction_distribution_all.get(reaction_type, 0) + count
-                else:
-                    # Failed to fetch reactions for this post
-                    reactions_by_post[post_id] = {
-                        "total_reactions": 0,
-                        "breakdown": {},
-                        "error": "fetch_failed"
-                    }
+                        if not profile_id:
+                            continue
 
-                # Rate limiting between posts
+                        # Initialize reactor entry if new
+                        if profile_id not in reactor_data:
+                            reactor_data[profile_id] = {
+                                "profile_id": profile_id,
+                                "name": user.get("name", "Unknown"),
+                                "headline": user.get("description", ""),
+                                "profile_url": profile_url,
+                                "total_reactions": 0,
+                                "posts_reacted_to": [],
+                                "reaction_breakdown": {}
+                            }
+
+                        # Update reactor stats
+                        reactor_info = reactor_data[profile_id]
+                        reactor_info["total_reactions"] += 1
+
+                        # Track which post (avoid duplicates)
+                        if post_id not in reactor_info["posts_reacted_to"]:
+                            reactor_info["posts_reacted_to"].append(post_id)
+
+                        # Track reaction type
+                        reaction_type = reaction.get("reaction_type", "LIKE")
+                        reactor_info["reaction_breakdown"][reaction_type] = \
+                            reactor_info["reaction_breakdown"].get(reaction_type, 0) + 1
+
+                # Rate limiting
                 if len(self.post_ids) > 1:
-                    time.sleep(0.5)  # 500ms delay between posts
+                    time.sleep(0.5)
 
-            # Calculate aggregate metrics
-            posts_with_data = [p for p in reactions_by_post.values() if "error" not in p]
-            avg_reactions = total_reactions_all / len(posts_with_data) if posts_with_data else 0
+            # Sort reactors by total reactions (top engagers first)
+            top_reactors = sorted(
+                reactor_data.values(),
+                key=lambda x: x["total_reactions"],
+                reverse=True
+            )
 
-            # Find most engaging post
-            most_engaging = max(
-                reactions_by_post.items(),
-                key=lambda x: x[1].get("total_reactions", 0),
-                default=(None, {})
-            )[0]
+            # Store to Firestore
+            storage_result = self._store_reactions_to_firestore(
+                self.author_profile_id,
+                top_reactors
+            )
 
             # Prepare response
             result = {
-                "reactions_by_post": reactions_by_post,
-                "aggregate_metrics": {
-                    "total_reactions": total_reactions_all,
-                    "average_reactions_per_post": round(avg_reactions, 2),
-                    "most_engaging_post": most_engaging,
-                    "reaction_distribution": reaction_distribution_all,
-                    "posts_with_data": len(posts_with_data),
-                    "posts_with_errors": len(self.post_ids) - len(posts_with_data)
-                },
+                "top_reactors": top_reactors,
+                "storage": storage_result,
                 "metadata": {
+                    "author_profile_id": self.author_profile_id,
                     "posts_analyzed": len(self.post_ids),
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    "include_details": self.include_details
+                    "unique_reactors": len(top_reactors),
+                    "total_reactions": sum(r["total_reactions"] for r in top_reactors),
+                    "fetched_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -189,59 +208,188 @@ class GetPostReactions(BaseTool):
             }
             return json.dumps(error_result)
 
-    def _process_reactions(self, response_data: Dict, post_id: str) -> Dict:
+    def _decode_url_encoded_string(self, value: str) -> str:
         """
-        Process and normalize reaction data from API response.
+        Decode URL-encoded characters from strings.
 
         Args:
-            response_data: Raw API response
-            post_id: Post identifier
+            value: String potentially containing URL-encoded characters
 
         Returns:
-            Dict: Processed reaction metrics
+            str: Decoded string with proper UTF-8 characters
         """
-        # Extract reaction totals and breakdown
-        reactions_summary = response_data.get("summary", {})
-        total_reactions = reactions_summary.get("totalReactions", 0)
+        if not value or not isinstance(value, str):
+            return value
 
-        # Get reaction type breakdown
-        breakdown = {}
-        reaction_types = reactions_summary.get("reactionTypes", {})
+        try:
+            return unquote(value)
+        except Exception:
+            return value
 
-        # Common LinkedIn reaction types
-        for reaction_type in ["like", "celebrate", "support", "love", "insightful", "funny", "curious"]:
-            count = reaction_types.get(reaction_type, 0)
-            if count > 0:
-                breakdown[reaction_type] = count
+    def _extract_profile_id(self, profile_url: str) -> str:
+        """
+        Extract profile ID from LinkedIn URL.
 
-        # Calculate engagement rate if views data available
-        views = response_data.get("views", 0)
-        engagement_rate = (total_reactions / views) if views > 0 else 0
+        Args:
+            profile_url: Full LinkedIn profile URL
 
-        # Find top reaction type
-        top_reaction = max(breakdown.items(), key=lambda x: x[1], default=(None, 0))[0] if breakdown else None
+        Returns:
+            str: Profile ID (e.g., 'ilke-oner')
+        """
+        if not profile_url:
+            return ''
 
-        result = {
-            "total_reactions": total_reactions,
-            "breakdown": breakdown,
-            "engagement_rate": round(engagement_rate, 4),
-            "top_reaction": top_reaction
-        }
+        # Extract identifier from URL
+        decoded_url = self._decode_url_encoded_string(profile_url)
+        profile_id = decoded_url.rstrip('/').split('/')[-1] if decoded_url else ''
 
-        # Include detailed reactor information if requested
-        if self.include_details and "reactors" in response_data:
-            reactors = []
-            for reactor in response_data.get("reactors", []):
-                reactors.append({
-                    "name": reactor.get("name", "Unknown"),
-                    "headline": reactor.get("headline", ""),
-                    "reaction_type": reactor.get("reactionType", "like"),
-                    "profile_url": reactor.get("profileUrl", "")
-                })
-            result["reactors"] = reactors
-            result["has_more_reactors"] = response_data.get("pagination", {}).get("hasMore", False)
+        return profile_id
 
-        return result
+    def _initialize_firestore(self):
+        """Initialize Firestore client with proper authentication."""
+        try:
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firestore"
+            )
+
+            credentials_path = get_required_env_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "Google service account credentials file path"
+            )
+
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
+
+            return firestore.Client(project=project_id)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+
+    def _store_profile_to_firestore(self, db, reactor: Dict) -> str:
+        """
+        Store reactor profile to Firestore with idempotent upsert.
+
+        Args:
+            db: Firestore client
+            reactor: Reactor profile data
+
+        Returns:
+            str: Profile ID
+        """
+        try:
+            profile_id = reactor.get('profile_id', '')
+            if not profile_id:
+                return ''
+
+            doc_ref = db.collection('linkedin_profiles').document(profile_id)
+            existing_doc = doc_ref.get()
+
+            # Split name into first and last
+            full_name = self._decode_url_encoded_string(reactor.get('name', ''))
+            name_parts = full_name.split(' ', 1) if full_name else ['', '']
+            first_name = name_parts[0] if len(name_parts) > 0 else ''
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+            profile_data = {
+                'public_identifier': profile_id,
+                'first_name': first_name,
+                'last_name': last_name,
+                'headline': self._decode_url_encoded_string(reactor.get('headline', '')),
+                'profile_url': self._decode_url_encoded_string(reactor.get('profile_url', '')),
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }
+
+            if not existing_doc.exists:
+                profile_data['created_at'] = firestore.SERVER_TIMESTAMP
+                doc_ref.set(profile_data)
+            else:
+                doc_ref.update(profile_data)
+
+            return profile_id
+
+        except Exception as e:
+            print(f"Error storing profile {reactor.get('profile_id', 'unknown')}: {str(e)}")
+            return ''
+
+    def _store_reactions_to_firestore(self, author_profile_id: str, reactors: List[Dict]) -> Dict[str, int]:
+        """
+        Store reactor-author interaction data to Firestore.
+
+        Creates documents tracking which profiles engage with an author's content.
+
+        Args:
+            author_profile_id: Profile ID of the content author
+            reactors: List of reactor data with engagement metrics
+
+        Returns:
+            dict: Storage statistics
+        """
+        profiles_stored = 0
+        reactions_stored = 0
+        errors = 0
+
+        if not reactors:
+            return {
+                "profiles_stored": 0,
+                "reactions_stored": 0,
+                "errors": 0
+            }
+
+        try:
+            db = self._initialize_firestore()
+
+            for reactor in reactors:
+                try:
+                    # Store reactor profile
+                    reactor_profile_id = self._store_profile_to_firestore(db, reactor)
+
+                    if not reactor_profile_id:
+                        errors += 1
+                        continue
+
+                    # Store reactor-author interaction
+                    # Document ID: {reactor_profile_id}_{author_profile_id}
+                    interaction_id = f"{reactor_profile_id}_{author_profile_id}"
+                    doc_ref = db.collection('linkedin_reactions').document(interaction_id)
+                    existing_doc = doc_ref.get()
+
+                    interaction_data = {
+                        'reactor_profile_id': reactor_profile_id,
+                        'author_profile_id': author_profile_id,
+                        'total_reactions': reactor['total_reactions'],
+                        'posts_reacted_to': reactor['posts_reacted_to'],
+                        'reaction_breakdown': reactor['reaction_breakdown'],
+                        'updated_at': firestore.SERVER_TIMESTAMP
+                    }
+
+                    if not existing_doc.exists:
+                        interaction_data['created_at'] = firestore.SERVER_TIMESTAMP
+                        doc_ref.set(interaction_data)
+                    else:
+                        doc_ref.update(interaction_data)
+
+                    profiles_stored += 1
+                    reactions_stored += reactor['total_reactions']
+
+                except Exception as e:
+                    print(f"Error storing reactor {reactor.get('profile_id', 'unknown')}: {str(e)}")
+                    errors += 1
+                    continue
+
+            return {
+                "profiles_stored": profiles_stored,
+                "reactions_stored": reactions_stored,
+                "errors": errors
+            }
+
+        except Exception as e:
+            print(f"Firestore storage error: {str(e)}")
+            return {
+                "profiles_stored": 0,
+                "reactions_stored": 0,
+                "errors": len(reactors)
+            }
 
     def _make_request_with_retry(self, url: str, headers: Dict, params: Dict, max_retries: int = 3) -> Optional[Dict]:
         """
@@ -256,30 +404,26 @@ class GetPostReactions(BaseTool):
         Returns:
             Optional[Dict]: Response data or None if all retries failed
         """
-        delay = 1  # Start with 1 second delay
+        delay = 1
 
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers, params=params, timeout=30)
 
-                # Success
                 if response.status_code == 200:
                     return response.json()
 
-                # Rate limiting - back off
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After", delay * 2)
-                    time.sleep(min(int(retry_after), 60))  # Max 60 seconds wait
+                    time.sleep(min(int(retry_after), 60))
                     delay *= 2
                     continue
 
-                # Server errors - retry with backoff
                 if response.status_code >= 500:
                     time.sleep(delay)
                     delay *= 2
                     continue
 
-                # Client error - don't retry
                 if response.status_code >= 400:
                     print(f"Client error {response.status_code}: {response.text}")
                     return None
@@ -297,10 +441,11 @@ class GetPostReactions(BaseTool):
 
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test the tool - track who engages with ilke-oner's posts
     tool = GetPostReactions(
-        post_ids=["urn:li:activity:7240371806548066304", "urn:li:activity:7240371806548066305"],
-        include_details=False
+        post_ids=["7381924494396891136", "7381586262505201666"],
+        author_profile_id="ilke-oner",
+        max_reactions_per_post=100
     )
     print("Testing GetPostReactions tool...")
     result = tool.run()

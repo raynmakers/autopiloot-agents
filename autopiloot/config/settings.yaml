@@ -159,6 +159,10 @@ rapidapi:
       endpoints:
         user_posts: "/api/v1/user/posts"
         user_profile: "/api/v1/user/profile"
+        post_comments: "/api/v1/post/comments"
+        post_comment_replies: "/api/v1/post/comments/replies"
+        post_reactions: "/api/v1/post/reactions"
+        post_reposts: "/api/v1/post/reposts"
     # Add more plugins as needed:
     # example_plugin:
     #   host: "another-api.p.rapidapi.com"

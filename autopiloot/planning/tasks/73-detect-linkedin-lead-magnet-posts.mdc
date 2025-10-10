@@ -1,0 +1,155 @@
+---
+description: "Detect LinkedIn 'lead magnet' posts (comment-to-get CTA) and expose classifier"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-LI-0073"
+title: "Detect LinkedIn lead-magnet posts and expose classifier tool"
+status: "planned"
+priority: "P1"
+labels: ["feature", "linkedin", "nlp", "classification"]
+dependencies: []
+created: "2025-10-10"
+
+# 1) High-Level Objective
+
+Identify whether a LinkedIn post is a "lead magnet" (i.e., calls to action asking readers to comment a specific word to receive something) and surface this flag in the LinkedIn agent’s outputs.
+
+# 2) Background / Context
+
+Lead magnet posts are common on LinkedIn. Typical signals include phrases like "comment 'PDF'", "comment the word 'guide'", or "drop a 'yes' below". Detecting these posts enables downstream workflows (e.g., capture intent, monitor replies, prioritize outreach).
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: We can detect lead magnets reliably using heuristic text patterns over post text and a small comments preview (no full NLP model required initially).
+- Constraint: Follow Agency Swarm v1.0.2 tool standards. Implement as a tool under `linkedin_agent/tools/`.
+- Constraint: No external network calls in classifier; must be deterministic and fast.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- files/agents/autopiloot/linkedin_agent/tools/get_user_posts.py (read-only)
+- files/agents/autopiloot/linkedin_agent/tools/get_post_comments.py (read-only)
+- files/agents/autopiloot/config/settings.yaml (read-only)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/linkedin*agent/tools/get_user_posts.py *(read-only)\_
+- agents/autopiloot/linkedin*agent/tools/get_post_comments.py *(read-only)\_
+- agents/autopiloot/config/settings.yaml _(read-only)_
+
+End state (must exist after completion):
+
+- agents/autopiloot/linkedin_agent/tools/detect_lead_magnet_post.py
+- agents/autopiloot/tests/linkedin_tools/test_detect_lead_magnet_post_integration.py
+- agents/autopiloot/tests/linkedin_tools/test_detect_lead_magnet_post_error_handling.py
+- coverage/linkedin_agent/index.html (updated)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create tool module
+
+   - File: `agents/autopiloot/linkedin_agent/tools/detect_lead_magnet_post.py`
+   - Framework: `agency_swarm.tools.BaseTool` with Pydantic `Field` validation
+   - Exported class: `DetectLeadMagnetPost(BaseTool)`
+   - Inputs (fields):
+     - `post_text: str` (required) — raw LinkedIn post text
+     - `comments_preview: list[str] = []` (optional) — small sample of early comments if available
+     - `case_insensitive: bool = True` — normalize for matching
+     - `min_keyword_hit_threshold: int = 1` — number of distinct pattern hits to classify as lead magnet
+   - Behavior:
+     - Normalize whitespace; optionally lowercase if `case_insensitive`.
+     - Apply set of regex-based heuristics capturing common CTAs, e.g.:
+       - comment\s+["']?(yes|me|pdf|guide|template|ebook|playbook|checklist|access|link)["']?
+       - drop|type|reply\s+(the\s+word\s+)?["']?[a-zA-Z]{2,}["']?
+       - "comment below" plus a noun like guide/pdf/template
+       - "comment to get", "comment for", "leave a comment and I'll send"
+     - Aggregate hits across post text and comments preview (dedupe by pattern).
+     - Return JSON string with fields: `{ "is_lead_magnet": bool, "hits": [pattern_id...], "hit_count": int }`.
+   - Implementation notes:
+     - No network calls; compile regexes once.
+     - Keep patterns modular for easy addition via a local constant list.
+     - Ensure return type is a JSON string (not dict).
+
+2. Add standalone test block
+
+   - In `detect_lead_magnet_post.py`, include `if __name__ == "__main__":` creating a tool instance and printing the result for a hard-coded sample.
+
+3. Integration tests (Tier 2)
+
+   - File: `agents/autopiloot/tests/linkedin_tools/test_detect_lead_magnet_post_integration.py`
+   - Use direct file import pattern (`importlib.util.spec_from_file_location`) and context-scoped mocking for `agency_swarm.tools.BaseTool` as needed.
+   - Cover cases:
+     - Positive: "Comment 'PDF' and I'll send it" → is_lead_magnet True
+     - Positive: "Drop a YES below to get the template" → True
+     - Negative: Informative post without CTA → False
+     - Mixed: Weak phrasing with no explicit comment instruction → False
+     - Comments-only hit: Post neutral but comments say "comment GUIDE" → True
+
+4. Error handling tests
+
+   - File: `agents/autopiloot/tests/linkedin_tools/test_detect_lead_magnet_post_error_handling.py`
+   - Validate input types via Pydantic; assert meaningful error messages on invalid inputs (e.g., non-string post_text).
+   - Ensure JSON structure always contains `is_lead_magnet`, `hits`, `hit_count` on success.
+
+5. Optional wiring in existing tools (non-breaking)
+
+   - In follow-up tasks, enrich outputs of `get_user_posts.py` with `is_lead_magnet` by invoking the tool, but this task only delivers the classifier tool + tests.
+
+6. Coverage generation (MANDATORY)
+   - Commands (documentation only, to be run during implementation):
+     - `export PYTHONPATH=.`
+     - `coverage run --source=agents/autopiloot/linkedin_agent -m unittest discover agents/autopiloot/tests/linkedin_tools -p "test_*.py" -v`
+     - `coverage report --include="agents/autopiloot/linkedin_agent/*" --show-missing`
+     - `coverage html --include="agents/autopiloot/linkedin_agent/*" -d agents/autopiloot/coverage/linkedin_agent`
+
+# 7) Types & Interfaces
+
+```python
+# Pydantic fields only; return type is JSON string
+# JSON schema (conceptual):
+# {
+#   "is_lead_magnet": bool,
+#   "hits": list[str],
+#   "hit_count": int
+# }
+```
+
+# 8) Acceptance Criteria
+
+- New tool file exists at `agents/autopiloot/linkedin_agent/tools/detect_lead_magnet_post.py` and complies with Agency Swarm BaseTool standards.
+- Tool correctly classifies sample posts as lead magnet based on CTA patterns (comment-to-get).
+- Returns a JSON string with keys `is_lead_magnet`, `hits`, and `hit_count`.
+- Tests exist under `agents/autopiloot/tests/linkedin_tools/` and pass locally.
+- Coverage HTML generated at `agents/autopiloot/coverage/linkedin_agent/index.html` and shows ≥ 80% coverage for the new tool.
+
+# 9) Testing Strategy
+
+- Prefer integration-style tests that import the real tool file with context-scoped mocking of framework modules only.
+- Cover positive, negative, and edge text cases; include comments-only detection path.
+- Validate Pydantic error handling for bad inputs.
+- Generate coverage reports and ensure thresholds are met; update HTML report.
+
+# 10) Notes / Links
+
+- Heuristic-first approach keeps latency low and avoids external dependencies.
+- Future enhancement: add lightweight ML/rules weighting, multi-language support, and settings-driven pattern extension.
