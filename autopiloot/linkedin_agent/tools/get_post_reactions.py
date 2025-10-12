@@ -9,6 +9,7 @@ import sys
 import json
 import time
 import requests
+import uuid
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from urllib.parse import unquote
@@ -22,6 +23,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
 from loader import get_config_value
+
+# Import SaveIngestionRecord for audit logging
+try:
+    from linkedin_agent.tools.save_ingestion_record import SaveIngestionRecord
+except ImportError:
+    SaveIngestionRecord = None
 
 
 class GetPostReactions(BaseTool):
@@ -76,6 +83,11 @@ class GetPostReactions(BaseTool):
                      }
                  }
         """
+        # Track processing start time and generate run ID
+        start_time = time.time()
+        run_id = str(uuid.uuid4())
+        errors_list = []
+
         try:
             # Load environment
             load_environment()
@@ -198,9 +210,46 @@ class GetPostReactions(BaseTool):
                 }
             }
 
+            # Save audit record
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "reactions_processed": sum(r["total_reactions"] for r in top_reactors),
+                    "unique_reactors": len(top_reactors),
+                    "profiles_stored": storage_result["profiles_stored"],
+                    "reactions_stored": storage_result["reactions_stored"],
+                    "storage_errors": storage_result["errors"],
+                    "posts_analyzed": len(self.post_ids)
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             return json.dumps(result)
 
         except Exception as e:
+            # Track error
+            error_info = {
+                "type": "reactions_fetch_failed",
+                "message": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            errors_list.append(error_info)
+
+            # Save audit record with error
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "reactions_processed": 0,
+                    "unique_reactors": 0,
+                    "posts_analyzed": len(self.post_ids) if self.post_ids else 0
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             error_result = {
                 "error": "reactions_fetch_failed",
                 "message": str(e),
@@ -438,6 +487,33 @@ class GetPostReactions(BaseTool):
                 delay *= 2
 
         return None
+
+    def _save_audit_record(self, run_id: str, ingestion_stats: Dict, processing_duration: float, errors: List[Dict]):
+        """
+        Save audit record for this ingestion run.
+
+        Args:
+            run_id: Unique run identifier
+            ingestion_stats: Statistics from ingestion
+            processing_duration: Duration in seconds
+            errors: List of errors encountered
+        """
+        if not SaveIngestionRecord:
+            return  # Skip if audit tool not available
+
+        try:
+            audit_tool = SaveIngestionRecord(
+                run_id=run_id,
+                profile_identifier=self.author_profile_id,
+                content_type="reactions",
+                ingestion_stats=ingestion_stats,
+                processing_duration_seconds=processing_duration,
+                errors=errors if errors else None
+            )
+            audit_tool.run()
+        except Exception as e:
+            # Don't fail the main operation if audit logging fails
+            print(f"Warning: Failed to save audit record: {str(e)}")
 
 
 if __name__ == "__main__":

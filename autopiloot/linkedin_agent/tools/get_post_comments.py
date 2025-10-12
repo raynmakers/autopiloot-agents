@@ -9,6 +9,7 @@ import sys
 import json
 import time
 import requests
+import uuid
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from urllib.parse import unquote
@@ -22,6 +23,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
 from loader import get_config_value
+
+# Import SaveIngestionRecord for audit logging
+try:
+    from linkedin_agent.tools.save_ingestion_record import SaveIngestionRecord
+except ImportError:
+    SaveIngestionRecord = None
 
 
 class GetPostComments(BaseTool):
@@ -82,6 +89,11 @@ class GetPostComments(BaseTool):
                      }
                  }
         """
+        # Track processing start time and generate run ID
+        start_time = time.time()
+        run_id = str(uuid.uuid4())
+        errors_list = []
+
         try:
             # Load environment
             load_environment()
@@ -216,9 +228,52 @@ class GetPostComments(BaseTool):
                 }
             }
 
+            # Calculate total storage stats across all posts
+            total_stored = sum(p.get("storage", {}).get("total_stored", 0) for p in comments_by_post.values())
+            total_created = sum(p.get("storage", {}).get("created", 0) for p in comments_by_post.values())
+            total_updated = sum(p.get("storage", {}).get("updated", 0) for p in comments_by_post.values())
+            total_errors = sum(p.get("storage", {}).get("errors", 0) for p in comments_by_post.values())
+
+            # Save audit record
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "comments_processed": total_comments,
+                    "comments_stored": total_stored,
+                    "comments_created": total_created,
+                    "comments_updated": total_updated,
+                    "storage_errors": total_errors,
+                    "posts_queried": len(self.post_ids)
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             return json.dumps(result)
 
         except Exception as e:
+            # Track error
+            error_info = {
+                "type": "comments_fetch_failed",
+                "message": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            errors_list.append(error_info)
+
+            # Save audit record with error
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "comments_processed": 0,
+                    "comments_stored": 0,
+                    "posts_queried": len(self.post_ids) if self.post_ids else 0
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             error_result = {
                 "error": "comments_fetch_failed",
                 "message": str(e),
@@ -617,6 +672,36 @@ class GetPostComments(BaseTool):
                 delay *= 2
 
         return None
+
+    def _save_audit_record(self, run_id: str, ingestion_stats: Dict, processing_duration: float, errors: List[Dict]):
+        """
+        Save audit record for this ingestion run.
+
+        Args:
+            run_id: Unique run identifier
+            ingestion_stats: Statistics from ingestion
+            processing_duration: Duration in seconds
+            errors: List of errors encountered
+        """
+        if not SaveIngestionRecord:
+            return  # Skip if audit tool not available
+
+        try:
+            # Use first post_id as profile identifier
+            profile_id = self.post_ids[0] if self.post_ids else "unknown"
+
+            audit_tool = SaveIngestionRecord(
+                run_id=run_id,
+                profile_identifier=profile_id,
+                content_type="comments",
+                ingestion_stats=ingestion_stats,
+                processing_duration_seconds=processing_duration,
+                errors=errors if errors else None
+            )
+            audit_tool.run()
+        except Exception as e:
+            # Don't fail the main operation if audit logging fails
+            print(f"Warning: Failed to save audit record: {str(e)}")
 
 
 if __name__ == "__main__":

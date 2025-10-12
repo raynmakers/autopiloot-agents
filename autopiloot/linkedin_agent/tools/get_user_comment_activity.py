@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import requests
+import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from urllib.parse import unquote
@@ -21,6 +22,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
 from env_loader import get_required_env_var, load_environment
 from loader import load_app_config, get_config_value
+
+# Import SaveIngestionRecord for audit logging
+try:
+    from linkedin_agent.tools.save_ingestion_record import SaveIngestionRecord
+except ImportError:
+    SaveIngestionRecord = None
 
 
 class GetUserCommentActivity(BaseTool):
@@ -96,6 +103,11 @@ class GetUserCommentActivity(BaseTool):
                      }
                  }
         """
+        # Track processing start time and generate run ID
+        start_time = time.time()
+        run_id = str(uuid.uuid4())
+        errors_list = []
+
         try:
             # Load environment variables
             load_environment()
@@ -194,9 +206,45 @@ class GetUserCommentActivity(BaseTool):
             if self.since_iso:
                 result["metadata"]["since_filter"] = self.since_iso
 
+            # Save audit record
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "comments_processed": len(comments),
+                    "comments_stored": storage_results["total_stored"],
+                    "comments_created": storage_results["created"],
+                    "comments_updated": storage_results["updated"],
+                    "storage_errors": storage_results["errors"],
+                    "average_likes_per_comment": activity_metrics.get("average_likes_per_comment", 0)
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             return json.dumps(result)
 
         except Exception as e:
+            # Track error
+            error_info = {
+                "type": "comment_activity_failed",
+                "message": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            errors_list.append(error_info)
+
+            # Save audit record with error
+            processing_duration = time.time() - start_time
+            self._save_audit_record(
+                run_id=run_id,
+                ingestion_stats={
+                    "comments_processed": 0,
+                    "comments_stored": 0
+                },
+                processing_duration=processing_duration,
+                errors=errors_list
+            )
+
             error_result = {
                 "error": "comment_activity_failed",
                 "message": str(e),
@@ -570,6 +618,33 @@ class GetUserCommentActivity(BaseTool):
                 "updated": 0,
                 "errors": len(comments)
             }
+
+    def _save_audit_record(self, run_id: str, ingestion_stats: Dict, processing_duration: float, errors: List[Dict]):
+        """
+        Save audit record for this ingestion run.
+
+        Args:
+            run_id: Unique run identifier
+            ingestion_stats: Statistics from ingestion
+            processing_duration: Duration in seconds
+            errors: List of errors encountered
+        """
+        if not SaveIngestionRecord:
+            return  # Skip if audit tool not available
+
+        try:
+            audit_tool = SaveIngestionRecord(
+                run_id=run_id,
+                profile_identifier=self.user_urn,
+                content_type="user_comments",
+                ingestion_stats=ingestion_stats,
+                processing_duration_seconds=processing_duration,
+                errors=errors if errors else None
+            )
+            audit_tool.run()
+        except Exception as e:
+            # Don't fail the main operation if audit logging fails
+            print(f"Warning: Failed to save audit record: {str(e)}")
 
 
 if __name__ == "__main__":
