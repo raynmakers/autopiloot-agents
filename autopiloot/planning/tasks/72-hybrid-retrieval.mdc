@@ -1,0 +1,49 @@
+---
+description: "Build hybrid retrieval tool (Zep + OpenSearch) with fusion and optional BigQuery prefilter"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072E"
+title: "Create hybrid_retrieval tool (parallel + fusion)"
+status: "planned"
+priority: "P1"
+labels: ["retrieval", "fusion", "summarizer_agent"]
+dependencies: ["TASK-RAG-0072A", "TASK-RAG-0072B", "TASK-RAG-0072D"]
+created: "2025-10-12"
+
+# 1) High-Level Objective
+
+Provide a single entrypoint that queries Zep (semantic) and OpenSearch (keyword/filters) in parallel, optionally prefilters via BigQuery, and fuses results with deduping.
+
+# 2) Assumptions & Constraints
+
+- Stream-only pipeline; no backfill.
+- Weighted scoring or RRF fusion; configurable in settings.
+
+# 3) End State
+
+- File: `summarizer_agent/tools/hybrid_retrieval.py`
+- JSON response: `{ items: [...], scores: {zep:..., os:...}, weights, latency_ms }`
+
+# 4) Low-Level Steps
+
+1. Inputs: `query: str`, `filters: dict`, `top_k: int` (default 20).
+2. Execute in parallel: Zep semantic search, OpenSearch keyword/filters.
+3. Optional: BigQuery prefilter (strict facets, joins) → constrain candidates.
+4. Fuse with RRF or weighted scoring; dedupe by `(video_id, chunk_id)`.
+5. Return unified ranked results with per-source scores and provenance.
+
+# 5) Acceptance Criteria
+
+- Parallel calls, fused ranking, dedupe confirmed by tests.
+- Configurable weights/top_k via `settings.yaml`.
+
+# 6) Testing Strategy
+
+- Mock Zep/OpenSearch/BigQuery; verify fusion math and dedupe.
+- Degraded modes when one source fails; still returns best-effort results.
+
+# 7) Notes
+
+- Aligns with Hybrid RAG guide (parallel retrieval + fusion).

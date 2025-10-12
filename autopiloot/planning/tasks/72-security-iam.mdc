@@ -1,0 +1,28 @@
+---
+description: "Security & IAM for Zep, OpenSearch, BigQuery (tokens, roles, TLS)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072P"
+title: "Security & IAM for hybrid RAG"
+status: "planned"
+priority: "P2"
+labels: ["security", "iam"]
+dependencies: []
+created: "2025-10-12"
+
+# 1) Objective
+
+Ensure proper roles/keys and secure transport across all layers.
+
+# 2) Steps
+
+1. BigQuery roles: dataset create/write for service account.
+2. OpenSearch auth: API key or basic; store in env; TLS.
+3. Zep token handling; no secrets in code.
+4. Optional PII masking/redaction path.
+
+# 3) Acceptance
+
+- Least-privilege roles and secure endpoints verified.

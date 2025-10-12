@@ -1,11 +1,11 @@
 ---
-description: "Backfill existing transcripts and add Hybrid Retrieval orchestrator"
+description: "Add Hybrid Retrieval orchestrator (no backfill)"
 globs: []
 alwaysApply: false
 ---
 
 id: "TASK-RAG-0072C"
-title: "Backfill transcripts and add hybrid retrieval"
+title: "Hybrid retrieval (no backfill)"
 status: "planned"
 priority: "P1"
 labels: ["opensearch", "hybrid", "summarizer_agent", "orchestrator_agent"]
@@ -18,14 +18,11 @@ Implement backfill tools and a `hybrid_retrieval` tool to fan-out to Zep and Ope
 
 # 2) End State
 
-- `summarizer_agent/tools/backfill_full_transcripts_to_zep.py`
-- `summarizer_agent/tools/backfill_full_transcripts_to_opensearch.py`
 - `summarizer_agent/tools/hybrid_retrieval.py`
 
 # 3) Low-Level Steps
 
-1. Backfill iterates `transcripts/*`, computes content_sha256, upserts to Zep and OpenSearch with rate limits.
-2. `hybrid_retrieval.py`:
+1. `hybrid_retrieval.py`:
    - Inputs: query, filters (channel_id, date range), top_k.
    - Parallel calls: Zep (semantic) and OpenSearch (keyword+filters).
    - Fusion: reciprocal-rank fusion or weighted scoring; dedupe by video_id+chunk.
@@ -33,7 +30,6 @@ Implement backfill tools and a `hybrid_retrieval` tool to fan-out to Zep and Ope
 
 # 4) Acceptance Criteria
 
-- Backfill covers existing transcripts robustly.
 - Hybrid retrieval returns fused, deduped, filterable results.
 
 # 5) Testing Strategy

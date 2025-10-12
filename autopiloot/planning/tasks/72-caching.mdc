@@ -1,0 +1,27 @@
+---
+description: "Add caching for frequent queries and retrieval results"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072I"
+title: "Introduce caching for hybrid retrieval"
+status: "planned"
+priority: "P3"
+labels: ["performance", "retrieval"]
+dependencies: ["TASK-RAG-0072E"]
+created: "2025-10-12"
+
+# 1) Objective
+
+Cache frequent query embeddings and OpenSearch results with TTL.
+
+# 2) Steps
+
+1. Add in-memory/redis-compatible cache interface.
+2. Cache keys: normalized (query, filters, top_k).
+3. Bypass cache on strict filters or small top_k if needed.
+
+# 3) Acceptance
+
+- Cache hit ratio reported; no stale data issues for time-bounded content.

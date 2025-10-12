@@ -1,0 +1,68 @@
+---
+description: "Add BigQuery configuration for Hybrid RAG transcript chunk storage"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072D"
+title: "Configure BigQuery for Hybrid RAG"
+status: "planned"
+priority: "P1"
+labels: ["bigquery", "rag", "config"]
+dependencies: ["TASK-RAG-0072B"]
+created: "2025-10-08"
+
+# 1) High-Level Objective
+
+Configure BigQuery to store transcript chunks and metadata for analytics, reporting, and SQL-based filtering in Hybrid RAG.
+
+# 2) Assumptions & Constraints
+
+- ASSUMPTION: GCP project and service account already configured (GOOGLE_APPLICATION_CREDENTIALS).
+- Constraint: Schema must support idempotent upserts by (video_id, chunk_id) or content_sha256.
+- Constraint: No secrets in code; dataset/table configurable via settings.yaml.
+
+# 3) Dependencies
+
+- `agents/autopiloot/config/settings.yaml`
+- `agents/autopiloot/config/env_loader.py`
+
+# 4) Context Plan
+
+Beginning (read-only):
+
+- agents/autopiloot/config/settings.yaml
+- agents/autopiloot/config/env_loader.py
+
+End state:
+
+- settings.yaml extended with `bigquery`:
+  - `dataset` (e.g., "autopiloot")
+  - `tables.transcript_chunks` (default: "transcript_chunks")
+  - `location` (e.g., "EU" or "US")
+- Documentation note in `docs/testing.md` on BigQuery local/dev setup.
+
+# 5) Low-Level Steps
+
+1. Extend settings.yaml with `bigquery.dataset`, `bigquery.tables.transcript_chunks`, `bigquery.location`.
+2. Add light validation in any config loader helpers (optional): ensure dataset/table names are non-empty strings.
+3. In the streaming tool, ensure dataset/table creation if missing with required schema:
+   - video_id STRING, chunk_id STRING, title STRING, channel_id STRING,
+   - published_at TIMESTAMP, duration_sec INT64,
+   - content_sha256 STRING, tokens INT64, text STRING
+   - primary key logic handled in code for idempotency.
+
+# 6) Acceptance Criteria
+
+- Application loads BigQuery config without errors.
+- The streaming tool can create dataset/table if missing and write rows.
+- Idempotent writes verified by hash or (video_id, chunk_id).
+
+# 7) Testing Strategy
+
+- Mock `google.cloud.bigquery.Client` and resources; verify create-if-not-exists logic and insert rows.
+- Coverage ≥ 80%; include HTML report.
+
+# 8) Notes
+
+- Prefer Storage Write API where available; fallback to `insert_rows_json` with batching.

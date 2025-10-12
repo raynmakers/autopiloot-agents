@@ -1,0 +1,26 @@
+---
+description: "Uniform authorization/policy enforcement post-fusion"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072M"
+title: "Policy enforcement in hybrid retrieval"
+status: "planned"
+priority: "P2"
+labels: ["security", "policy"]
+dependencies: ["TASK-RAG-0072E"]
+created: "2025-10-12"
+
+# 1) Objective
+
+Apply uniform authorization filtering across merged results before reasoning.
+
+# 2) Steps
+
+1. Central policy module; redact/mask when required.
+2. Enforce after fusion, before LLM call; log filtered items.
+
+# 3) Acceptance
+
+- Unauthorized items never reach LLM; logs auditable.

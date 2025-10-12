@@ -1,0 +1,27 @@
+---
+description: "Testing & coverage plan for hybrid RAG pipeline"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072Q"
+title: "Testing & Coverage for hybrid RAG"
+status: "planned"
+priority: "P1"
+labels: ["testing", "coverage"]
+dependencies: []
+created: "2025-10-12"
+
+# 1) Objective
+
+Achieve coverage targets and robust tests for tools and end-to-end flows.
+
+# 2) Steps
+
+1. Unit tests for tools (mock Zep/OpenSearch/BigQuery); ≥80% per tool; 100% init/config.
+2. Integration: save transcript → Zep/OS/BQ fan-out; retrieval fusion; degraded modes.
+3. Generate HTML coverage reports and include in repo.
+
+# 3) Acceptance
+
+- Coverage thresholds met; CI green; reports generated.

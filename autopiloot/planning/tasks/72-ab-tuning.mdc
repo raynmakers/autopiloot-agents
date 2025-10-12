@@ -1,0 +1,27 @@
+---
+description: "Add A/B tuning for fusion weights and scoring parameters"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072J"
+title: "A/B tuning for hybrid fusion"
+status: "planned"
+priority: "P3"
+labels: ["tuning", "retrieval", "observability_agent"]
+dependencies: ["TASK-RAG-0072E"]
+created: "2025-10-12"
+
+# 1) Objective
+
+Enable runtime-adjustable weights and experiment tags to evaluate fusion.
+
+# 2) Steps
+
+1. Configurable weights/top_k/timeouts with overrides via flags.
+2. Log parameters and outcomes; basic evaluator comparing fused vs single-source.
+3. Observability dashboards for experiments.
+
+# 3) Acceptance
+
+- Weights can be toggled without redeploy; experiment metrics visible.

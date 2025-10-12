@@ -1,0 +1,27 @@
+---
+description: "Wire post-transcription fan-out to Zep, OpenSearch, BigQuery (idempotent)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072O"
+title: "Orchestration fan-out after transcript save"
+status: "planned"
+priority: "P1"
+labels: ["orchestrator_agent", "transcriber_agent"]
+dependencies: ["TASK-RAG-0072B"]
+created: "2025-10-12"
+
+# 1) Objective
+
+After `save_transcript_record`, call Zep upsert → OpenSearch index → BigQuery stream with retries and DLQ.
+
+# 2) Steps
+
+1. Add orchestration tool or hook in `orchestrator_agent`.
+2. Ensure idempotency via content hash / (video_id, chunk_id).
+3. Non-blocking failures: log + DLQ + alert.
+
+# 3) Acceptance
+
+- Fan-out runs automatically on new transcripts; safe retries verified.

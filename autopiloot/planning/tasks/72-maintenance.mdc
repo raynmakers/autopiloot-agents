@@ -1,0 +1,27 @@
+---
+description: "Automated maintenance for embeddings refresh and OpenSearch reindex"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072K"
+title: "Maintenance playbooks for hybrid RAG"
+status: "planned"
+priority: "P3"
+labels: ["maintenance", "ops", "docs"]
+dependencies: []
+created: "2025-10-12"
+
+# 1) Objective
+
+Provide scripts/runbooks for embeddings refresh, Zep health checks, and OpenSearch reindex.
+
+# 2) Steps
+
+1. Docs in `docs/` for procedures and rollback.
+2. CLI scripts or Make targets to trigger maintenance.
+3. Safety checks and dry-run modes.
+
+# 3) Acceptance
+
+- Clear, executable procedures with validation steps.

@@ -1,5 +1,5 @@
 ---
-title: "Full Transcript Storage in Hybrid RAG (Zep + OpenSearch)"
+title: "Full Transcript Storage in Hybrid RAG (Zep + OpenSearch + BigQuery)"
 id: "ROADMAP-0072"
 created: "2025-10-08"
 status: "planned"
@@ -25,9 +25,10 @@ Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semanti
 - End-to-end ingestion of full transcripts into Zep collections with chunking and metadata
 - Metadata linking: `video_id`, `title`, `published_at`, `channel_id`, `transcript_doc_ref`, `duration_sec`, `prompt_version`
 - Idempotent upsert and deduplication via content hash (SHA-256) and `video_id`
-- Backfill pipeline for existing transcripts; streaming path for new transcripts
+- Streaming path for new transcripts only (no backfill)
 - Configurable chunking (token-aware) and embeddings parameters
 - Parallel indexing into OpenSearch index for BM25/phrase/filters on the same chunks and fields
+- Stream transcript chunks and metadata to BigQuery for analytics and SQL-based filters
 - Firestore references: persist `zep_transcript_doc_id` under `transcripts/{video_id}`
 - Observability: token/embedding usage tracking and error alerts
 
@@ -36,9 +37,8 @@ Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semanti
 1. New tools (Agency Swarm v1.0.2 compliant):
 
    - `summarizer_agent/tools/upsert_full_transcript_to_zep.py`
-   - `summarizer_agent/tools/backfill_full_transcripts_to_zep.py`
    - `summarizer_agent/tools/index_full_transcript_to_opensearch.py`
-   - `summarizer_agent/tools/backfill_full_transcripts_to_opensearch.py`
+   - `summarizer_agent/tools/stream_full_transcript_to_bigquery.py`
 
 2. Firestore schema updates:
 
@@ -46,19 +46,18 @@ Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semanti
 
 3. Configuration & Env:
 
-   - Extend `config/settings.yaml` with `zep.transcripts` and `rag.opensearch` sections (host, index name, chunking, weights)
-   - Ensure `ZEP_API_KEY`, `ZEP_BASE_URL`, `OPENSEARCH_HOST`, and either `OPENSEARCH_API_KEY` or `OPENSEARCH_USERNAME`/`OPENSEARCH_PASSWORD` present in env template and validated in `config/env_loader.py`
+   - Extend `config/settings.yaml` with `zep.transcripts`, `rag.opensearch` and `bigquery` sections (dataset, tables, region) and chunking/weights
+   - Ensure `ZEP_API_KEY`, `ZEP_BASE_URL`, `OPENSEARCH_HOST`, and either `OPENSEARCH_API_KEY` or `OPENSEARCH_USERNAME`/`OPENSEARCH_PASSWORD` present in env template and validated in `config/env_loader.py`. BigQuery uses existing `GOOGLE_APPLICATION_CREDENTIALS`/`GCP_PROJECT` with dataset/table settings in YAML.
 
 4. Orchestration:
 
-   - Wire ingestion after successful transcript storage (post `save_transcript_record`) to both Zep and OpenSearch
-   - Optional scheduled backfill job over historical `transcripts/*`
+   - Wire ingestion after successful transcript storage (post `save_transcript_record`) to Zep, OpenSearch, and BigQuery
    - Add `summarizer_agent/tools/hybrid_retrieval.py` to fan-out queries to Zep (semantic) and OpenSearch (keyword) and fuse (RRF/weighted)
 
 5. Testing & Coverage:
 
 - 80%+ coverage for new tools; 100% for any init/config paths
-   - Error-path tests for API failures, timeouts, large transcript chunking, duplicate detection
+  - Error-path tests for API failures, timeouts, large transcript chunking, duplicate detection
 
 # Milestones
 
@@ -72,10 +71,9 @@ M2 — Core Upsert (2–3 days)
 - Implement `upsert_full_transcript_to_zep.py` with chunking, hashing, metadata
 - Persist `zep_transcript_doc_id` to Firestore; idempotent behavior
 
-M3 — Backfill & Orchestration (2 days)
+M3 — Hybrid Retrieval & Orchestration (2 days)
 
-- Implement `backfill_full_transcripts_to_zep.py` with pagination and rate limits
-- Hook streaming path post-transcription
+- Implement hybrid retrieval tool and hook streaming path post-transcription
 
 M4 — Observability & Alerts (1 day)
 
@@ -86,10 +84,10 @@ M4 — Observability & Alerts (1 day)
 
 - New transcripts are ingested into Zep automatically with correct metadata and chunking
 - Identical chunks are indexed into OpenSearch with fields for filterable facets
-- Backfill covers existing `transcripts/*` with deduplication via `content_sha256`
 - Firestore updated with `zep_transcript_doc_id` and `rag_ingested_at`
 - Tools validate inputs with Pydantic and return JSON strings
 - Tests pass; coverage meets standards; HTML coverage reports generated
+- BigQuery dataset/table exist; streaming inserts are idempotent (by `video_id` + `chunk_id` or `content_sha256`)
 
 # Dependencies
 

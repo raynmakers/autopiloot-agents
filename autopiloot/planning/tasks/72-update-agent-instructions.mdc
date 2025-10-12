@@ -14,17 +14,23 @@ created: "2025-10-08"
 
 # 1) High-Level Objective
 
-Revise instructions to include indexing (Zep + OpenSearch) and hybrid retrieval usage.
+Revise instructions to include streaming fan-out (Zep + OpenSearch + BigQuery), hybrid retrieval usage, reasoning adapter, and adaptive routing.
 
 # 2) Low-Level Steps
 
 1. In `summarizer_agent/instructions.md`:
-   - After saving transcript, instruct to call both upsert-to-Zep and index-to-OpenSearch tools.
-   - Document hybrid retrieval usage and when to apply filters.
+
+   - After saving transcript, instruct to call upsert-to-Zep, index-to-OpenSearch, and stream-to-BigQuery tools.
+   - Document `hybrid_retrieval` usage, fusion weights, and filters; document `answer_with_hybrid_context` for LLM.
+   - Describe evidence alignment and conflict resolution behavior.
 
 2. In `orchestrator_agent/instructions.md`:
-   - Add responsibility to trigger backfill jobs and hybrid retrieval for downstream consumers.
-   - Emphasize Firestore as broker, but retrieval from Zep/OpenSearch.
+
+   - Add responsibility to trigger streaming fan-out on transcript save and expose retrieval entrypoint with adaptive routing.
+   - Emphasize Firestore as broker; retrieval layers are Zep/OpenSearch with optional BigQuery prefilter.
+
+3. In `observability_agent/instructions.md`:
+   - Track per-source latency, source coverage %, fusion weights used; send alerts on sustained failures.
 
 # 3) Acceptance Criteria
 

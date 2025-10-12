@@ -1,0 +1,27 @@
+---
+description: "Add tracing and observability for hybrid RAG (latency, coverage, errors)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072N"
+title: "Tracing & Observability for hybrid RAG"
+status: "planned"
+priority: "P2"
+labels: ["observability_agent", "metrics", "alerts"]
+dependencies: []
+created: "2025-10-12"
+
+# 1) Objective
+
+Instrument retrieval pipeline: per-source latency, error rates, coverage, fusion weights.
+
+# 2) Steps
+
+1. Add trace IDs across Zep/OS/BQ calls; measure timings.
+2. Collect metrics in `observability_agent`; Slack alerts on thresholds.
+3. Daily digest: coverage %, slow-path stats, error summaries.
+
+# 3) Acceptance
+
+- Dashboards and alerts in place; traceable requests.

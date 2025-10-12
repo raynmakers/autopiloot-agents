@@ -1,0 +1,27 @@
+---
+description: "Add evidence alignment and conflict resolution in reasoning"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072H"
+title: "Evidence alignment and conflict resolution"
+status: "planned"
+priority: "P2"
+labels: ["reasoning", "summarizer_agent"]
+dependencies: ["TASK-RAG-0072F"]
+created: "2025-10-12"
+
+# 1) Objective
+
+Detect overlaps across sources; resolve contradictions with trust hierarchy and optional BigQuery checks.
+
+# 2) Steps
+
+1. Implement alignment scoring between Zep/OS snippets.
+2. Verify claims with BigQuery structured facts when available.
+3. Emit rationale and decisions in final JSON.
+
+# 3) Acceptance
+
+- Conflicts flagged and deterministically resolved; rationale included.

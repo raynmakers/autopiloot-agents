@@ -1,0 +1,38 @@
+---
+description: "Build reasoning adapter to generate answers from fused hybrid retrieval context"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072F"
+title: "Create answer_with_hybrid_context tool (LLM adapter)"
+status: "planned"
+priority: "P1"
+labels: ["reasoning", "summarizer_agent", "llm"]
+dependencies: ["TASK-RAG-0072E"]
+created: "2025-10-12"
+
+# 1) High-Level Objective
+
+Turn fused results into prompt-ready context and call the LLM with structured output.
+
+# 2) End State
+
+- File: `summarizer_agent/tools/answer_with_hybrid_context.py`
+- JSON response includes final answer, citations (video_id, chunk_id), and source breakdown.
+
+# 3) Low-Level Steps
+
+1. Inputs: `query`, `filters`, `top_k`, `max_tokens_per_source`.
+2. Call `hybrid_retrieval`; trim/dedupe context; balance per-source contributions.
+3. Evidence alignment: highlight overlaps; conflict resolution using trust hierarchy and optional BigQuery verification.
+4. Invoke LLM with structured outputs (schema-enforced); return JSON with citations.
+
+# 4) Acceptance Criteria
+
+- Returns valid JSON with answer, citations, and metrics.
+- Handles conflicting signals with deterministic rules.
+
+# 5) Testing Strategy
+
+- Mock hybrid_retrieval and LLM; test alignment/trim logic and JSON schema adherence.

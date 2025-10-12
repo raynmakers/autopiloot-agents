@@ -1,0 +1,28 @@
+---
+description: "Add adaptive query routing to choose retrieval sources dynamically"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072G"
+title: "Implement adaptive query routing"
+status: "planned"
+priority: "P2"
+labels: ["routing", "orchestrator_agent", "retrieval"]
+dependencies: ["TASK-RAG-0072E"]
+created: "2025-10-12"
+
+# 1) High-Level Objective
+
+Route queries to Zep, OpenSearch, and/or BigQuery based on query signals and filters.
+
+# 2) Low-Level Steps
+
+1. Add routing rules: strict filters → OS+BQ; fuzzy intent → Zep; mixed → all.
+2. Config toggles for always-on vs adaptive; log routing decisions.
+3. Integrate in `orchestrator_agent` retrieval entrypoint.
+
+# 3) Acceptance Criteria
+
+- Routing decisions are logged and testable.
+- Fallback to all sources on uncertainty/timeouts.

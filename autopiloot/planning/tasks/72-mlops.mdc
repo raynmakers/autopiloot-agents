@@ -1,0 +1,27 @@
+---
+description: "Lifecycle/MLOps for hybrid RAG (model versions, CI tests, drift checks)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-RAG-0072L"
+title: "Lifecycle & MLOps for hybrid RAG"
+status: "planned"
+priority: "P3"
+labels: ["mlops", "ci", "testing"]
+dependencies: []
+created: "2025-10-12"
+
+# 1) Objective
+
+Track embedding model versions; add CI tests for hybrid scenarios; monitor drift.
+
+# 2) Steps
+
+1. Persist `embedding_model_version` in metadata.
+2. CI: hybrid retrieval tests to prevent regressions.
+3. Drift: monitor token lengths, retrieval coverage trends.
+
+# 3) Acceptance
+
+- CI gates include hybrid tests; drift metrics available.
