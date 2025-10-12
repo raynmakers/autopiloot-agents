@@ -225,6 +225,14 @@ drive:
       - ".csv"
 
 rag:
+  # Automatic workflow integration
+  auto_ingest_after_transcription: true  # Automatically ingest full transcripts to RAG systems after save_transcript_record
+  # When enabled, transcript workflow will automatically call:
+  # 1. UpsertFullTranscriptToZep (semantic search)
+  # 2. IndexFullTranscriptToOpenSearch (keyword search, if configured)
+  # 3. StreamFullTranscriptToBigQuery (SQL analytics, if configured)
+  # Failures in RAG ingestion do NOT block the transcript workflow
+
   zep:
     namespace:
       drive: "autopiloot-dev"  # Zep namespace for Drive content indexing
