@@ -717,6 +717,234 @@ export OPENSEARCH_API_KEY="test-api-key-opensearch"
 # Note: Leave OPENSEARCH_USERNAME and OPENSEARCH_PASSWORD empty to test API key auth
 ```
 
+### BigQuery Configuration Testing
+
+BigQuery provides transcript chunk storage and SQL-based analytics for Hybrid RAG. Configuration testing ensures proper GCP prerequisites and validates schema setup.
+
+#### Configuration Structure
+
+BigQuery configuration is split across two layers:
+
+1. **settings.yaml** (config/settings.yaml) - Dataset and table configuration:
+   ```yaml
+   rag:
+     bigquery:
+       enabled: true
+       dataset: "autopiloot"  # BigQuery dataset name
+       location: "EU"  # Dataset location (EU, US, etc.)
+       tables:
+         transcript_chunks: "transcript_chunks"  # Table name
+       schema:
+         # Auto-created schema if table doesn't exist:
+         # - video_id: STRING (YouTube video ID)
+         # - chunk_id: STRING (Unique chunk identifier)
+         # - title: STRING (Video title)
+         # - channel_id: STRING (YouTube channel ID)
+         # - published_at: TIMESTAMP (Video publication date)
+         # - duration_sec: INT64 (Video duration in seconds)
+         # - content_sha256: STRING (SHA256 hash for idempotency)
+         # - tokens: INT64 (Token count for chunk)
+         # - text: STRING (Chunk text content)
+       write_disposition: "WRITE_APPEND"
+       batch_size: 500  # Rows per batch insert
+   ```
+
+2. **Environment variables** - Uses existing GCP credentials:
+   ```bash
+   # Already required for Firestore and Drive
+   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+   GCP_PROJECT_ID=your-gcp-project-id
+   ```
+
+#### Prerequisites
+
+BigQuery requires the same GCP credentials used by Firestore and Google Drive:
+
+1. **Service Account**: Must have BigQuery permissions:
+   - `roles/bigquery.dataEditor` (read/write data)
+   - `roles/bigquery.jobUser` (run queries and jobs)
+2. **Project ID**: Must match the GCP project containing the dataset
+3. **Dataset Location**: Must match your data residency requirements (EU, US, etc.)
+
+#### Testing Configuration Validation
+
+Test the BigQuery validation logic using the `env_loader.py` test harness:
+
+```bash
+# Test with current environment
+cd autopiloot
+venv/bin/python config/env_loader.py
+
+# Expected output when GCP credentials are configured:
+#   - BigQuery configuration: ✅ your-project-id (ready for use)
+
+# Expected output when GCP credentials are missing:
+#   - BigQuery configuration: ⚪ GCP credentials required (see settings.yaml)
+```
+
+#### Schema Design and Idempotency
+
+The `transcript_chunks` table schema supports idempotent writes:
+
+**Primary Deduplication Strategy**: Use `(video_id, chunk_id)` composite key
+- Video ID uniquely identifies the source video
+- Chunk ID identifies the chunk within the video
+
+**Alternative Deduplication**: Use `content_sha256` hash
+- SHA256 hash of chunk text ensures exact content matching
+- Useful for detecting duplicate content across videos
+
+**Example Query for Deduplication**:
+```sql
+-- Check for existing chunks before insert
+SELECT video_id, chunk_id
+FROM `autopiloot.transcript_chunks`
+WHERE video_id = @video_id
+  AND chunk_id IN UNNEST(@chunk_ids)
+
+-- Or use content hash
+SELECT content_sha256
+FROM `autopiloot.transcript_chunks`
+WHERE content_sha256 IN UNNEST(@hashes)
+```
+
+#### Dataset and Table Creation
+
+Tools using BigQuery should follow this pattern:
+
+```python
+from google.cloud import bigquery
+from config.env_loader import get_required_env_var
+from config.loader import get_config_value
+
+def initialize_bigquery():
+    """Initialize BigQuery client and ensure dataset/table exist."""
+    project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project for BigQuery")
+    dataset_name = get_config_value("rag.bigquery.dataset", "autopiloot")
+    location = get_config_value("rag.bigquery.location", "EU")
+
+    client = bigquery.Client(project=project_id)
+
+    # Create dataset if not exists
+    dataset_id = f"{project_id}.{dataset_name}"
+    dataset = bigquery.Dataset(dataset_id)
+    dataset.location = location
+    dataset = client.create_dataset(dataset, exists_ok=True)
+
+    # Create table if not exists
+    table_name = get_config_value("rag.bigquery.tables.transcript_chunks", "transcript_chunks")
+    table_id = f"{dataset_id}.{table_name}"
+
+    schema = [
+        bigquery.SchemaField("video_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("chunk_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("title", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("channel_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("published_at", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("duration_sec", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("content_sha256", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("tokens", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("text", "STRING", mode="REQUIRED"),
+    ]
+
+    table = bigquery.Table(table_id, schema=schema)
+    table = client.create_table(table, exists_ok=True)
+
+    return client, table_id
+```
+
+#### Integration Testing
+
+When implementing BigQuery integration tools:
+
+1. **Mock BigQuery Client**:
+   ```python
+   from unittest.mock import patch, Mock
+
+   @patch('google.cloud.bigquery.Client')
+   def test_bigquery_initialization(self, mock_client):
+       # Mock dataset and table creation
+       mock_instance = Mock()
+       mock_instance.create_dataset.return_value = Mock()
+       mock_instance.create_table.return_value = Mock()
+       mock_client.return_value = mock_instance
+
+       # Test initialization logic
+       client, table_id = initialize_bigquery()
+       self.assertIsNotNone(client)
+       self.assertIn("transcript_chunks", table_id)
+   ```
+
+2. **Test Batch Insertion**:
+   ```python
+   @patch('google.cloud.bigquery.Client')
+   def test_batch_insert_chunks(self, mock_client):
+       # Mock insert_rows_json
+       mock_instance = Mock()
+       mock_instance.insert_rows_json.return_value = []  # Empty list = success
+       mock_client.return_value = mock_instance
+
+       # Test batch insertion
+       chunks = [{"video_id": "test", "chunk_id": "1", "text": "content"}]
+       errors = insert_transcript_chunks(chunks)
+       self.assertEqual(len(errors), 0)
+   ```
+
+3. **Test Idempotency**:
+   - Mock query to check existing chunks
+   - Verify only new chunks are inserted
+   - Test content hash collision handling
+
+#### Local Development and Testing
+
+For local development without affecting production data:
+
+1. **Use a separate dataset**:
+   ```yaml
+   # config/settings.yaml (development)
+   rag:
+     bigquery:
+       dataset: "autopiloot_dev"  # Separate dev dataset
+       location: "EU"
+   ```
+
+2. **Test with emulator** (optional):
+   ```bash
+   # BigQuery emulator not officially supported
+   # Instead, use separate dev dataset in GCP
+   gcloud config set project your-dev-project-id
+   ```
+
+3. **Clean up test data**:
+   ```sql
+   -- Delete test chunks after development
+   DELETE FROM `autopiloot_dev.transcript_chunks`
+   WHERE video_id LIKE 'test_%'
+   ```
+
+#### Performance Considerations
+
+1. **Batch Writes**: Use batch size of 500 rows (configurable in settings.yaml)
+2. **Streaming Inserts**: Consider Storage Write API for high-volume ingestion
+3. **Partitioning**: Add partitioning by `published_at` for large datasets:
+   ```python
+   table.time_partitioning = bigquery.TimePartitioning(
+       type_=bigquery.TimePartitioningType.DAY,
+       field="published_at"
+   )
+   ```
+
+#### CI Environment Variables
+
+For CI testing, BigQuery uses existing GCP credentials:
+
+```bash
+# GitHub Actions / CI
+export GCP_PROJECT_ID="test-project-123"
+export GOOGLE_APPLICATION_CREDENTIALS="/tmp/test-credentials.json"
+# BigQuery configuration loaded from settings.yaml
+```
+
 ### Security Testing
 
 The CI pipeline includes security validation:

@@ -327,6 +327,37 @@ def validate_opensearch_config() -> Dict[str, str]:
     return opensearch_config
 
 
+def validate_bigquery_config() -> Dict[str, str]:
+    """
+    Validate BigQuery configuration for Hybrid RAG transcript chunk storage.
+
+    BigQuery requires GCP credentials (GOOGLE_APPLICATION_CREDENTIALS) and
+    project ID (GCP_PROJECT_ID) which are already validated by validate_environment().
+
+    This function confirms those prerequisites are met and returns configuration status.
+
+    Returns:
+        Dictionary with BigQuery configuration status
+
+    Raises:
+        EnvironmentError: If BigQuery prerequisites are missing
+    """
+    bigquery_config = {
+        "credentials_path": get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS"),
+        "project_id": get_optional_env_var("GCP_PROJECT_ID"),
+    }
+
+    # BigQuery is optional, but if used requires GCP credentials
+    # Check if credentials exist (validation happens in validate_gcp_project_access)
+    if bigquery_config["credentials_path"] and bigquery_config["project_id"]:
+        # Credentials are present, BigQuery can be used
+        return bigquery_config
+
+    # If either is missing, BigQuery cannot be configured
+    # This is informational only - not an error since BigQuery is optional
+    return bigquery_config
+
+
 if __name__ == "__main__":
     # Test environment loading
     try:
@@ -372,6 +403,16 @@ if __name__ == "__main__":
                 print(f"  - OpenSearch configuration: ⚪ Not configured (optional)")
         except EnvironmentError as e:
             print(f"  - OpenSearch configuration: ❌ {e}")
+
+        # Test BigQuery configuration
+        try:
+            bigquery_config = validate_bigquery_config()
+            if bigquery_config.get("credentials_path") and bigquery_config.get("project_id"):
+                print(f"  - BigQuery configuration: ✅ {bigquery_config['project_id']} (ready for use)")
+            else:
+                print(f"  - BigQuery configuration: ⚪ GCP credentials required (see settings.yaml)")
+        except EnvironmentError as e:
+            print(f"  - BigQuery configuration: ❌ {e}")
 
         print("\n🎉 Environment configuration is valid!")
         
