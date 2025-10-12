@@ -159,6 +159,7 @@ rapidapi:
       endpoints:
         user_posts: "/api/v1/user/posts"
         user_profile: "/api/v1/user/profile"
+        user_comments: "/api/v1/user/comments"
         post_comments: "/api/v1/post/comments"
         post_comment_replies: "/api/v1/post/comments/replies"
         post_reactions: "/api/v1/post/reactions"

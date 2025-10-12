@@ -10,8 +10,10 @@ import time
 import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
+from urllib.parse import unquote
 from agency_swarm.tools import BaseTool
 from pydantic import Field
+from google.cloud import firestore
 
 # Add core and config directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
@@ -98,16 +100,34 @@ class GetUserCommentActivity(BaseTool):
             # Load environment variables
             load_environment()
 
-            # Get RapidAPI credentials
-            rapidapi_host = get_required_env_var("RAPIDAPI_LINKEDIN_HOST", "RapidAPI LinkedIn host")
-            rapidapi_key = get_required_env_var("RAPIDAPI_LINKEDIN_KEY", "RapidAPI key for LinkedIn")
+            # Get plugin name from linkedin.api.rapidapi_plugin
+            plugin_name = get_config_value("linkedin.api.rapidapi_plugin", "linkedin_scraper")
+
+            # Load plugin configuration
+            plugin_config = get_config_value(f"rapidapi.plugins.{plugin_name}", None)
+            if not plugin_config:
+                raise ValueError(f"RapidAPI plugin '{plugin_name}' not found in settings.yaml")
+
+            # Get host and API key env var name
+            rapidapi_host = plugin_config.get("host")
+            api_key_env = plugin_config.get("api_key_env")
+            endpoints = plugin_config.get("endpoints", {})
+
+            if not rapidapi_host or not api_key_env:
+                raise ValueError(f"Plugin '{plugin_name}' missing 'host' or 'api_key_env'")
+
+            # Get actual API key
+            rapidapi_key = get_required_env_var(api_key_env, f"RapidAPI key for {plugin_name}")
+
+            # Get endpoint path
+            endpoint_path = endpoints.get("user_comments", "/api/v1/user/comments")
 
             # Validate inputs
             if self.page_size > 100:
                 self.page_size = 100
 
             # Prepare API endpoint and headers
-            base_url = f"https://{rapidapi_host}/user-comment-activity"
+            base_url = f"https://{rapidapi_host}{endpoint_path}"
             headers = {
                 "X-RapidAPI-Host": rapidapi_host,
                 "X-RapidAPI-Key": rapidapi_key,
@@ -141,6 +161,9 @@ class GetUserCommentActivity(BaseTool):
             # Calculate activity metrics
             activity_metrics = self._calculate_metrics(comments, response_data)
 
+            # Store comments to Firestore
+            storage_results = self._store_comments_to_firestore(comments)
+
             # Extract pagination info
             pagination_info = response_data.get("pagination", {})
             has_more = pagination_info.get("hasMore", False)
@@ -149,6 +172,12 @@ class GetUserCommentActivity(BaseTool):
             result = {
                 "comments": comments,
                 "activity_metrics": activity_metrics,
+                "storage": {
+                    "total_stored": storage_results["total_stored"],
+                    "created": storage_results["created"],
+                    "updated": storage_results["updated"],
+                    "errors": storage_results["errors"]
+                },
                 "pagination": {
                     "page": self.page,
                     "page_size": self.page_size,
@@ -188,32 +217,54 @@ class GetUserCommentActivity(BaseTool):
         processed = []
 
         for comment in raw_comments:
+            # Extract activity metrics
+            activity = comment.get("activity", {})
+            likes = activity.get("num_likes", 0)
+            replies_count = activity.get("num_comments", 0)
+
+            # Extract comment URN and ID
+            # URN format: urn:li:fsd_comment:(7382328312960012288,urn:li:activity:7381586262505201666)
+            comment_urn = comment.get("urn", "")
+            comment_id = ""
+            if comment_urn and "(" in comment_urn:
+                # Extract the first number inside parentheses
+                parts = comment_urn.split("(")
+                if len(parts) > 1:
+                    comment_id = parts[1].split(",")[0]
+
+            if not comment_id:
+                comment_id = comment_urn
+
             processed_comment = {
-                "comment_id": comment.get("id", ""),
-                "text": comment.get("text", ""),
-                "created_at": comment.get("createdAt", ""),
-                "likes": comment.get("likes", 0),
-                "replies_count": comment.get("repliesCount", 0),
-                "is_edited": comment.get("isEdited", False)
+                "comment_id": comment_id,
+                "comment_urn": comment_urn,
+                "text": comment.get("comment", ""),
+                "created_at": comment.get("created_at", ""),
+                "likes": likes,
+                "replies_count": replies_count,
+                "is_edited": comment.get("is_edited", False)
             }
 
             # Include post context if available
-            if self.include_post_context and "postContext" in comment:
-                context = comment["postContext"]
+            if self.include_post_context and "post" in comment:
+                post = comment["post"]
+                post_author = post.get("author", {})
+
                 processed_comment["post_context"] = {
-                    "post_id": context.get("postId", ""),
-                    "post_author": context.get("authorName", ""),
-                    "post_author_headline": context.get("authorHeadline", ""),
-                    "post_title": context.get("title", ""),
-                    "post_url": context.get("url", ""),
-                    "post_date": context.get("publishedAt", "")
+                    "post_id": post.get("id", ""),
+                    "post_author": post_author.get("full_name", ""),
+                    "post_author_urn": post_author.get("urn", ""),
+                    "post_author_headline": post_author.get("description", ""),
+                    "post_text": post.get("text", "")[:200] + "..." if len(post.get("text", "")) > 200 else post.get("text", ""),
+                    "post_url": f"https://www.linkedin.com/feed/update/{post.get('id', '')}",
+                    "post_engagement": post.get("activity", {})
                 }
 
             # Add engagement metrics for the comment
             processed_comment["engagement"] = {
-                "likes": comment.get("likes", 0),
-                "replies": comment.get("repliesCount", 0),
-                "total_engagement": comment.get("likes", 0) + comment.get("repliesCount", 0)
+                "likes": likes,
+                "replies": replies_count,
+                "total_engagement": likes + replies_count
             }
 
             processed.append(processed_comment)
@@ -348,11 +399,183 @@ class GetUserCommentActivity(BaseTool):
 
         return None
 
+    def _decode_url_encoded_string(self, value: str) -> str:
+        """
+        Decode URL-encoded characters from strings.
+
+        Args:
+            value: String potentially containing URL-encoded characters
+
+        Returns:
+            str: Decoded string with proper UTF-8 characters
+        """
+        if not value or not isinstance(value, str):
+            return value
+
+        try:
+            return unquote(value)
+        except Exception:
+            return value
+
+    def _initialize_firestore(self):
+        """Initialize Firestore client with proper authentication."""
+        try:
+            project_id = get_required_env_var(
+                "GCP_PROJECT_ID",
+                "Google Cloud Project ID for Firestore"
+            )
+
+            credentials_path = get_required_env_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "Google service account credentials file path"
+            )
+
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
+
+            return firestore.Client(project=project_id)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+
+    def _store_profile_to_firestore(self, db, user_data: Dict) -> str:
+        """
+        Store user profile to Firestore with idempotent upsert.
+
+        Args:
+            db: Firestore client
+            user_data: User profile data
+
+        Returns:
+            str: User URN (profile ID)
+        """
+        try:
+            user_urn = user_data.get('urn', user_data.get('user_urn', ''))
+            if not user_urn:
+                return ''
+
+            doc_ref = db.collection('linkedin_profiles').document(user_urn)
+            existing_doc = doc_ref.get()
+
+            # Split name into first and last
+            full_name = self._decode_url_encoded_string(user_data.get('name', ''))
+            name_parts = full_name.split(' ', 1) if full_name else ['', '']
+            first_name = name_parts[0] if len(name_parts) > 0 else ''
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+            profile_data = {
+                'urn': user_urn,
+                'public_identifier': self._decode_url_encoded_string(user_data.get('public_identifier', '')),
+                'first_name': first_name,
+                'last_name': last_name,
+                'headline': self._decode_url_encoded_string(user_data.get('headline', '')),
+                'profile_url': self._decode_url_encoded_string(user_data.get('profile_url', '')),
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }
+
+            if not existing_doc.exists:
+                profile_data['created_at'] = firestore.SERVER_TIMESTAMP
+                doc_ref.set(profile_data)
+            else:
+                doc_ref.update(profile_data)
+
+            return user_urn
+
+        except Exception as e:
+            print(f"Error storing profile {user_data.get('urn', 'unknown')}: {str(e)}")
+            return ''
+
+    def _store_comments_to_firestore(self, comments: List[Dict]) -> Dict[str, int]:
+        """
+        Store user comment activity to Firestore with idempotent upsert.
+
+        Args:
+            comments: List of comment dictionaries
+
+        Returns:
+            dict: Storage statistics with counts for created, updated, errors
+        """
+        created = 0
+        updated = 0
+        errors = 0
+
+        if not comments:
+            return {"total_stored": 0, "created": 0, "updated": 0, "errors": 0}
+
+        try:
+            db = self._initialize_firestore()
+
+            # Store commenter profile once (the user whose activity we're fetching)
+            commenter_profile = {
+                'urn': self.user_urn,
+                'user_urn': self.user_urn
+            }
+            commenter_urn = self._store_profile_to_firestore(db, commenter_profile)
+
+            for comment in comments:
+                try:
+                    comment_id = comment.get("comment_id", "")
+                    if not comment_id:
+                        errors += 1
+                        continue
+
+                    # Create document reference
+                    doc_ref = db.collection('linkedin_comments').document(comment_id)
+                    existing_doc = doc_ref.get()
+
+                    # Prepare comment data
+                    comment_data = {
+                        'comment_id': comment_id,
+                        'author_urn': commenter_urn,  # The user whose activity we're tracking
+                        'text': self._decode_url_encoded_string(comment.get('text', '')),
+                        'created_at': comment.get('created_at', ''),
+                        'likes': comment.get('likes', 0),
+                        'replies_count': comment.get('replies_count', 0),
+                        'is_edited': comment.get('is_edited', False),
+                        'engagement': comment.get('engagement', {}),
+                        'status': 'discovered',
+                        'updated_at': firestore.SERVER_TIMESTAMP
+                    }
+
+                    # Add post context if available
+                    if 'post_context' in comment:
+                        comment_data['post_context'] = comment['post_context']
+
+                    # Idempotent upsert
+                    if not existing_doc.exists:
+                        comment_data['created_at'] = firestore.SERVER_TIMESTAMP
+                        doc_ref.set(comment_data)
+                        created += 1
+                    else:
+                        doc_ref.update(comment_data)
+                        updated += 1
+
+                except Exception as e:
+                    print(f"Error storing comment {comment.get('comment_id', 'unknown')}: {str(e)}")
+                    errors += 1
+                    continue
+
+            return {
+                "total_stored": created + updated,
+                "created": created,
+                "updated": updated,
+                "errors": errors
+            }
+
+        except Exception as e:
+            print(f"Firestore storage error: {str(e)}")
+            return {
+                "total_stored": 0,
+                "created": 0,
+                "updated": 0,
+                "errors": len(comments)
+            }
+
 
 if __name__ == "__main__":
-    # Test the tool
+    # Test the tool with ilke-oner's URN
     tool = GetUserCommentActivity(
-        user_urn="alexhormozi",
+        user_urn="ACoAAAHgd4AByBB_-yxtC25kj4Kmlw9ubw8Vmtk",  # ilke-oner
         page=1,
         page_size=25,
         include_post_context=True
