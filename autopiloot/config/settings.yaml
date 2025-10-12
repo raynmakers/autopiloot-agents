@@ -229,6 +229,31 @@ rag:
     namespace:
       drive: "autopiloot-dev"  # Zep namespace for Drive content indexing
 
+    # Full transcript storage configuration for Hybrid RAG
+    transcripts:
+      enabled: true
+      group_format: "youtube_transcripts_{channel_id}"  # Group format for transcript threads
+      thread_id_format: "transcript_{video_id}"  # Thread ID format: e.g., "transcript_mZxDw92UXmA"
+      user_id_format: "youtube_{channel_id}"  # User ID format for channel organization
+
+      chunking:
+        # Token-aware chunking for long transcripts
+        max_tokens_per_chunk: 1000  # Maximum tokens per chunk (balance retrieval granularity vs context)
+        overlap_tokens: 100  # Token overlap between chunks for context continuity
+        strategy: "token_aware"  # Chunking strategy: "token_aware" or "paragraph"
+
+      metadata:
+        # Metadata fields to store with each chunk
+        include_video_metadata: true  # Include title, channel_id, published_at, duration_sec
+        include_content_hash: true  # SHA-256 hash for idempotency and deduplication
+        include_chunk_position: true  # Store chunk_index and total_chunks for ordering
+        include_timestamp_range: true  # Store start_time and end_time if available
+
+      deduplication:
+        # Idempotency strategy for transcript chunks
+        strategy: "content_hash"  # Options: "content_hash", "video_id_chunk_id", "both"
+        hash_algorithm: "sha256"  # Hash algorithm for content deduplication
+
   opensearch:
     # OpenSearch configuration for keyword/boolean retrieval in Hybrid RAG
     # Used alongside Zep for semantic + keyword search combination
