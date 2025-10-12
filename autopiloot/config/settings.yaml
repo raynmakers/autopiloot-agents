@@ -229,3 +229,22 @@ rag:
     namespace:
       drive: "autopiloot-dev"  # Zep namespace for Drive content indexing
 
+  opensearch:
+    # OpenSearch configuration for keyword/boolean retrieval in Hybrid RAG
+    # Used alongside Zep for semantic + keyword search combination
+    enabled: true
+    host: ""  # Set via OPENSEARCH_HOST environment variable
+    index_transcripts: "autopiloot_transcripts"  # Index name for transcript storage
+    top_k: 20  # Number of results to retrieve from OpenSearch
+    timeout_ms: 1500  # Request timeout in milliseconds
+    weights:
+      # Hybrid search weights (must sum to 1.0)
+      semantic: 0.6  # Weight for semantic (vector) search results
+      keyword: 0.4   # Weight for keyword (BM25) search results
+    connection:
+      # Connection settings
+      verify_certs: true  # Verify SSL certificates
+      use_ssl: true       # Use SSL/TLS for connections
+      max_retries: 3      # Maximum number of retry attempts
+      retry_on_timeout: true  # Retry on timeout errors
+

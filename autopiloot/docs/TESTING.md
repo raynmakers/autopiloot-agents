@@ -565,6 +565,158 @@ export GOOGLE_DRIVE_FOLDER_ID_TRANSCRIPTS="test-folder-transcripts"
 export GOOGLE_DRIVE_FOLDER_ID_SUMMARIES="test-folder-summaries"
 ```
 
+### OpenSearch Configuration Testing
+
+OpenSearch provides keyword/boolean retrieval for Hybrid RAG (alongside Zep semantic search). Configuration testing ensures proper authentication setup and validation logic.
+
+#### Configuration Structure
+
+OpenSearch configuration is split across two layers:
+
+1. **settings.yaml** (config/settings.yaml) - Operational settings:
+   ```yaml
+   rag:
+     opensearch:
+       enabled: true
+       host: ""  # Set via OPENSEARCH_HOST environment variable
+       index_transcripts: "autopiloot_transcripts"
+       top_k: 20
+       timeout_ms: 1500
+       weights:
+         semantic: 0.6  # Zep semantic search weight
+         keyword: 0.4   # OpenSearch keyword search weight
+       connection:
+         verify_certs: true
+         use_ssl: true
+         max_retries: 3
+         retry_on_timeout: true
+   ```
+
+2. **.env file** - Authentication credentials:
+   ```bash
+   # OpenSearch host (required to enable OpenSearch)
+   OPENSEARCH_HOST=https://your-opensearch-instance.com:9200
+
+   # Authentication: Use API Key OR Username+Password
+   OPENSEARCH_API_KEY=your-api-key-here
+   # OR
+   OPENSEARCH_USERNAME=admin
+   OPENSEARCH_PASSWORD=your-password-here
+   ```
+
+#### Authentication Requirements
+
+The validation logic in `config/env_loader.py` ensures:
+
+1. **Optional Feature**: If `OPENSEARCH_HOST` is empty, OpenSearch is disabled (no error)
+2. **Authentication Required**: If `OPENSEARCH_HOST` is set, at least one auth method must be configured:
+   - **Option A**: `OPENSEARCH_API_KEY` (API key authentication)
+   - **Option B**: `OPENSEARCH_USERNAME` + `OPENSEARCH_PASSWORD` (basic authentication)
+3. **Basic Auth Validation**: Both username AND password required together
+
+#### Testing Configuration Validation
+
+Test the OpenSearch validation logic using the `env_loader.py` test harness:
+
+```bash
+# Test with current environment
+cd autopiloot
+python config/env_loader.py
+
+# Expected output when OpenSearch is not configured:
+#   - OpenSearch configuration: ⚪ Not configured (optional)
+
+# Expected output when OpenSearch is configured with API key:
+#   - OpenSearch configuration: ✅ https://your-host.com:9200 (API Key)
+
+# Expected output when OpenSearch is configured with basic auth:
+#   - OpenSearch configuration: ✅ https://your-host.com:9200 (Basic Auth)
+```
+
+#### Error Scenarios to Test
+
+1. **Missing Authentication**:
+   ```bash
+   # Set host but no auth credentials
+   export OPENSEARCH_HOST="https://example.com:9200"
+   export OPENSEARCH_API_KEY=""
+   export OPENSEARCH_USERNAME=""
+   export OPENSEARCH_PASSWORD=""
+
+   python config/env_loader.py
+   # Expected: ❌ Error about missing authentication method
+   ```
+
+2. **Incomplete Basic Auth**:
+   ```bash
+   # Username without password
+   export OPENSEARCH_HOST="https://example.com:9200"
+   export OPENSEARCH_USERNAME="admin"
+   export OPENSEARCH_PASSWORD=""
+
+   python config/env_loader.py
+   # Expected: ❌ Error about requiring both username and password
+   ```
+
+3. **Valid API Key Authentication**:
+   ```bash
+   export OPENSEARCH_HOST="https://example.com:9200"
+   export OPENSEARCH_API_KEY="valid-api-key"
+
+   python config/env_loader.py
+   # Expected: ✅ OpenSearch configuration valid
+   ```
+
+4. **Valid Basic Authentication**:
+   ```bash
+   export OPENSEARCH_HOST="https://example.com:9200"
+   export OPENSEARCH_USERNAME="admin"
+   export OPENSEARCH_PASSWORD="secret"
+
+   python config/env_loader.py
+   # Expected: ✅ OpenSearch configuration valid
+   ```
+
+#### Integration Testing
+
+When implementing OpenSearch integration tools:
+
+1. **Mock OpenSearch Client**:
+   ```python
+   from unittest.mock import patch, Mock
+
+   @patch('opensearchpy.OpenSearch')
+   def test_opensearch_connection(self, mock_client):
+       # Mock successful connection
+       mock_instance = Mock()
+       mock_instance.info.return_value = {"version": {"number": "2.11.0"}}
+       mock_client.return_value = mock_instance
+
+       # Test connection logic
+       client = create_opensearch_client()
+       self.assertIsNotNone(client)
+   ```
+
+2. **Test Both Authentication Methods**:
+   - Test API key authentication path
+   - Test basic authentication path
+   - Test authentication failure scenarios
+
+3. **Test Hybrid Search Weights**:
+   - Verify semantic and keyword weights sum to 1.0
+   - Test weight configuration loading from settings.yaml
+
+#### CI Environment Variables
+
+For CI testing, add mock OpenSearch credentials:
+
+```bash
+# GitHub Actions / CI
+export OPENSEARCH_HOST="https://test-opensearch.localhost:9200"
+export OPENSEARCH_API_KEY="test-api-key-opensearch"
+# Note: Leave OPENSEARCH_USERNAME and OPENSEARCH_PASSWORD empty to test API key auth
+```
+
 ### Security Testing
 
 The CI pipeline includes security validation:

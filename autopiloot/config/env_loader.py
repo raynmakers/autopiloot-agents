@@ -124,6 +124,10 @@ def validate_environment() -> Dict[str, str]:
         "LANGFUSE_PUBLIC_KEY": "",   # Optional for observability
         "LANGFUSE_SECRET_KEY": "",   # Optional for observability
         "SLACK_ALERTS_CHANNEL": "",  # Optional, can be set in settings.yaml
+        "OPENSEARCH_HOST": "",       # Optional for Hybrid RAG keyword retrieval
+        "OPENSEARCH_API_KEY": "",    # Optional API key authentication
+        "OPENSEARCH_USERNAME": "",   # Optional basic auth username
+        "OPENSEARCH_PASSWORD": "",   # Optional basic auth password
     }
     
     env_values = {}
@@ -259,7 +263,7 @@ def get_api_key(service: str) -> str:
 def get_langfuse_config() -> Dict[str, str]:
     """
     Get Langfuse configuration for LLM observability.
-    
+
     Returns:
         Dictionary with Langfuse configuration (may contain empty values if not configured)
     """
@@ -268,6 +272,59 @@ def get_langfuse_config() -> Dict[str, str]:
         "secret_key": get_optional_env_var("LANGFUSE_SECRET_KEY"),
         "host": get_optional_env_var("LANGFUSE_HOST", "https://cloud.langfuse.com"),
     }
+
+
+def validate_opensearch_config() -> Dict[str, str]:
+    """
+    Validate OpenSearch configuration for Hybrid RAG.
+
+    Checks that if OpenSearch is enabled and host is provided, at least one
+    authentication method is configured (API key OR username+password).
+
+    Returns:
+        Dictionary with OpenSearch configuration
+
+    Raises:
+        EnvironmentError: If OpenSearch is enabled but authentication is incomplete
+    """
+    opensearch_config = {
+        "host": get_optional_env_var("OPENSEARCH_HOST"),
+        "api_key": get_optional_env_var("OPENSEARCH_API_KEY"),
+        "username": get_optional_env_var("OPENSEARCH_USERNAME"),
+        "password": get_optional_env_var("OPENSEARCH_PASSWORD"),
+    }
+
+    # If host is not set, OpenSearch is not configured (optional feature)
+    if not opensearch_config["host"]:
+        return opensearch_config
+
+    # If host is set, validate authentication
+    has_api_key = bool(opensearch_config["api_key"])
+    has_basic_auth = bool(opensearch_config["username"]) and bool(opensearch_config["password"])
+
+    if not has_api_key and not has_basic_auth:
+        raise EnvironmentError(
+            "OpenSearch host is configured but no authentication method is provided.\n"
+            "  Either set:\n"
+            "    - OPENSEARCH_API_KEY for API key authentication, OR\n"
+            "    - OPENSEARCH_USERNAME and OPENSEARCH_PASSWORD for basic authentication\n"
+            "  To disable OpenSearch, leave OPENSEARCH_HOST empty or set rag.opensearch.enabled to false in settings.yaml"
+        )
+
+    # Validate that basic auth has both username AND password
+    if opensearch_config["username"] and not opensearch_config["password"]:
+        raise EnvironmentError(
+            "OPENSEARCH_USERNAME is set but OPENSEARCH_PASSWORD is missing.\n"
+            "  Basic authentication requires both username and password."
+        )
+
+    if opensearch_config["password"] and not opensearch_config["username"]:
+        raise EnvironmentError(
+            "OPENSEARCH_PASSWORD is set but OPENSEARCH_USERNAME is missing.\n"
+            "  Basic authentication requires both username and password."
+        )
+
+    return opensearch_config
 
 
 if __name__ == "__main__":
@@ -304,7 +361,18 @@ if __name__ == "__main__":
             print(f"  - GCP project access: ✅ {project_id}")
         except EnvironmentError as e:
             print(f"  - GCP project access: ❌ {e}")
-        
+
+        # Test OpenSearch configuration
+        try:
+            opensearch_config = validate_opensearch_config()
+            if opensearch_config.get("host"):
+                auth_method = "API Key" if opensearch_config.get("api_key") else "Basic Auth"
+                print(f"  - OpenSearch configuration: ✅ {opensearch_config['host']} ({auth_method})")
+            else:
+                print(f"  - OpenSearch configuration: ⚪ Not configured (optional)")
+        except EnvironmentError as e:
+            print(f"  - OpenSearch configuration: ❌ {e}")
+
         print("\n🎉 Environment configuration is valid!")
         
     except EnvironmentError as e:
