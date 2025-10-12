@@ -189,6 +189,26 @@ class IndexFullTranscriptToOpenSearch(BaseTool):
             if errors:
                 print(f"   ⚠️ {len(errors)} indexing errors")
 
+            # Track usage metrics for observability
+            total_tokens = sum(doc["tokens"] for doc in documents)
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from track_rag_usage import TrackRagUsage
+
+                tracker = TrackRagUsage(
+                    video_id=self.video_id,
+                    operation="opensearch_index",
+                    tokens_processed=total_tokens,
+                    chunks_created=len(documents),
+                    embeddings_generated=0,  # OpenSearch uses BM25, no embeddings
+                    storage_system="opensearch",
+                    status="success" if indexed_count == len(documents) else "partial"
+                )
+                tracker.run()
+                print(f"   ✓ Usage metrics tracked")
+            except Exception as tracking_error:
+                print(f"   ⚠️ Warning: Failed to track usage: {str(tracking_error)}")
+
             return json.dumps({
                 "index_name": index_name,
                 "video_id": self.video_id,
@@ -197,14 +217,37 @@ class IndexFullTranscriptToOpenSearch(BaseTool):
                 "error_count": len(errors),
                 "errors": errors if errors else None,
                 "content_hashes": [doc["content_sha256"] for doc in documents],
+                "total_tokens": total_tokens,
                 "status": "indexed" if indexed_count == len(documents) else "partial",
                 "message": f"Indexed {indexed_count} chunks to OpenSearch index '{index_name}'"
             }, indent=2)
 
         except Exception as e:
+            error_msg = str(e)
+
+            # Send error alert to Slack
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from send_rag_error_alert import SendRagErrorAlert
+
+                alerter = SendRagErrorAlert(
+                    video_id=self.video_id,
+                    operation="opensearch_index",
+                    storage_system="opensearch",
+                    error_message=error_msg,
+                    error_type="connection" if "connection" in error_msg.lower() or "timeout" in error_msg.lower() else "authentication" if "auth" in error_msg.lower() else "unknown",
+                    video_title=self.title,
+                    channel_id=self.channel_id,
+                    additional_context={"host": get_optional_env_var("OPENSEARCH_HOST")}
+                )
+                alerter.run()
+                print(f"   ✓ Error alert sent to Slack")
+            except Exception as alert_error:
+                print(f"   ⚠️ Warning: Failed to send error alert: {str(alert_error)}")
+
             return json.dumps({
                 "error": "indexing_failed",
-                "message": f"Failed to index transcript to OpenSearch: {str(e)}",
+                "message": f"Failed to index transcript to OpenSearch: {error_msg}",
                 "video_id": self.video_id
             })
 
