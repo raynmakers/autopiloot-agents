@@ -227,6 +227,26 @@ class StreamFullTranscriptToBigQuery(BaseTool):
 
             print(f"   ✅ Inserted {len(new_rows)} chunks successfully")
 
+            # Track usage metrics for observability
+            total_tokens = sum(row["tokens"] for row in rows)
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from track_rag_usage import TrackRagUsage
+
+                tracker = TrackRagUsage(
+                    video_id=self.video_id,
+                    operation="bigquery_stream",
+                    tokens_processed=total_tokens,
+                    chunks_created=len(rows),
+                    embeddings_generated=0,  # BigQuery doesn't generate embeddings
+                    storage_system="bigquery",
+                    status="success"
+                )
+                tracker.run()
+                print(f"   ✓ Usage metrics tracked")
+            except Exception as tracking_error:
+                print(f"   ⚠️ Warning: Failed to track usage: {str(tracking_error)}")
+
             return json.dumps({
                 "dataset": dataset_name,
                 "table": table_name,
@@ -235,14 +255,36 @@ class StreamFullTranscriptToBigQuery(BaseTool):
                 "inserted_count": len(new_rows),
                 "skipped_count": len(existing_chunk_ids),
                 "content_hashes": [row["content_sha256"] for row in rows],
+                "total_tokens": total_tokens,
                 "status": "streamed",
                 "message": f"Streamed {len(new_rows)} new chunks to BigQuery table '{table_name}' (skipped {len(existing_chunk_ids)} existing)"
             }, indent=2)
 
         except Exception as e:
+            error_msg = str(e)
+
+            # Send error alert to Slack
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from send_rag_error_alert import SendRagErrorAlert
+
+                alerter = SendRagErrorAlert(
+                    video_id=self.video_id,
+                    operation="bigquery_stream",
+                    storage_system="bigquery",
+                    error_message=error_msg,
+                    error_type="authentication" if "credential" in error_msg.lower() or "permission" in error_msg.lower() else "unknown",
+                    video_title=self.title,
+                    channel_id=self.channel_id
+                )
+                alerter.run()
+                print(f"   ✓ Error alert sent to Slack")
+            except Exception as alert_error:
+                print(f"   ⚠️ Warning: Failed to send error alert: {str(alert_error)}")
+
             return json.dumps({
                 "error": "streaming_failed",
-                "message": f"Failed to stream transcript to BigQuery: {str(e)}",
+                "message": f"Failed to stream transcript to BigQuery: {error_msg}",
                 "video_id": self.video_id
             })
 

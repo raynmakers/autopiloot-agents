@@ -195,12 +195,32 @@ class UpsertFullTranscriptToZep(BaseTool):
             print(f"   ✅ Transcript stored successfully!")
             print(f"   Message UUIDs: {len(message_results)} chunks stored")
 
+            # Track usage metrics for observability
+            total_tokens = sum(c["tokens"] for c in chunks_with_hashes)
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from track_rag_usage import TrackRagUsage
+
+                tracker = TrackRagUsage(
+                    video_id=self.video_id,
+                    operation="zep_upsert",
+                    tokens_processed=total_tokens,
+                    chunks_created=len(chunks_with_hashes),
+                    embeddings_generated=len(chunks_with_hashes),  # Zep auto-generates embeddings
+                    storage_system="zep",
+                    status="success"
+                )
+                tracker.run()
+                print(f"   ✓ Usage metrics tracked")
+            except Exception as tracking_error:
+                print(f"   ⚠️ Warning: Failed to track usage: {str(tracking_error)}")
+
             return json.dumps({
                 "thread_id": thread_id,
                 "group": group,
                 "chunk_count": len(chunks_with_hashes),
                 "message_uuids": message_results,
-                "total_tokens": sum(c["tokens"] for c in chunks_with_hashes),
+                "total_tokens": total_tokens,
                 "content_hashes": [c["content_sha256"] for c in chunks_with_hashes],
                 "channel_handle": self.channel_handle,
                 "status": "stored",
@@ -208,9 +228,30 @@ class UpsertFullTranscriptToZep(BaseTool):
             }, indent=2)
 
         except Exception as e:
+            error_msg = str(e)
+
+            # Send error alert to Slack
+            try:
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
+                from send_rag_error_alert import SendRagErrorAlert
+
+                alerter = SendRagErrorAlert(
+                    video_id=self.video_id,
+                    operation="zep_upsert",
+                    storage_system="zep",
+                    error_message=error_msg,
+                    error_type="connection" if "connection" in error_msg.lower() or "timeout" in error_msg.lower() else "unknown",
+                    video_title=self.title,
+                    channel_id=self.channel_id
+                )
+                alerter.run()
+                print(f"   ✓ Error alert sent to Slack")
+            except Exception as alert_error:
+                print(f"   ⚠️ Warning: Failed to send error alert: {str(alert_error)}")
+
             return json.dumps({
                 "error": "storage_failed",
-                "message": f"Failed to store transcript in Zep: {str(e)}",
+                "message": f"Failed to store transcript in Zep: {error_msg}",
                 "video_id": self.video_id
             })
 
