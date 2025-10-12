@@ -14,7 +14,7 @@ created: "2025-10-08"
 
 # 1) High-Level Objective
 
-Configure BigQuery to store transcript chunks and metadata for analytics, reporting, and SQL-based filtering in Hybrid RAG.
+Configure BigQuery to store transcript metadata (no full text) for analytics, reporting, and SQL-based filtering in Hybrid RAG. Optionally store a short `text_snippet` (<=256 chars) for previews.
 
 # 2) Assumptions & Constraints
 
@@ -46,17 +46,17 @@ End state:
 
 1. Extend settings.yaml with `bigquery.dataset`, `bigquery.tables.transcript_chunks`, `bigquery.location`.
 2. Add light validation in any config loader helpers (optional): ensure dataset/table names are non-empty strings.
-3. In the streaming tool, ensure dataset/table creation if missing with required schema:
+3. In the streaming tool, ensure dataset/table creation if missing with required schema (metadata only, no full text):
    - video_id STRING, chunk_id STRING, title STRING, channel_id STRING,
    - published_at TIMESTAMP, duration_sec INT64,
-   - content_sha256 STRING, tokens INT64, text STRING
+   - content_sha256 STRING, tokens INT64, text_snippet STRING (<=256)
    - primary key logic handled in code for idempotency.
 
 # 6) Acceptance Criteria
 
 - Application loads BigQuery config without errors.
 - The streaming tool can create dataset/table if missing and write rows.
-- Idempotent writes verified by hash or (video_id, chunk_id).
+- Idempotent writes verified by hash or (video_id, chunk_id). No full transcript text stored.
 
 # 7) Testing Strategy
 

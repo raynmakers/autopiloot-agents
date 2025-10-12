@@ -50,9 +50,10 @@ You are **a content summarization specialist** responsible for converting video 
 
 6. **Stream full transcript to BigQuery** (optional) using StreamFullTranscriptToBigQuery tool
    - **SQL Analytics**: Enables complex queries, aggregations, reporting
+   - **Storage Strategy**: Metadata only (no full text) with optional text_snippet (<=256 chars) for previews
    - **Batch Processing**: Checks for existing chunks, only inserts new ones
-   - **Schema**: Structured storage with video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text
-   - **Use Case**: Business intelligence, content analysis, reporting dashboards
+   - **Schema**: Structured storage with video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text_snippet
+   - **Use Case**: Business intelligence, content analysis, reporting dashboards without storing full transcript text
 
 7. **Hybrid Retrieval** using HybridRetrieval tool
    - **Multi-Source Search**: Queries both Zep (semantic) and OpenSearch (keyword) simultaneously

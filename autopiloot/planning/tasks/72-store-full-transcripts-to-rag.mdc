@@ -28,7 +28,7 @@ Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semanti
 - Streaming path for new transcripts only (no backfill)
 - Configurable chunking (token-aware) and embeddings parameters
 - Parallel indexing into OpenSearch index for BM25/phrase/filters on the same chunks and fields
-- Stream transcript chunks and metadata to BigQuery for analytics and SQL-based filters
+- Stream transcript metadata (no full text) to BigQuery for analytics and SQL-based filters; include optional short `text_snippet` (<=256 chars)
 - Firestore references: persist `zep_transcript_doc_id` under `transcripts/{video_id}`
 - Observability: token/embedding usage tracking and error alerts
 
@@ -46,7 +46,7 @@ Store and index full transcripts in a Hybrid RAG setup: Zep GraphRAG for semanti
 
 3. Configuration & Env:
 
-   - Extend `config/settings.yaml` with `zep.transcripts`, `rag.opensearch` and `bigquery` sections (dataset, tables, region) and chunking/weights
+   - Extend `config/settings.yaml` with `zep.transcripts`, `rag.opensearch` and `bigquery` sections (dataset, tables, region) and chunking/weights. BigQuery config clarifies metadata-only storage (no full text).
    - Ensure `ZEP_API_KEY`, `ZEP_BASE_URL`, `OPENSEARCH_HOST`, and either `OPENSEARCH_API_KEY` or `OPENSEARCH_USERNAME`/`OPENSEARCH_PASSWORD` present in env template and validated in `config/env_loader.py`. BigQuery uses existing `GOOGLE_APPLICATION_CREDENTIALS`/`GCP_PROJECT` with dataset/table settings in YAML.
 
 4. Orchestration:

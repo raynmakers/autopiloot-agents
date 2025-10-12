@@ -276,6 +276,7 @@ rag:
   bigquery:
     # BigQuery configuration for transcript chunk storage and analytics
     # Provides SQL-based filtering, reporting, and structured data access for Hybrid RAG
+    # Storage Strategy: METADATA ONLY (no full text) with optional text_snippet (<=256 chars) for previews
     # Uses existing GOOGLE_APPLICATION_CREDENTIALS and GCP_PROJECT_ID from environment
     enabled: true
     dataset: "autopiloot"  # BigQuery dataset name
@@ -292,7 +293,7 @@ rag:
       # - duration_sec: INT64 (Video duration in seconds)
       # - content_sha256: STRING (SHA256 hash of chunk text for idempotency)
       # - tokens: INT64 (Token count for chunk)
-      # - text: STRING (Chunk text content)
+      # - text_snippet: STRING (Preview text, max 256 chars - metadata only, no full text)
       # Idempotent writes handled by (video_id, chunk_id) or content_sha256
     write_disposition: "WRITE_APPEND"  # Append new rows (handle deduplication in queries)
     batch_size: 500  # Number of rows per batch insert

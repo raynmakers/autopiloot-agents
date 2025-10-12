@@ -32,16 +32,17 @@ Implement production tools to upsert full transcripts to Zep (semantic) and Open
 1. Shared chunking helper (in the tool): sentence/paragraph-aware, token-aware caps, small overlap.
 2. Zep upsert tool: push chunks + metadata; return `{ ok, zep_transcript_doc_id }`.
 3. OpenSearch index tool: create index if missing (mappings for fields + fulltext); index chunks with fields: video_id, title, channel_id, published_at (date), duration_sec, content_sha256, chunk_id, text.
-4. BigQuery stream tool: ensure dataset/table exist; schema includes video_id, title, channel_id, published_at (TIMESTAMP), duration_sec, content_sha256, chunk_id, text, tokens; upsert/idempotency by (video_id, chunk_id) or content_sha256.
+4. BigQuery stream tool (metadata only): ensure dataset/table exist; schema includes video_id, title, channel_id, published_at (TIMESTAMP), duration_sec, content_sha256, chunk_id, tokens, and optional text_snippet (<=256 chars). Do NOT store full transcript text in BigQuery. Upsert/idempotency by (video_id, chunk_id) or content_sha256.
 5. Wire all tools to be callable after `save_transcript_record`.
 
 # 5) Acceptance Criteria
 
 - Both tools validate env/config and return JSON.
 - Duplicate runs do not create duplicate docs (hash/idempotency).
-- BigQuery streaming is idempotent and respects schema.
+- BigQuery streaming is idempotent, respects schema, and excludes full transcript text.
 
 # 6) Testing Strategy
 
 - Mock HTTP for Zep; mock OpenSearch client; mock `google.cloud.bigquery.Client`.
+- Verify no payload includes full transcript text; enforce snippet length cap.
 - Coverage ≥ 80%; HTML report updated.

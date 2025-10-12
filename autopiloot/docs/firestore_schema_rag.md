@@ -4,7 +4,7 @@ This document describes the Firestore schema extensions for Hybrid RAG full tran
 
 ## Overview
 
-The Hybrid RAG system extends the `transcripts/{video_id}` collection with additional fields to track full transcript ingestion across three storage surfaces: Zep (semantic), OpenSearch (keyword), and BigQuery (SQL analytics).
+The Hybrid RAG system extends the `transcripts/{video_id}` collection with additional fields to track full transcript ingestion across three storage surfaces: Zep (semantic), OpenSearch (keyword), and BigQuery (SQL analytics with metadata only).
 
 ## Updated `transcripts/{video_id}` Schema
 

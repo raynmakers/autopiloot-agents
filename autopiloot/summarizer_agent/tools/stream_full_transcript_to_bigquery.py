@@ -5,7 +5,8 @@ Provides SQL-based analytics, reporting, and structured data access for Hybrid R
 BigQuery Architecture:
 - Dataset: autopiloot (configurable)
 - Table: transcript_chunks (with schema from settings.yaml)
-- Fields: video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text
+- Fields: video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text_snippet (<=256 chars)
+- Storage Strategy: Metadata only (no full text) with optional preview snippet
 - Idempotency: By (video_id, chunk_id) composite key or content_sha256 hash
 """
 
@@ -32,6 +33,7 @@ class StreamFullTranscriptToBigQuery(BaseTool):
     Stream full transcript chunks to BigQuery for SQL-based analytics in Hybrid RAG.
 
     Implements:
+    - Metadata-only storage with optional text snippet (<=256 chars) for previews
     - Batch insertion for performance (configurable batch size)
     - Idempotent writes using (video_id, chunk_id) or content_sha256
     - Automatic dataset/table creation with proper schema
@@ -139,6 +141,9 @@ class StreamFullTranscriptToBigQuery(BaseTool):
                     except:
                         published_timestamp = self.published_at
 
+                # Truncate chunk text to 256 characters for preview snippet (metadata only, no full text)
+                text_snippet = chunk[:256] if chunk else None
+
                 row = {
                     "video_id": self.video_id,
                     "chunk_id": chunk_id,
@@ -148,7 +153,7 @@ class StreamFullTranscriptToBigQuery(BaseTool):
                     "duration_sec": self.duration_sec,
                     "content_sha256": chunk_hash,
                     "tokens": self._count_tokens(chunk),
-                    "text": chunk
+                    "text_snippet": text_snippet
                 }
                 rows.append(row)
 
@@ -277,7 +282,7 @@ class StreamFullTranscriptToBigQuery(BaseTool):
             except:
                 pass
 
-            # Define schema
+            # Define schema (metadata only, no full text)
             schema = [
                 bigquery_module.SchemaField("video_id", "STRING", mode="REQUIRED"),
                 bigquery_module.SchemaField("chunk_id", "STRING", mode="REQUIRED"),
@@ -287,7 +292,7 @@ class StreamFullTranscriptToBigQuery(BaseTool):
                 bigquery_module.SchemaField("duration_sec", "INT64", mode="NULLABLE"),
                 bigquery_module.SchemaField("content_sha256", "STRING", mode="NULLABLE"),
                 bigquery_module.SchemaField("tokens", "INT64", mode="NULLABLE"),
-                bigquery_module.SchemaField("text", "STRING", mode="REQUIRED"),
+                bigquery_module.SchemaField("text_snippet", "STRING", mode="NULLABLE"),  # Preview only (<=256 chars)
             ]
 
             table = bigquery_module.Table(table_id, schema=schema)
