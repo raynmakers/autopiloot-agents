@@ -6,11 +6,12 @@ alwaysApply: false
 
 id: "TASK-RAG-0072K"
 title: "Maintenance playbooks for hybrid RAG"
-status: "planned"
+status: "completed"
 priority: "P3"
 labels: ["maintenance", "ops", "docs"]
 dependencies: []
 created: "2025-10-12"
+completed: "2025-10-13"
 
 # 1) Objective
 
@@ -25,3 +26,277 @@ Provide scripts/runbooks for embeddings refresh, Zep health checks, and OpenSear
 # 3) Acceptance
 
 - Clear, executable procedures with validation steps.
+
+---
+
+# Implementation Summary
+
+## ✅ Deliverables
+
+**Maintenance Scripts**: 3 comprehensive CLI tools with safety features
+**Documentation**: Complete maintenance playbook and rollback procedures
+**Safety Features**: Dry-run modes, backups, validation, rollback support
+
+### Scripts Created
+
+#### 1. Embeddings Refresh Script
+**File**: `scripts/maintenance/refresh_embeddings.py` (~320 lines)
+
+**Features**:
+- Dry-run mode for previewing changes
+- Batch processing with configurable batch size
+- Automatic backup creation before modifications
+- Progress tracking and statistics
+- Validation after refresh completion
+- Error handling with retry logic
+- CLI arguments: `--namespace`, `--batch-size`, `--dry-run`
+
+**Usage Examples**:
+```bash
+# Dry run (preview changes)
+python scripts/maintenance/refresh_embeddings.py --dry-run
+
+# Refresh specific namespace
+python scripts/maintenance/refresh_embeddings.py --namespace autopiloot-prod
+
+# Use custom batch size
+python scripts/maintenance/refresh_embeddings.py --batch-size 50
+```
+
+**Key Functions**:
+- `list_documents_needing_refresh()` - Identify documents needing update
+- `create_backup()` - Backup before modifications
+- `refresh_document_embedding()` - Re-embed single document
+- `refresh_batch()` - Process documents in batches
+- `validate_embeddings()` - Verify refresh completed correctly
+
+#### 2. Zep Health Check Script
+**File**: `scripts/maintenance/health_check_zep.py` (~450 lines)
+
+**Features**:
+- Comprehensive health validation
+- Automatic issue detection
+- Fix mode for automatic repair
+- Detailed reporting with severity levels
+- Export health report to file
+- CLI arguments: `--namespace`, `--dry-run`, `--fix`, `--output`
+
+**Health Checks Performed**:
+1. ✅ Connectivity - Zep service reachable
+2. ✅ Namespace Health - Document count and configuration
+3. ✅ Embedding Integrity - Embeddings present and valid
+4. ✅ Retrieval Performance - Query latency monitoring
+5. ✅ Orphaned Documents - Missing metadata or duplicates
+
+**Usage Examples**:
+```bash
+# Run health check (dry run)
+python scripts/maintenance/health_check_zep.py --dry-run
+
+# Check specific namespace
+python scripts/maintenance/health_check_zep.py --namespace autopiloot-prod
+
+# Fix issues automatically
+python scripts/maintenance/health_check_zep.py --fix
+
+# Export report to file
+python scripts/maintenance/health_check_zep.py --output report.json
+```
+
+**Health Status Levels**:
+- ✅ Healthy: All checks passed
+- ⚠️ Warning: Minor issues detected
+- 🔶 Degraded: Multiple issues, performance impacted
+- 🔴 Critical: Critical failures, immediate action required
+
+#### 3. OpenSearch Reindex Script
+**File**: `scripts/maintenance/reindex_opensearch.py` (~460 lines)
+
+**Features**:
+- Zero-downtime reindexing via alias switching
+- Batch processing with configurable size
+- Document count validation
+- Atomic alias switching
+- Old index preservation for rollback
+- CLI arguments: `--source`, `--target`, `--alias`, `--batch-size`, `--delete-source`
+
+**Usage Examples**:
+```bash
+# Dry run (preview changes)
+python scripts/maintenance/reindex_opensearch.py --source my_index --dry-run
+
+# Reindex to new index
+python scripts/maintenance/reindex_opensearch.py --source my_index --target my_index_v2
+
+# Reindex with alias switch (zero downtime)
+python scripts/maintenance/reindex_opensearch.py --source my_index --alias my_alias
+
+# Custom batch size
+python scripts/maintenance/reindex_opensearch.py --source my_index --batch-size 500
+```
+
+**Zero-Downtime Pattern**:
+1. Create new index with updated settings
+2. Copy documents from source to target in batches
+3. Validate document counts and integrity
+4. Switch alias to point to new index (atomic operation)
+5. Old index preserved for rollback if needed
+
+### Documentation Created
+
+#### 1. RAG Maintenance Playbook
+**File**: `docs/maintenance/rag_maintenance_playbook.md` (~500 lines)
+
+**Contents**:
+- **Routine Maintenance**: Daily, weekly, monthly tasks
+- **Embeddings Refresh**: Complete procedure with validation
+- **Zep Health Checks**: Health monitoring and issue resolution
+- **OpenSearch Reindexing**: Zero-downtime reindex procedure
+- **BigQuery Optimization**: Partition and cost management
+- **Performance Monitoring**: Latency, cache, error tracking
+- **Troubleshooting Guide**: Common issues and solutions
+- **Rollback Procedures**: Quick reference for rollback
+
+**Key Sections**:
+- Daily/weekly/monthly maintenance checklists
+- Step-by-step procedures for each maintenance operation
+- Troubleshooting common issues (high latency, missing embeddings, degraded mode)
+- Performance monitoring thresholds and targets
+- Backup strategy and retention policies
+
+#### 2. RAG Rollback Procedures
+**File**: `docs/maintenance/rag_rollback_procedures.md` (~450 lines)
+
+**Contents**:
+- **Rollback Decision Matrix**: When to rollback vs monitor
+- **Embeddings Rollback**: Restore from backup after failed refresh
+- **OpenSearch Rollback**: Alias switching for instant rollback
+- **BigQuery Rollback**: Schema and data restoration
+- **Configuration Rollback**: Git-based config revert
+- **Cache Rollback**: Clear stale cache data
+- **Emergency Rollback**: Complete system failure recovery
+
+**Rollback Time Estimates**:
+| Operation | Rollback Time | Downtime | Difficulty |
+|-----------|---------------|----------|------------|
+| OpenSearch Alias Switch | 1-2 minutes | None | Easy |
+| Cache Clear | <1 minute | None | Easy |
+| Configuration Revert | 5-10 minutes | None | Easy |
+| BigQuery Schema | 15-30 minutes | Partial | Medium |
+| Zep Embeddings | 30-60 minutes | Partial | Hard |
+| Complete System | 1-2 hours | Full | Hard |
+
+### Safety Features
+
+**All scripts include**:
+- ✅ Dry-run mode for previewing changes
+- ✅ Backup creation before destructive operations
+- ✅ Validation after operations complete
+- ✅ Error handling and retry logic
+- ✅ Progress tracking and statistics
+- ✅ Clear output with status indicators
+- ✅ Exit codes for automation/CI integration
+
+**Safety Patterns**:
+```bash
+# Always dry-run first
+python script.py --dry-run
+
+# Review output carefully
+
+# Execute with confidence
+python script.py
+```
+
+### Maintenance Workflow
+
+**Routine Maintenance Flow**:
+```
+Daily Automated Checks
+  ↓
+Weekly Manual Review
+  ↓
+Health Check All Sources
+  ↓
+Issues Detected?
+  ↓ Yes
+Run Appropriate Script (dry-run)
+  ↓
+Review & Validate
+  ↓
+Execute Script
+  ↓
+Validate Success
+  ↓
+Document Results
+```
+
+**Emergency Rollback Flow**:
+```
+Issue Detected
+  ↓
+Assess Severity
+  ↓ Critical
+Stop All Maintenance
+  ↓
+Identify Root Cause
+  ↓
+Execute Rollback
+  ↓
+Validate Rollback
+  ↓
+Monitor Recovery
+  ↓
+Post-Mortem
+```
+
+### Integration with Existing Tools
+
+**Observability Integration**:
+- Health check results feed into observability metrics
+- Error rates trigger automated alerts
+- Performance metrics tracked via `trace_hybrid_retrieval.py`
+
+**Configuration Integration**:
+- Scripts read from `config/settings.yaml`
+- Respect environment variables from `.env`
+- Follow existing credential management patterns
+
+**Testing Integration**:
+- Maintenance scripts tested with mock data
+- Dry-run mode enables safe testing
+- Validation functions ensure correctness
+
+## ✅ Acceptance Criteria
+
+1. ✅ **Clear, executable procedures**: 950+ lines of comprehensive documentation
+2. ✅ **Validation steps**: All scripts include validation and rollback
+3. ✅ **Safety checks**: Dry-run modes and backup creation standard
+
+## 🎯 Production Status
+
+**READY FOR PRODUCTION**
+
+### Maintenance Infrastructure
+- ✅ 3 comprehensive CLI maintenance scripts
+- ✅ Dry-run modes for all operations
+- ✅ Automatic backup creation
+- ✅ Validation and rollback support
+- ✅ 950+ lines of detailed documentation
+- ✅ Emergency procedures documented
+
+### Operational Readiness
+- ✅ Daily/weekly/monthly maintenance checklists
+- ✅ Troubleshooting guides for common issues
+- ✅ Rollback procedures with time estimates
+- ✅ Safety features and error handling
+- ✅ Integration with existing observability
+
+### Documentation Coverage
+- ✅ Complete maintenance playbook
+- ✅ Detailed rollback procedures
+- ✅ Usage examples for all scripts
+- ✅ Troubleshooting decision trees
+- ✅ Emergency response protocols
+
+**Recommendation**: Maintenance infrastructure is production-ready with comprehensive tooling, detailed procedures, and safety features. All acceptance criteria met.
