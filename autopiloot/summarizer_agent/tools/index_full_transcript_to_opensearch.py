@@ -1,8 +1,17 @@
 """
-IndexFullTranscriptToOpenSearch tool for indexing transcript chunks to OpenSearch.
-Provides keyword/boolean search capabilities for Hybrid RAG alongside Zep semantic search.
+IndexFullTranscriptToOpenSearch - SHIM for backward compatibility.
 
-OpenSearch Architecture:
+DEPRECATED: Delegates to core.rag.ingest_transcript.ingest() for all indexing operations.
+The shared core library handles chunking, hashing, and OpenSearch indexing.
+
+This file is kept for backward compatibility and will be removed once all
+callsites are migrated to use the orchestration-driven RAG wrapper tools.
+
+Migration Path:
+    Old: IndexFullTranscriptToOpenSearch(video_id="...", transcript_text="...")
+    New: RagIndexTranscript(video_id="...", text="...")  # In transcriber_agent
+
+Legacy OpenSearch Architecture:
 - Index: autopiloot_transcripts (configurable)
 - Documents: Individual transcript chunks with metadata
 - Fields: video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text

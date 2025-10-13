@@ -1,8 +1,17 @@
 """
-StreamFullTranscriptToBigQuery tool for streaming transcript chunks to BigQuery.
-Provides SQL-based analytics, reporting, and structured data access for Hybrid RAG.
+StreamFullTranscriptToBigQuery - SHIM for backward compatibility.
 
-BigQuery Architecture:
+DEPRECATED: Delegates to core.rag.ingest_transcript.ingest() for all streaming operations.
+The shared core library handles chunking, hashing, and BigQuery streaming.
+
+This file is kept for backward compatibility and will be removed once all
+callsites are migrated to use the orchestration-driven RAG wrapper tools.
+
+Migration Path:
+    Old: StreamFullTranscriptToBigQuery(video_id="...", transcript_text="...")
+    New: RagIndexTranscript(video_id="...", text="...")  # In transcriber_agent
+
+Legacy BigQuery Architecture:
 - Dataset: autopiloot (configurable)
 - Table: transcript_chunks (with schema from settings.yaml)
 - Fields: video_id, chunk_id, title, channel_id, published_at, duration_sec, content_sha256, tokens, text_snippet (<=256 chars)

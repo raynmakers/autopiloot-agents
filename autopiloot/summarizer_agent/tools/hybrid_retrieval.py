@@ -1,8 +1,17 @@
 """
 HybridRetrieval tool for querying both Zep (semantic) and OpenSearch (keyword) and fusing results.
-Implements Reciprocal Rank Fusion (RRF) for combining ranked results from multiple sources.
 
-Architecture:
+DEPRECATED: This tool contains inline RAG logic and is superseded by the shared core library.
+Use `rag_hybrid_search.py` instead, which delegates to `core.rag.hybrid_retrieve.search()`.
+
+Migration Path:
+    Old: HybridRetrieval(query="...", top_k=10)
+    New: RagHybridSearch(query="...", limit=10)
+
+This file is kept for backward compatibility temporarily.
+Will be removed in a future release once all callsites are migrated.
+
+Legacy Architecture:
 - Zep v3: Semantic search via vector embeddings and knowledge graph
 - OpenSearch: Keyword search via BM25 and boolean filtering
 - Fusion: RRF algorithm to merge and re-rank results

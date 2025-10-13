@@ -1,8 +1,17 @@
 """
-UpsertFullTranscriptToZep tool for storing full transcripts in Zep v3 for Hybrid RAG.
-Implements token-aware chunking, content hashing, and metadata enrichment.
+UpsertFullTranscriptToZep - SHIM for backward compatibility.
 
-Zep v3 Architecture for Transcripts:
+DEPRECATED: Delegates to core.rag.ingest_transcript.ingest() for all upsertion operations.
+The shared core library handles chunking, hashing, and Zep v3 upsertion.
+
+This file is kept for backward compatibility and will be removed once all
+callsites are migrated to use the orchestration-driven RAG wrapper tools.
+
+Migration Path:
+    Old: UpsertFullTranscriptToZep(video_id="...", transcript_text="...")
+    New: RagIndexTranscript(video_id="...", text="...")  # In transcriber_agent
+
+Legacy Zep v3 Architecture for Transcripts:
 - Groups: Per-channel organization (e.g., "youtube_transcripts_UC1234567890")
 - Threads: Represent individual video transcripts (e.g., "transcript_VIDEO_ID")
 - Messages: Contain chunked transcript text with metadata (chunk_id, position, hash)
