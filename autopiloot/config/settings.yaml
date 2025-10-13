@@ -404,3 +404,63 @@ rag:
       log_level: "info"  # Options: "debug", "info", "warning", "error"
       include_rationale: true  # Include detailed rationale in outputs
 
+  # Tracing and Observability
+  # Comprehensive instrumentation for hybrid RAG pipeline monitoring
+  # Tracks per-source latency, error rates, coverage, and fusion performance
+  observability:
+    enabled: true  # Enable tracing and observability
+    trace_all_requests: true  # Generate trace IDs for all retrieval requests
+
+    # Latency monitoring and thresholds
+    latency:
+      slow_path_threshold_ms: 1000  # Threshold for identifying slow execution paths
+      alert_p95_threshold_ms: 2000  # Alert if p95 latency exceeds this value
+      alert_max_threshold_ms: 5000  # Alert if max latency exceeds this value
+
+    # Error rate monitoring and thresholds
+    error_rates:
+      warning_threshold: 25  # Warning alert if error rate exceeds 25%
+      critical_threshold: 50  # Critical alert if error rate exceeds 50%
+      track_per_source: true  # Track error rates separately per source
+
+    # Coverage monitoring and thresholds
+    coverage:
+      warning_threshold: 67  # Warning if coverage below 67% (less than 2 sources)
+      critical_threshold: 33  # Critical if coverage below 33% (less than 1 source)
+      track_source_availability: true  # Track which sources are available
+
+    # Alert configuration
+    alerts:
+      enabled: true  # Enable alerting based on thresholds
+      slack_channel: "ops-autopiloot"  # Slack channel for RAG alerts
+      throttle_minutes: 60  # Throttle duplicate alerts (1 hour)
+      severity_levels:
+        - "critical"  # Immediate attention required
+        - "warning"   # Degraded performance
+        - "info"      # Informational alerts
+
+    # Daily digest configuration
+    daily_digest:
+      enabled: true  # Include RAG metrics in daily digest
+      time: "07:00"  # Digest generation time
+      timezone: "Europe/Amsterdam"  # Digest timezone
+      sections:
+        - "summary"        # Overall statistics
+        - "per_source"     # Per-source performance breakdown
+        - "slow_paths"     # Slow execution paths
+        - "errors"         # Error summaries
+        - "coverage"       # Source coverage statistics
+        - "fusion"         # Fusion performance metrics
+
+    # Metrics collection and storage
+    metrics:
+      retention_days: 30  # Keep metrics for 30 days
+      aggregation_interval_minutes: 5  # Aggregate metrics every 5 minutes
+      store_raw_traces: false  # Store full trace data (set true for debugging)
+
+    # Logging configuration
+    logging:
+      enabled: true  # Log all trace events
+      log_level: "info"  # Options: "debug", "info", "warning", "error"
+      include_trace_context: true  # Include trace IDs in logs
+
