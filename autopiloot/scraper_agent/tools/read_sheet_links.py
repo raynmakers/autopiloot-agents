@@ -36,7 +36,10 @@ class ReadSheetLinks(BaseTool):
     2. External page URLs: Fetches the page and extracts any embedded YouTube videos
 
     Focus: YouTube videos only (other platforms are skipped)
-    Returns source_page_url, video_url, and platform for tracking.
+    Returns source_page_url, video_url, platform, sheet_row_index, and sheet_id for tracking.
+
+    Enhanced with row tracking: Each result includes sheet_row_index for downstream
+    cleanup via RemoveSheetRow after successful processing.
     """
     
     sheet_id: Optional[str] = Field(
@@ -64,8 +67,10 @@ class ReadSheetLinks(BaseTool):
         Read page links from Google Sheet and extract YouTube video URLs from those pages.
 
         Returns:
-            str: JSON string containing array of { source_page_url, video_url, platform } objects
-            Platform will always be "youtube"
+            str: JSON string containing array of { source_page_url, video_url, platform,
+                 sheet_row_index, sheet_id } objects.
+                 Platform will always be "youtube"
+                 sheet_row_index is 1-based row number for RemoveSheetRow compatibility
         """
         try:
             # Load configuration
@@ -106,16 +111,16 @@ class ReadSheetLinks(BaseTool):
             pages_processed = 0
             pages_failed = 0
             processed_count = 0
-            
-            for row in values:
+
+            for row_index, row in enumerate(values, start=1):
                 # Apply max_rows limit if specified
                 if self.max_rows and processed_count >= self.max_rows:
                     break
-                
+
                 # Skip empty rows
                 if not row or not row[0].strip():
                     continue
-                
+
                 page_url = row[0].strip()
                 processed_count += 1
 
@@ -133,7 +138,9 @@ class ReadSheetLinks(BaseTool):
                             results.append({
                                 "source_page_url": page_url,
                                 "video_url": normalized_url,
-                                "platform": "youtube"
+                                "platform": "youtube",
+                                "sheet_row_index": row_index,
+                                "sheet_id": sheet_id
                             })
                             pages_processed += 1
                     else:
@@ -149,13 +156,15 @@ class ReadSheetLinks(BaseTool):
                             results.append({
                                 "source_page_url": page_url,
                                 "video_url": video_url,
-                                "platform": "youtube"
+                                "platform": "youtube",
+                                "sheet_row_index": row_index,
+                                "sheet_id": sheet_id
                             })
                             print(f"Found YouTube video: {video_url}")
 
                         # Small delay to be respectful to servers
                         time.sleep(0.5)
-                    
+
                 except Exception as e:
                     pages_failed += 1
                     print(f"Failed to process page {page_url}: {str(e)}")

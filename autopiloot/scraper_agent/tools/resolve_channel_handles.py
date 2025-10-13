@@ -39,11 +39,11 @@ class ResolveChannelHandles(BaseTool):
         """
         Resolves all configured channel handles to channel IDs.
 
-        Persists successful resolutions to Firestore for downstream reference.
-
         Returns:
-            str: JSON string containing mapping of handles to channel IDs
-                 Format: '{"@AlexHormozi": "UCfV36TX5AejfAGIbtwTc7Zw", ...}'
+            str: JSON string containing mapping of handles to channel data
+                 Format: '{"@AlexHormozi": {"channel_id": "UCfV...", "title": "...", ...}, ...}'
+
+        Note: This tool only resolves handles. Use SaveChannelMapping separately to persist results.
         """
         try:
             # Load handles from configuration
@@ -55,24 +55,16 @@ class ResolveChannelHandles(BaseTool):
             # Initialize YouTube API client
             youtube = self._initialize_youtube_client()
 
-            # Resolve each handle to channel ID
+            # Resolve each handle to channel data
             mapping = {}
             for handle in handles:
                 try:
                     channel_data = self._resolve_single_handle_with_metadata(youtube, handle)
-                    channel_id = channel_data['channel_id']
-                    mapping[handle] = channel_id
-
-                    # Persist mapping to Firestore (non-blocking, don't fail on errors)
-                    try:
-                        self._save_channel_mapping(handle, channel_data)
-                    except Exception as save_error:
-                        # Log but don't fail - persistence is best-effort
-                        print(f"Warning: Failed to save mapping for {handle}: {str(save_error)}")
+                    mapping[handle] = channel_data
 
                 except Exception as e:
                     # Continue with other handles even if one fails
-                    mapping[handle] = f"ERROR: {str(e)}"
+                    mapping[handle] = {"error": str(e)}
 
             # Return as JSON string
             import json
@@ -288,46 +280,6 @@ class ResolveChannelHandles(BaseTool):
                     raise RuntimeError(f"Failed to resolve {handle}: {str(e)}")
         
         raise ValueError(f"Channel not found for handle: {handle}")
-    
-    def _save_channel_mapping(self, handle: str, channel_data: Dict) -> None:
-        """
-        Save channel mapping to Firestore using SaveChannelMapping tool.
-
-        Args:
-            handle: Channel handle (e.g., "@AlexHormozi")
-            channel_data: Dict with channel_id, title, custom_url, thumbnails
-
-        Note: This is non-blocking and errors are logged but not raised.
-        """
-        try:
-            from scraper_agent.tools.save_channel_mapping import SaveChannelMapping
-            import json
-
-            # Prepare parameters
-            thumbnails_json = None
-            if channel_data.get('thumbnails'):
-                thumbnails_json = json.dumps(channel_data['thumbnails'])
-
-            # Create and run tool
-            save_tool = SaveChannelMapping(
-                handle=handle,
-                channel_id=channel_data['channel_id'],
-                title=channel_data.get('title'),
-                custom_url=channel_data.get('custom_url'),
-                thumbnails_json=thumbnails_json
-            )
-
-            result = save_tool.run()
-            result_data = json.loads(result)
-
-            if result_data.get('ok'):
-                print(f"✓ Saved mapping for {handle} → {result_data['channel_id']}")
-            else:
-                print(f"✗ Failed to save mapping for {handle}: {result_data.get('message', 'Unknown error')}")
-
-        except Exception as e:
-            # Log but don't raise - this is best-effort persistence
-            print(f"Warning: Exception saving mapping for {handle}: {str(e)}")
 
     def _initialize_youtube_client(self):
         """Initialize YouTube Data API client with authentication."""

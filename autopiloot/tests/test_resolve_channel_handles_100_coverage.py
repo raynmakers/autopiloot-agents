@@ -99,7 +99,8 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         data = json.loads(result)
 
         self.assertIn('@TestChannel', data)
-        self.assertEqual(data['@TestChannel'], 'UC123456')
+        self.assertIsInstance(data['@TestChannel'], dict)
+        self.assertEqual(data['@TestChannel']['channel_id'], 'UC123456')
 
     @patch('scraper_agent.tools.resolve_channel_handles.get_config_value')
     @patch('scraper_agent.tools.resolve_channel_handles.load_app_config')
@@ -144,8 +145,10 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         result = tool.run()
         data = json.loads(result)
 
-        self.assertEqual(data['@Good'], 'UC_GOOD')
-        self.assertIn('ERROR', data['@Bad'])
+        self.assertIsInstance(data['@Good'], dict)
+        self.assertEqual(data['@Good']['channel_id'], 'UC_GOOD')
+        self.assertIsInstance(data['@Bad'], dict)
+        self.assertIn('error', data['@Bad'])
 
     @patch('scraper_agent.tools.resolve_channel_handles.load_app_config')
     def test_top_level_exception_handling(self, mock_config):
@@ -198,14 +201,19 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         # Mock channel details with custom URL
         mock_youtube.channels().list().execute.return_value = {
             'items': [{
-                'snippet': {'customUrl': '@testchannel'}
+                'snippet': {
+                    'customUrl': '@testchannel',
+                    'title': 'Test Channel',
+                    'thumbnails': {}
+                }
             }]
         }
 
         tool = ResolveChannelHandles()
-        channel_id = tool._resolve_single_handle(mock_youtube, '@TestChannel')
+        channel_data = tool._resolve_single_handle_with_metadata(mock_youtube, '@TestChannel')
 
-        self.assertEqual(channel_id, 'UC123')
+        self.assertEqual(channel_data['channel_id'], 'UC123')
+        self.assertEqual(channel_data['title'], 'Test Channel')
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
     def test_resolve_single_handle_fallback_username(self, mock_time):
@@ -215,15 +223,23 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         # Mock empty search response
         mock_youtube.search().list().execute.return_value = {'items': []}
 
-        # Mock successful username lookup
+        # Mock successful username lookup with full snippet
         mock_youtube.channels().list().execute.return_value = {
-            'items': [{'id': 'UC_FROM_USERNAME'}]
+            'items': [{
+                'id': 'UC_FROM_USERNAME',
+                'snippet': {
+                    'title': 'Old Channel',
+                    'customUrl': '@oldchannel',
+                    'thumbnails': {}
+                }
+            }]
         }
 
         tool = ResolveChannelHandles()
-        channel_id = tool._resolve_single_handle(mock_youtube, '@OldChannel')
+        channel_data = tool._resolve_single_handle_with_metadata(mock_youtube, '@OldChannel')
 
-        self.assertEqual(channel_id, 'UC_FROM_USERNAME')
+        self.assertEqual(channel_data['channel_id'], 'UC_FROM_USERNAME')
+        self.assertEqual(channel_data['title'], 'Old Channel')
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
     def test_resolve_single_handle_not_found(self, mock_time):
@@ -237,7 +253,7 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         tool = ResolveChannelHandles(max_retries=0)
 
         with self.assertRaises(ValueError) as context:
-            tool._resolve_single_handle(mock_youtube, '@NotFound')
+            tool._resolve_single_handle_with_metadata(mock_youtube, '@NotFound')
         self.assertIn('Channel not found', str(context.exception))
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
@@ -256,13 +272,17 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         mock_youtube.search().list().execute.side_effect = mock_search
 
         mock_youtube.channels().list().execute.return_value = {
-            'items': [{'snippet': {'customUrl': '@test'}}]
+            'items': [{'snippet': {
+                'customUrl': '@test',
+                'title': 'Test',
+                'thumbnails': {}
+            }}]
         }
 
         tool = ResolveChannelHandles(max_retries=3)
-        channel_id = tool._resolve_single_handle(mock_youtube, '@Test')
+        channel_data = tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
 
-        self.assertEqual(channel_id, 'UC_RETRY_SUCCESS')
+        self.assertEqual(channel_data['channel_id'], 'UC_RETRY_SUCCESS')
         mock_time.sleep.assert_called()  # Verify backoff was used
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
@@ -276,7 +296,7 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         tool = ResolveChannelHandles(max_retries=2)
 
         with self.assertRaises(RuntimeError) as context:
-            tool._resolve_single_handle(mock_youtube, '@Test')
+            tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
         self.assertIn('API error after', str(context.exception))
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
@@ -290,7 +310,7 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         tool = ResolveChannelHandles()
 
         with self.assertRaises(RuntimeError) as context:
-            tool._resolve_single_handle(mock_youtube, '@Test')
+            tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
         self.assertIn('YouTube API error', str(context.exception))
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
@@ -308,13 +328,17 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
 
         mock_youtube.search().list().execute.side_effect = mock_search
         mock_youtube.channels().list().execute.return_value = {
-            'items': [{'snippet': {'customUrl': '@test'}}]
+            'items': [{'snippet': {
+                'customUrl': '@test',
+                'title': 'Test',
+                'thumbnails': {}
+            }}]
         }
 
         tool = ResolveChannelHandles(max_retries=2)
-        channel_id = tool._resolve_single_handle(mock_youtube, '@Test')
+        channel_data = tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
 
-        self.assertEqual(channel_id, 'UC_RECOVERED')
+        self.assertEqual(channel_data['channel_id'], 'UC_RECOVERED')
 
     @patch('scraper_agent.tools.resolve_channel_handles.time')
     def test_resolve_general_exception_max_retries(self, mock_time):
@@ -326,7 +350,7 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
         tool = ResolveChannelHandles(max_retries=1)
 
         with self.assertRaises(RuntimeError) as context:
-            tool._resolve_single_handle(mock_youtube, '@Test')
+            tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
         self.assertIn('Failed to resolve', str(context.exception))
 
     @patch('scraper_agent.tools.resolve_channel_handles.os.path.exists')
@@ -381,13 +405,17 @@ class TestResolveChannelHandles100Coverage(unittest.TestCase):
 
         # Channel details without matching customUrl
         mock_youtube.channels().list().execute.return_value = {
-            'items': [{'snippet': {}}]  # No customUrl
+            'items': [{'snippet': {
+                'title': 'Best Match',
+                'thumbnails': {}
+            }}]  # No customUrl
         }
 
         tool = ResolveChannelHandles(max_retries=0)  # Only one attempt
-        channel_id = tool._resolve_single_handle(mock_youtube, '@Test')
+        channel_data = tool._resolve_single_handle_with_metadata(mock_youtube, '@Test')
 
-        self.assertEqual(channel_id, 'UC_BEST_MATCH')
+        self.assertEqual(channel_data['channel_id'], 'UC_BEST_MATCH')
+        self.assertEqual(channel_data['title'], 'Best Match')
 
 
 if __name__ == "__main__":

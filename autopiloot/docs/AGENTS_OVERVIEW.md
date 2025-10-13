@@ -72,27 +72,30 @@ ObservabilityAgent (monitoring all)
 ### Primary Functions
 
 - **YouTube Discovery**: Channel handle resolution and uploads discovery
-- **Google Sheets Processing**: Backfill link extraction and management
+- **Google Sheets Integration**: Extract YouTube URLs from sheets with automated row tracking
 - **Video Validation**: Duration limits, metadata extraction, business rule enforcement
+- **Automated Cleanup**: Track and archive processed sheet rows after completion
 - **Workflow Orchestration**: Transcription job queue management and agent coordination
+- **Channel Mapping**: Persistent storage of handle-to-ID mappings for downstream reference
 
 ### Tools Overview
 
 | Tool                        | Purpose                                             | Integration                  |
 | --------------------------- | --------------------------------------------------- | ---------------------------- |
-| `ResolveChannelHandles.py`  | Convert @handles to YouTube channel IDs             | YouTube Data API             |
-| `ListRecentUploads.py`      | Discover recent videos with checkpoint system       | YouTube Data API + Firestore |
-| `ReadSheetLinks.py`         | Extract YouTube URLs from Google Sheets             | Google Sheets API            |
-| `ExtractYouTubeFromPage.py` | Parse YouTube links from web pages                  | BeautifulSoup + HTTP         |
-| `SaveVideoMetadata.py`      | Store video data with business rule validation      | Firestore + Audit Logging    |
-| `EnqueueTranscription.py`   | Create transcription jobs with duplicate prevention | Firestore Transactions       |
-| `RemoveSheetRow.py`         | Archive processed rows from Google Sheets           | Google Sheets API            |
+| `resolve_channel_handles.py`  | Convert @handles to YouTube channel metadata             | YouTube Data API             |
+| `save_channel_mapping.py`  | Persist channel mappings to Firestore channels collection             | Firestore             |
+| `list_recent_uploads.py`      | Discover recent videos with checkpoint system       | YouTube Data API + Firestore |
+| `read_sheet_links.py`      | Extract YouTube URLs from Google Sheets with row tracking       | Google Sheets API + HTTP |
+| `save_video_metadata.py`      | Store video data with sheet metadata for cleanup tracking      | Firestore + Audit Logging    |
+| `enqueue_transcription.py`   | Create transcription jobs with duplicate prevention | Firestore Transactions       |
+| `mark_sheet_rows_processed.py`   | Automated archiving of processed sheet rows | Firestore + RemoveSheetRow       |
 
 ### Key Features
 
 - **Checkpoint System**: `lastPublishedAt` persistence for incremental processing
 - **Business Rules**: 70-minute duration limit, daily channel limits (10 videos)
 - **Idempotency**: Video ID-based deduplication preventing duplicates
+- **Status-Aware Deduplication**: Sheet videos skip if already in pipeline (prevents duplicate processing)
 - **Audit Trail**: All discovery actions logged per TASK-AUDIT-0041
 
 ### Configuration

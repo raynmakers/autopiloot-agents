@@ -27,10 +27,16 @@ load_dotenv()
 class SaveVideoMetadata(BaseTool):
     """
     Saves video metadata to Firestore with deduplication and status tracking.
-    
-    Upserts video information into the videos/{video_id} collection, ensuring 
-    idempotency by video_id and maintaining proper status progression. All 
+
+    Upserts video information into the videos/{video_id} collection, ensuring
+    idempotency by video_id and maintaining proper status progression. All
     timestamps are stored in UTC using ISO 8601 format with Z suffix.
+
+    Status-Aware Deduplication:
+    When source='sheet', skips videos already in pipeline (status in
+    ['transcription_queued', 'transcribed', 'summarized', 'rejected_non_business'])
+    to prevent duplicate processing and status resets. This ensures sheet backfills
+    don't interfere with videos already being processed.
     """
     
     video_id: str = Field(
@@ -65,10 +71,20 @@ class SaveVideoMetadata(BaseTool):
     )
     
     channel_id: Optional[str] = Field(
-        None, 
+        None,
         description="YouTube channel ID (optional, auto-resolved from video if not provided)"
     )
-    
+
+    sheet_row_index: Optional[int] = Field(
+        None,
+        description="Sheet row index if video discovered via Google Sheets (for cleanup tracking)"
+    )
+
+    sheet_id: Optional[str] = Field(
+        None,
+        description="Google Sheet ID if video discovered via Google Sheets (for cleanup tracking)"
+    )
+
     def run(self) -> str:
         """
         Saves the video metadata to Firestore with idempotent upsert.
@@ -99,7 +115,23 @@ class SaveVideoMetadata(BaseTool):
             
             # Check if document already exists
             existing_doc = doc_ref.get()
-            
+
+            # Status-aware deduplication: prevent overwriting videos already in pipeline
+            if existing_doc.exists:
+                existing_data = existing_doc.to_dict()
+                existing_status = existing_data.get('status')
+
+                # If video is already in pipeline from sheet source, skip to prevent status reset
+                # Only apply this check when current source is 'sheet' to avoid blocking scraper updates
+                if self.source == 'sheet' and existing_status in ['transcription_queued', 'transcribed', 'summarized', 'rejected_non_business']:
+                    return json.dumps({
+                        "doc_ref": f"videos/{self.video_id}",
+                        "operation": "skipped",
+                        "video_id": self.video_id,
+                        "status": existing_status,
+                        "message": f"Video already in pipeline with status '{existing_status}', skipping sheet update to prevent duplicate processing"
+                    }, indent=2)
+
             # Prepare video data with all required fields from PRD
             video_data = {
                 'video_id': self.video_id,
@@ -111,11 +143,19 @@ class SaveVideoMetadata(BaseTool):
                 'status': 'discovered',  # Initial status per PRD
                 'updated_at': firestore.SERVER_TIMESTAMP
             }
-            
+
             # Add optional channel_id if provided
             if self.channel_id:
                 video_data['channel_id'] = self.channel_id
-            
+
+            # Add sheet metadata if provided (for cleanup tracking)
+            if self.sheet_row_index is not None and self.sheet_id is not None:
+                video_data['sheet_metadata'] = {
+                    'sheet_id': self.sheet_id,
+                    'row_index': self.sheet_row_index,
+                    'processed_at': None  # Set when video reaches 'summarized' status
+                }
+
             # Idempotent upsert: set created_at only for new documents
             if not existing_doc.exists:
                 video_data['created_at'] = firestore.SERVER_TIMESTAMP
