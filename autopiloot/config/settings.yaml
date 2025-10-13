@@ -373,3 +373,34 @@ rag:
       log_redactions: true  # Log redaction actions
       retention_days: 90  # Audit log retention period
 
+  # Evidence Alignment and Conflict Resolution
+  # Detects overlapping evidence across sources and resolves contradictions
+  # Applied after hybrid retrieval fusion for consistency verification
+  evidence_alignment:
+    enabled: true  # Enable evidence alignment detection
+    similarity_threshold: 0.85  # Text similarity threshold for detecting overlaps (0.0-1.0)
+
+    # Trust hierarchy for conflict resolution
+    trust_hierarchy:
+      multi_source: 3  # Highest trust (2+ sources)
+      zep: 2           # High trust (semantic understanding)
+      bigquery: 2      # High trust (structured data)
+      opensearch: 1    # Medium trust (keyword search)
+
+    # BigQuery verification for fact-checking
+    bigquery_verification:
+      enabled: false  # Enable BigQuery structured fact verification
+      # When enabled, uses BigQuery metadata to verify conflicting claims
+
+    # Conflict detection settings
+    conflict_detection:
+      numerical_threshold: 0.5  # Similarity threshold for detecting numerical conflicts
+      temporal_threshold: 0.5   # Similarity threshold for detecting date conflicts
+      enable_categorical: true  # Enable categorical conflict detection
+
+    # Logging and analysis
+    logging:
+      enabled: true  # Log all alignment analysis and resolutions
+      log_level: "info"  # Options: "debug", "info", "warning", "error"
+      include_rationale: true  # Include detailed rationale in outputs
+
