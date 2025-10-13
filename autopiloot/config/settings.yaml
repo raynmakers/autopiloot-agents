@@ -801,3 +801,215 @@ rag:
       objective: "ndcg@10"  # Metric to optimize
       max_experiments: 50  # Maximum experiments for auto-tuning
       convergence_threshold: 0.01  # Stop when improvement < 1%
+
+  # MLOps and Lifecycle Management
+  # Track embedding model versions, monitor drift, and run CI tests
+  # Ensures production reliability and quality over time
+  mlops:
+    enabled: true  # Enable MLOps monitoring and lifecycle management
+
+    # Embedding Model Version Tracking
+    # Tracks which embedding model version was used for each document
+    # Enables targeted re-embedding after model upgrades
+    model_versioning:
+      enabled: true  # Enable model version tracking
+      track_in_metadata: true  # Store version in document metadata
+      current_model:
+        name: "text-embedding-3-small"  # Current embedding model
+        version: "2024-01-15"  # Model version/release date
+        dimension: 1536  # Embedding dimension
+      migration:
+        auto_detect_needed: true  # Automatically detect documents needing migration
+        batch_size: 100  # Documents per migration batch
+        require_approval: true  # Require manual approval before migration
+      storage: "zep_metadata"  # Storage location: "zep_metadata", "firestore"
+
+    # Drift Monitoring
+    # Monitors retrieval behavior over time to detect quality degradation
+    drift_monitoring:
+      enabled: true  # Enable drift monitoring
+
+      # Metrics to monitor
+      metrics:
+        token_length:
+          enabled: true  # Monitor document token length drift
+          threshold_percentage: 20.0  # Alert if change > 20%
+          window_days: 7  # Analysis window (compare first half vs second half)
+
+        coverage:
+          enabled: true  # Monitor retrieval coverage (% queries returning results)
+          threshold_percentage: 10.0  # Alert if coverage drops > 10%
+          window_days: 7  # Analysis window
+
+        source_distribution:
+          enabled: true  # Monitor which sources are being used
+          threshold_percentage: 25.0  # Alert if any source shifts > 25%
+          window_days: 7  # Analysis window
+
+        diversity:
+          enabled: true  # Monitor result diversity
+          threshold_percentage: 20.0  # Alert if diversity changes > 20%
+          window_days: 7  # Analysis window
+
+        query_patterns:
+          enabled: false  # Monitor query pattern changes (optional)
+          threshold_percentage: 30.0  # Alert if patterns shift > 30%
+          window_days: 14  # Analysis window
+
+      # Anomaly detection
+      anomaly_detection:
+        enabled: true  # Enable statistical anomaly detection
+        method: "z_score"  # Detection method: "z_score", "iqr", "isolation_forest"
+        threshold: 2.0  # Standard deviations for z-score method
+        min_data_points: 10  # Minimum data points needed
+
+      # Reporting and alerts
+      reporting:
+        enabled: true  # Enable drift reporting
+        frequency: "daily"  # Options: "hourly", "daily", "weekly"
+        include_in_digest: true  # Include drift metrics in daily digest
+        slack_alerts: true  # Send Slack alerts on drift detection
+        slack_channel: "ops-autopiloot"  # Slack channel for drift alerts
+        alert_severity_threshold: "medium"  # Min severity: "low", "medium", "high"
+
+      # Metrics storage
+      storage:
+        backend: "memory"  # Storage backend: "memory", "firestore", "bigquery"
+        retention_days: 30  # Keep drift metrics for 30 days
+        aggregation_interval_minutes: 60  # Aggregate metrics every hour
+
+    # CI/CD Testing
+    # Continuous integration tests for hybrid RAG pipeline
+    # Prevents regressions and ensures quality
+    ci_tests:
+      enabled: true  # Enable CI testing
+      test_suite: "tests/ci/test_hybrid_rag_ci.py"  # CI test suite path
+
+      # Test categories
+      categories:
+        functional:
+          enabled: true  # Core retrieval and fusion logic
+          min_pass_rate: 100  # Minimum pass rate (%)
+
+        performance:
+          enabled: true  # Latency and throughput benchmarks
+          min_pass_rate: 90  # Allow 10% variance in performance
+
+        reliability:
+          enabled: true  # Error handling and degraded modes
+          min_pass_rate: 100  # All reliability tests must pass
+
+        compatibility:
+          enabled: true  # Model version and API compatibility
+          min_pass_rate: 100  # All compatibility tests must pass
+
+        regression:
+          enabled: true  # Prevent known regressions
+          min_pass_rate: 100  # All regression tests must pass
+
+      # Performance benchmarks
+      benchmarks:
+        single_source_latency_ms: 500  # Max latency for single source
+        multi_source_latency_ms: 2000  # Max latency for multi-source fusion
+        cache_hit_latency_ms: 100  # Max latency for cache hits
+        min_cache_hit_ratio: 40  # Minimum cache hit ratio (%)
+
+      # CI integration
+      integration:
+        run_on_pr: true  # Run tests on pull requests
+        run_on_merge: true  # Run tests on merge to main
+        run_scheduled: true  # Run tests on schedule
+        schedule_cron: "0 6 * * *"  # Daily at 6 AM
+        fail_on_regression: true  # Fail CI if regression detected
+        fail_on_performance_degradation: true  # Fail if performance drops
+
+      # Test data and fixtures
+      test_data:
+        use_synthetic: true  # Use synthetic test data
+        use_production_sample: false  # Use sample of production data
+        anonymize_production: true  # Anonymize production data if used
+        sample_size: 100  # Number of production samples
+
+      # Reporting
+      reporting:
+        junit_xml: true  # Generate JUnit XML reports
+        coverage_report: true  # Generate coverage reports
+        performance_report: true  # Generate performance reports
+        slack_notifications: true  # Send Slack notifications
+        slack_channel: "ops-autopiloot"  # Slack channel for CI notifications
+        notify_on_failure: true  # Notify on test failures
+        notify_on_success: false  # Notify on test success
+
+    # Model Performance Tracking
+    # Track retrieval quality and model performance over time
+    performance_tracking:
+      enabled: true  # Enable performance tracking
+
+      # Metrics to track
+      metrics:
+        relevance:
+          enabled: true  # Track retrieval relevance
+          # Requires ground truth labels for evaluation
+          methods:
+            - "precision@5"
+            - "recall@5"
+            - "ndcg@10"
+
+        latency:
+          enabled: true  # Track retrieval latency
+          percentiles: [50, 95, 99]  # Percentiles to track
+
+        throughput:
+          enabled: true  # Track queries per second
+          window_minutes: 5  # Measurement window
+
+        error_rate:
+          enabled: true  # Track error rates
+          track_per_source: true  # Track separately per source
+
+      # Baseline comparison
+      baseline:
+        enabled: true  # Compare against baseline performance
+        baseline_date: "2025-01-13"  # Baseline measurement date
+        alert_on_degradation: true  # Alert if performance degrades
+        degradation_threshold: 10.0  # Alert if metrics drop > 10%
+
+      # Reporting
+      reporting:
+        enabled: true  # Enable performance reporting
+        frequency: "daily"  # Options: "hourly", "daily", "weekly"
+        include_trends: true  # Include trend analysis
+        include_comparisons: true  # Include baseline comparisons
+
+    # Data Quality Monitoring
+    # Monitor data quality and distribution over time
+    data_quality:
+      enabled: true  # Enable data quality monitoring
+
+      # Quality checks
+      checks:
+        completeness:
+          enabled: true  # Check for missing required fields
+          required_fields:
+            - "video_id"
+            - "title"
+            - "channel_id"
+            - "embedding"
+
+        consistency:
+          enabled: true  # Check for data consistency
+          validate_embeddings: true  # Verify embedding dimensions
+          validate_metadata: true  # Verify metadata format
+
+        freshness:
+          enabled: true  # Check data freshness
+          max_age_days: 90  # Alert if data older than 90 days
+          check_frequency: "daily"  # How often to check
+
+      # Reporting
+      reporting:
+        enabled: true  # Enable quality reporting
+        frequency: "weekly"  # Options: "daily", "weekly", "monthly"
+        include_in_digest: true  # Include in daily digest
+        slack_alerts: true  # Send Slack alerts on quality issues
+        slack_channel: "ops-autopiloot"  # Slack channel for quality alerts
