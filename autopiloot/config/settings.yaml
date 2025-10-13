@@ -330,3 +330,46 @@ rag:
     write_disposition: "WRITE_APPEND"  # Append new rows (handle deduplication in queries)
     batch_size: 500  # Number of rows per batch insert
 
+  # Policy Enforcement
+  # Uniform authorization and content filtering for retrieval results
+  # Applied after fusion (HybridRetrieval) but before LLM reasoning
+  policy:
+    enabled: true  # Enable policy enforcement
+    default_mode: "filter"  # Options: "filter" (remove), "redact" (mask), "audit_only" (log only)
+
+    # Sensitive content patterns for redaction
+    # Each pattern has: name, regex pattern, severity (low/medium/high/critical), replacement text
+    sensitive_patterns:
+      - name: "email"
+        pattern: "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"
+        severity: "medium"
+        replacement: "[EMAIL REDACTED]"
+
+      - name: "phone"
+        pattern: "\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b"
+        severity: "medium"
+        replacement: "[PHONE REDACTED]"
+
+      - name: "ssn"
+        pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+        severity: "high"
+        replacement: "[SSN REDACTED]"
+
+      - name: "credit_card"
+        pattern: "\\b\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}\\b"
+        severity: "high"
+        replacement: "[CARD REDACTED]"
+
+    # Authorization rules
+    authorization:
+      channel_based: true  # Enable channel-based access control
+      date_based: false  # Enable date-based access control (max age restrictions)
+      user_based: false  # Enable user-based access control
+
+    # Audit logging
+    audit:
+      enabled: true  # Log all policy enforcement decisions
+      log_violations: true  # Log policy violations
+      log_redactions: true  # Log redaction actions
+      retention_days: 90  # Audit log retention period
+
