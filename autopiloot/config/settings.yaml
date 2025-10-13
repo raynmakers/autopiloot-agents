@@ -464,3 +464,128 @@ rag:
       log_level: "info"  # Options: "debug", "info", "warning", "error"
       include_trace_context: true  # Include trace IDs in logs
 
+  # Security and IAM Configuration
+  # Comprehensive security settings for hybrid RAG pipeline
+  # Enforces least-privilege access, secure transport, and credential management
+  security:
+    enabled: true  # Enable security validation
+
+    # BigQuery IAM and Security
+    bigquery:
+      # Required IAM roles for service account (least-privilege)
+      required_roles:
+        - "roles/bigquery.dataEditor"  # Create/write datasets and tables
+        - "roles/bigquery.jobUser"     # Run queries and jobs
+      # Security recommendations
+      recommendations:
+        - "Use service account with least-privilege roles"
+        - "Store credentials via GOOGLE_APPLICATION_CREDENTIALS env var"
+        - "Never commit service account JSON to version control"
+        - "Rotate service account keys regularly"
+        - "Enable Cloud Audit Logs for BigQuery access"
+      # Required environment variables
+      required_env_vars:
+        - "GCP_PROJECT_ID"
+        - "GOOGLE_APPLICATION_CREDENTIALS"
+
+    # OpenSearch Security
+    opensearch:
+      # Transport security
+      tls:
+        enabled: true  # Require TLS/SSL for connections
+        verify_certs: true  # Verify SSL certificates
+      # Authentication methods (choose one)
+      authentication:
+        method: "api_key"  # Options: "api_key", "basic_auth"
+        # For API key authentication
+        api_key_env_var: "OPENSEARCH_API_KEY"
+        # For basic authentication
+        username_env_var: "OPENSEARCH_USERNAME"
+        password_env_var: "OPENSEARCH_PASSWORD"
+      # Security recommendations
+      recommendations:
+        - "Use HTTPS (TLS) for all OpenSearch connections"
+        - "Prefer API key authentication over basic auth"
+        - "Use read-only credentials for query operations"
+        - "Store credentials in environment variables only"
+        - "Enable certificate verification in production"
+        - "Rotate API keys/passwords regularly"
+      # Required environment variables
+      required_env_vars:
+        - "OPENSEARCH_HOST"
+
+    # Zep Security
+    zep:
+      # Transport security
+      tls:
+        enabled: true  # Require TLS/SSL for connections
+      # Authentication
+      authentication:
+        api_key_env_var: "ZEP_API_KEY"
+      # Security recommendations
+      recommendations:
+        - "Use HTTPS for all Zep API connections"
+        - "Store ZEP_API_KEY in environment variables only"
+        - "Never commit API keys to version control"
+        - "Use separate API keys for dev/staging/prod"
+        - "Rotate API keys regularly"
+      # Required environment variables
+      required_env_vars:
+        - "ZEP_API_KEY"
+
+    # Credential Management
+    credentials:
+      # Enforce environment-based credentials
+      require_env_vars: true  # All credentials must be from environment
+      # Prohibited patterns (never hardcode these)
+      prohibited_patterns:
+        - "api_key\\s*=\\s*['\\\"]\\w+['\\\"]"
+        - "password\\s*=\\s*['\\\"]\\w+['\\\"]"
+        - "token\\s*=\\s*['\\\"]\\w+['\\\"]"
+        - "secret\\s*=\\s*['\\\"]\\w+['\\\"]"
+      # Security recommendations
+      recommendations:
+        - "Never hardcode API keys or secrets in code"
+        - "Use environment variables for all credentials"
+        - "Add .env to .gitignore"
+        - "Use separate credentials for different environments"
+        - "Implement secret rotation policies"
+        - "Consider using secret management services (e.g., Google Secret Manager)"
+      # Critical environment variables (must be set)
+      critical_env_vars:
+        - "OPENAI_API_KEY"
+        - "ASSEMBLYAI_API_KEY"
+        - "YOUTUBE_API_KEY"
+        - "ZEP_API_KEY"
+        - "GCP_PROJECT_ID"
+        - "GOOGLE_APPLICATION_CREDENTIALS"
+
+    # PII Protection
+    pii:
+      # PII masking/redaction (uses rag.policy.sensitive_patterns)
+      enabled: true  # Enable PII detection and redaction
+      reference_config: "rag.policy.sensitive_patterns"
+      # Security recommendations
+      recommendations:
+        - "Enable PII redaction for sensitive data"
+        - "Configure custom patterns for domain-specific PII"
+        - "Log all PII redaction actions for compliance"
+        - "Review redaction patterns regularly"
+
+    # Security Validation
+    validation:
+      enabled: true  # Enable security validation tool
+      strict_mode: false  # Fail on warnings (set true for production)
+      check_on_startup: true  # Validate security on system startup
+      validation_frequency: "daily"  # Options: "startup", "daily", "manual"
+
+    # Audit and Compliance
+    audit:
+      enabled: true  # Enable security audit logging
+      log_credential_usage: false  # Log credential usage (sensitive)
+      log_access_patterns: true  # Log access patterns for anomaly detection
+      retention_days: 90  # Audit log retention period
+      compliance_frameworks:
+        - "GDPR"  # EU data protection
+        - "SOC2"  # Security and availability
+
