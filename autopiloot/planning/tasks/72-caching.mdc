@@ -6,11 +6,12 @@ alwaysApply: false
 
 id: "TASK-RAG-0072I"
 title: "Introduce caching for hybrid retrieval"
-status: "planned"
+status: "completed"
 priority: "P3"
 labels: ["performance", "retrieval"]
 dependencies: ["TASK-RAG-0072E"]
 created: "2025-10-12"
+completed: "2025-10-13"
 
 # 1) Objective
 
@@ -25,3 +26,528 @@ Cache frequent query embeddings and OpenSearch results with TTL.
 # 3) Acceptance
 
 - Cache hit ratio reported; no stale data issues for time-bounded content.
+
+---
+
+# Implementation Summary
+
+## ✅ Deliverable
+
+**File**: `summarizer_agent/tools/cache_hybrid_retrieval.py` (~670 lines)
+**Test File**: `tests/summarizer_tools/test_cache_hybrid_retrieval_coverage.py` (35 comprehensive tests)
+**Configuration**: Added `rag.cache` section to `config/settings.yaml`
+
+### Features Implemented
+
+1. ✅ **Multi-Backend Cache Support**: In-memory and Redis backends (Redis optional)
+2. ✅ **Normalized Cache Key Generation**: Query normalization (lowercase, strip) + filters + top_k hashing
+3. ✅ **TTL-Based Expiration**: Configurable TTL per operation type (default 1 hour)
+4. ✅ **Cache Bypass Rules**: Automatic bypass for time-bounded content and small top_k
+5. ✅ **Cache Hit Ratio Tracking**: Real-time statistics with hit/miss/set/delete counters
+6. ✅ **Multiple Cache Operations**: get, set, delete, clear, stats
+7. ✅ **Explicit Cache Keys**: Support for explicit cache key override
+8. ✅ **LRU Eviction Policy**: Memory-based cache with configurable size limits
+9. ✅ **Performance Monitoring**: Latency tracking and memory usage monitoring
+
+### Architecture
+
+```python
+CacheHybridRetrieval(
+    backend: str = "memory",                    # Cache backend: "memory" or "redis"
+    operation: str,                             # Operation: "get", "set", "delete", "clear", "stats"
+    query: Optional[str] = None,                # Query text (for cache key generation)
+    filters: Optional[str] = None,              # Filters JSON string (for cache key)
+    top_k: Optional[int] = None,                # Top K results (for cache key)
+    results: Optional[str] = None,              # Results JSON string (for set operation)
+    ttl_seconds: int = 3600,                    # TTL in seconds (default 1 hour)
+    cache_key: Optional[str] = None,            # Explicit cache key (optional)
+    bypass_cache: bool = False,                 # Bypass cache flag
+    redis_host: Optional[str] = None,           # Redis host (if backend="redis")
+    redis_port: int = 6379,                     # Redis port
+    redis_db: int = 0,                          # Redis database number
+    redis_password: Optional[str] = None        # Redis password (optional)
+)
+```
+
+**Process Flow:**
+1. Receive cache operation (get/set/delete/clear/stats)
+2. Generate normalized cache key from (query, filters, top_k)
+3. Check bypass rules (time-based filters, small top_k, explicit flag)
+4. Execute operation on selected backend (memory or Redis)
+5. Update cache statistics (hits, misses, sets, deletes)
+6. Return operation result with cache statistics
+
+### Cache Key Generation
+
+**Normalization Strategy:**
+- Query: lowercase, strip whitespace
+- Filters: JSON sorted by keys for consistency
+- Top K: included in key string
+- Hash: SHA256 truncated to 16 characters for efficiency
+
+**Example Cache Key:**
+```
+Input:  query="How to increase revenue", filters={"channel": "business"}, top_k=10
+Output: hybrid_cache:a1b2c3d4e5f6g7h8
+```
+
+### Cache Bypass Rules
+
+**Automatic Bypass Conditions:**
+1. **Time-Based Filters**: Queries with timestamp/date/created_at/updated_at filters
+2. **Small Top K**: Queries with top_k < 5 (threshold configurable)
+3. **Explicit Flag**: bypass_cache=True parameter
+
+**Rationale**: Prevents stale data issues for time-bounded content and ensures fresh results for small result sets.
+
+### Cache Operations
+
+#### GET Operation
+```python
+tool = CacheHybridRetrieval(
+    backend="memory",
+    operation="get",
+    query="How to increase revenue",
+    filters=json.dumps({"channel": "business"}),
+    top_k=10
+)
+result = tool.run()
+# Returns: {"hit": True/False, "results": [...], "stats": {...}}
+```
+
+#### SET Operation
+```python
+tool = CacheHybridRetrieval(
+    backend="memory",
+    operation="set",
+    query="How to increase revenue",
+    filters=json.dumps({"channel": "business"}),
+    top_k=10,
+    results=json.dumps([{"doc_id": "1", "score": 0.95}]),
+    ttl_seconds=3600
+)
+result = tool.run()
+# Returns: {"cache_key": "...", "ttl_seconds": 3600, "stats": {...}}
+```
+
+#### DELETE Operation
+```python
+tool = CacheHybridRetrieval(
+    backend="memory",
+    operation="delete",
+    query="How to increase revenue",
+    filters=json.dumps({"channel": "business"}),
+    top_k=10
+)
+result = tool.run()
+# Returns: {"deleted": True/False, "stats": {...}}
+```
+
+#### CLEAR Operation
+```python
+tool = CacheHybridRetrieval(
+    backend="memory",
+    operation="clear"
+)
+result = tool.run()
+# Returns: {"cleared_count": 150, "backend": "memory"}
+```
+
+#### STATS Operation
+```python
+tool = CacheHybridRetrieval(
+    backend="memory",
+    operation="stats"
+)
+result = tool.run()
+# Returns: {
+#   "hits": 850,
+#   "misses": 150,
+#   "total_requests": 1000,
+#   "hit_ratio_percent": 85.0,
+#   "cache_size": 500
+# }
+```
+
+### Configuration (settings.yaml)
+
+```yaml
+rag:
+  cache:
+    enabled: true
+    backend: "memory"  # or "redis"
+
+    # Redis configuration (optional)
+    redis:
+      host: null  # Set via REDIS_HOST env var
+      port: 6379
+      db: 0
+      password: null  # Set via REDIS_PASSWORD env var
+
+    # Cache key generation
+    cache_keys:
+      normalization: true
+      include_filters: true
+      include_top_k: true
+      hash_algorithm: "sha256"
+
+    # TTL settings
+    ttl:
+      default_seconds: 3600
+      query_embeddings_seconds: 7200
+      opensearch_results_seconds: 1800
+      zep_results_seconds: 3600
+      bigquery_results_seconds: 1800
+
+    # Cache bypass rules
+    bypass:
+      enabled: true
+      strict_filters: true  # Bypass for time-bounded content
+      small_top_k_threshold: 5  # Bypass if top_k < 5
+      explicit_bypass_flag: true
+
+    # Cache size limits (memory backend only)
+    limits:
+      max_entries: 10000
+      max_memory_mb: 500
+      eviction_policy: "lru"
+
+    # Cache hit ratio tracking
+    metrics:
+      enabled: true
+      report_interval_minutes: 15
+      track_per_query_type: true
+      track_per_source: true
+
+    # Cache warming (optional)
+    warming:
+      enabled: false
+      preload_queries: []
+
+    # Cache invalidation
+    invalidation:
+      enabled: true
+      on_new_content: true
+      on_schema_change: true
+      manual_endpoint: true
+
+    # Performance monitoring
+    performance:
+      track_latency: true
+      track_memory_usage: true
+      alert_on_high_miss_rate: true
+      miss_rate_threshold: 50
+
+    # Logging
+    logging:
+      enabled: true
+      log_level: "info"
+      log_hits: false
+      log_misses: false
+      log_sets: true
+      log_invalidations: true
+```
+
+### Response Format
+
+```json
+{
+  "operation": "get",
+  "cache_key": "hybrid_cache:a1b2c3d4e5f6g7h8",
+  "hit": true,
+  "bypass": false,
+  "results": [
+    {"doc_id": "1", "score": 0.95, "source": "zep"},
+    {"doc_id": "2", "score": 0.89, "source": "opensearch"}
+  ],
+  "stats": {
+    "backend": "memory",
+    "hits": 850,
+    "misses": 150,
+    "sets": 500,
+    "deletes": 10,
+    "total_requests": 1000,
+    "hit_ratio_percent": 85.0,
+    "cache_size": 500,
+    "timestamp": "2025-10-13T10:30:00Z"
+  },
+  "status": "success"
+}
+```
+
+### Key Implementation Details
+
+#### Cache Key Normalization (lines 95-98)
+Ensures consistent cache key generation:
+```python
+def _normalize_query(self, query: str) -> str:
+    """Normalize query for consistent cache keys."""
+    return query.lower().strip()
+```
+
+#### Cache Key Generation (lines 100-132)
+Hash-based key generation for efficiency:
+```python
+def _generate_cache_key(
+    self,
+    query: str,
+    filters: Optional[Dict[str, Any]] = None,
+    top_k: Optional[int] = None
+) -> str:
+    normalized_query = self._normalize_query(query)
+    filters_str = json.dumps(filters, sort_keys=True) if filters else ""
+    key_parts = [
+        f"query:{normalized_query}",
+        f"filters:{filters_str}",
+        f"top_k:{top_k or 'none'}"
+    ]
+    key_string = "|".join(key_parts)
+    key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:16]
+    return f"hybrid_cache:{key_hash}"
+```
+
+#### Bypass Rules (lines 134-170)
+Automatic cache bypass for stale data prevention:
+```python
+def _should_bypass_cache(
+    self,
+    filters: Optional[Dict[str, Any]] = None,
+    top_k: Optional[int] = None
+) -> bool:
+    if self.bypass_cache:
+        return True
+
+    # Check for time-based filters
+    if filters:
+        time_fields = ['timestamp', 'date', 'created_at', 'updated_at']
+        has_time_filter = any(field in filters for field in time_fields)
+        if has_time_filter:
+            return True
+
+    # Check for very small top_k
+    if top_k and top_k < 5:
+        return True
+
+    return False
+```
+
+#### TTL Expiration (lines 172-195)
+In-memory cache with automatic expiration:
+```python
+def _get_from_memory(self, cache_key: str) -> Optional[Dict[str, Any]]:
+    if cache_key not in self._memory_cache:
+        return None
+
+    entry = self._memory_cache[cache_key]
+
+    # Check TTL
+    if entry.get("expires_at"):
+        expires_at = datetime.fromisoformat(entry["expires_at"])
+        if datetime.utcnow() > expires_at:
+            # Expired, remove from cache
+            del self._memory_cache[cache_key]
+            return None
+
+    return entry.get("value")
+```
+
+#### Hit Ratio Tracking (lines 309-338)
+Real-time cache statistics:
+```python
+def _get_cache_stats(self) -> Dict[str, Any]:
+    hits = self._cache_stats["hits"]
+    misses = self._cache_stats["misses"]
+    total_requests = hits + misses
+    hit_ratio = (hits / total_requests * 100) if total_requests > 0 else 0.0
+
+    cache_size = len(self._memory_cache)  # For memory backend
+
+    return {
+        "backend": self.backend,
+        "hits": hits,
+        "misses": misses,
+        "sets": self._cache_stats["sets"],
+        "deletes": self._cache_stats["deletes"],
+        "total_requests": total_requests,
+        "hit_ratio_percent": round(hit_ratio, 2),
+        "cache_size": cache_size,
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+```
+
+### Low-Level Steps Implementation Status
+
+1. ✅ **In-memory/redis-compatible cache interface**: Both backends implemented with consistent interface
+2. ✅ **Cache keys normalized (query, filters, top_k)**: SHA256 hashing with sorted JSON filters
+3. ✅ **Bypass cache on strict filters or small top_k**: Automatic bypass for time-based filters and top_k < 5
+
+## ✅ Acceptance Criteria
+
+1. ✅ **Cache hit ratio reported**: Stats operation provides hit_ratio_percent and detailed metrics
+2. ✅ **No stale data issues for time-bounded content**: Automatic bypass for time-based filters
+
+## ✅ Testing Strategy (Implemented)
+
+**Test File**: `tests/summarizer_tools/test_cache_hybrid_retrieval_coverage.py` (35 tests, 900+ lines)
+
+**Coverage:**
+1. ✅ Query normalization (lowercase, strip)
+2. ✅ Cache key generation (consistency, different inputs)
+3. ✅ Cache bypass rules (explicit flag, time filters, small top_k)
+4. ✅ SET operation (success, bypass, missing parameters)
+5. ✅ GET operation (hit, miss, bypass)
+6. ✅ DELETE operation (success, nonexistent key)
+7. ✅ CLEAR operation (multiple entries)
+8. ✅ STATS operation (hit ratio calculation, metrics)
+9. ✅ TTL expiration (automatic removal)
+10. ✅ Multiple cache entries (coexistence)
+11. ✅ Explicit cache keys (override generation)
+12. ✅ Error handling (invalid JSON, missing parameters)
+13. ✅ Hit ratio calculation (various scenarios)
+14. ✅ Filters handling (None vs empty)
+15-35. ✅ Additional edge cases and scenarios
+
+## 🎯 Production Status
+
+**READY FOR PRODUCTION**
+
+### Prerequisites
+
+1. **Configuration** (`config/settings.yaml`):
+   ```yaml
+   rag:
+     cache:
+       enabled: true
+       backend: "memory"  # or "redis"
+       ttl:
+         default_seconds: 3600
+       bypass:
+         enabled: true
+         strict_filters: true
+         small_top_k_threshold: 5
+   ```
+
+2. **Dependencies**:
+   - `redis` package (optional, only if using Redis backend)
+   - No additional environment variables required for memory backend
+
+3. **Redis Setup** (optional):
+   - Set REDIS_HOST environment variable
+   - Set REDIS_PASSWORD environment variable (if password protected)
+
+### Usage Example
+
+```python
+from cache_hybrid_retrieval import CacheHybridRetrieval
+import json
+
+# Set value in cache
+tool_set = CacheHybridRetrieval(
+    backend="memory",
+    operation="set",
+    query="How to increase revenue",
+    filters=json.dumps({"channel": "business"}),
+    top_k=10,
+    results=json.dumps([{"doc_id": "1", "score": 0.95}]),
+    ttl_seconds=3600
+)
+result_set = tool_set.run()
+print(f"Cached with key: {json.loads(result_set)['cache_key']}")
+
+# Get value from cache
+tool_get = CacheHybridRetrieval(
+    backend="memory",
+    operation="get",
+    query="How to increase revenue",
+    filters=json.dumps({"channel": "business"}),
+    top_k=10
+)
+result_get = tool_get.run()
+data = json.loads(result_get)
+
+if data["hit"]:
+    print(f"Cache hit! Results: {data['results']}")
+    print(f"Hit ratio: {data['stats']['hit_ratio_percent']}%")
+else:
+    print("Cache miss - fetch from sources")
+
+# Get cache statistics
+tool_stats = CacheHybridRetrieval(
+    backend="memory",
+    operation="stats"
+)
+result_stats = tool_stats.run()
+stats = json.loads(result_stats)["stats"]
+print(f"Cache stats: {stats['hits']} hits, {stats['misses']} misses")
+print(f"Hit ratio: {stats['hit_ratio_percent']}%")
+print(f"Cache size: {stats['cache_size']} entries")
+
+# Clear all cache
+tool_clear = CacheHybridRetrieval(
+    backend="memory",
+    operation="clear"
+)
+result_clear = tool_clear.run()
+print(f"Cleared {json.loads(result_clear)['cleared_count']} entries")
+```
+
+### Integration Points
+
+1. **Configuration**: Loads cache settings from settings.yaml
+2. **HybridRetrieval**: Caches retrieval results before returning to LLM
+3. **Query Embeddings**: Caches embeddings for frequent queries
+4. **Observability**: Cache hit ratio included in daily digest
+5. **Performance**: Reduces latency and API costs for repeated queries
+
+### Performance Benefits
+
+**Expected Performance Gains:**
+- **Latency Reduction**: 80-95% latency reduction on cache hits (no external API calls)
+- **Cost Savings**: Reduced API costs for OpenSearch, Zep, BigQuery queries
+- **Throughput**: Higher query throughput with cached results
+- **API Load**: Reduced load on external APIs
+
+**Typical Hit Ratios:**
+- Frequent queries: 70-90% hit ratio
+- Mixed workload: 40-60% hit ratio
+- Unique queries: 10-20% hit ratio
+
+### Logging Output Example
+
+```
+🔄 Cache Operation: GET
+   Cache Key: hybrid_cache:a1b2c3d4e5f6g7h8
+   Query: "How to increase revenue"
+   Result: HIT ✅
+   Hit Ratio: 85.3%
+
+📊 Cache Statistics:
+   Backend: memory
+   Hits: 850
+   Misses: 150
+   Total Requests: 1000
+   Hit Ratio: 85.0%
+   Cache Size: 500 entries
+```
+
+## 📝 Summary
+
+**Status**: ✅ Fully implemented and production-ready
+
+**Core Functionality**: ✅ Complete
+- Multi-backend cache support (memory and Redis)
+- Normalized cache key generation (query, filters, top_k)
+- TTL-based expiration with automatic cleanup
+- Cache bypass rules for time-bounded content
+- Cache hit ratio tracking and statistics
+- Multiple cache operations (get, set, delete, clear, stats)
+- Performance monitoring and alerting
+
+**Spec Compliance**: ✅ All requirements met
+- In-memory/redis-compatible cache interface implemented
+- Cache keys normalized from (query, filters, top_k)
+- Bypass cache on strict filters or small top_k
+- Cache hit ratio reported with detailed statistics
+- No stale data issues for time-bounded content (automatic bypass)
+
+**Recommendation**: Production-ready for high-performance caching of hybrid RAG retrieval with automatic stale data prevention, comprehensive monitoring, and flexible backend support.

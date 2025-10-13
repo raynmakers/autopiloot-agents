@@ -589,3 +589,86 @@ rag:
         - "GDPR"  # EU data protection
         - "SOC2"  # Security and availability
 
+  # Caching Configuration
+  # High-performance caching for frequent queries and retrieval results
+  # Reduces latency and API costs by caching query embeddings and results
+  cache:
+    enabled: true  # Enable caching for hybrid retrieval
+    backend: "memory"  # Cache backend: "memory" or "redis"
+
+    # Redis configuration (optional, only if backend="redis")
+    redis:
+      host: null  # Set via REDIS_HOST environment variable
+      port: 6379  # Redis server port
+      db: 0  # Redis database number
+      password: null  # Set via REDIS_PASSWORD environment variable (optional)
+      connection_timeout_ms: 1000  # Connection timeout in milliseconds
+
+    # Cache key generation
+    cache_keys:
+      normalization: true  # Normalize queries (lowercase, strip whitespace)
+      include_filters: true  # Include filters in cache key
+      include_top_k: true  # Include top_k in cache key
+      hash_algorithm: "sha256"  # Hash algorithm for cache key generation
+
+    # TTL (Time To Live) settings
+    ttl:
+      default_seconds: 3600  # Default TTL (1 hour)
+      query_embeddings_seconds: 7200  # Cache query embeddings for 2 hours
+      opensearch_results_seconds: 1800  # Cache OpenSearch results for 30 minutes
+      zep_results_seconds: 3600  # Cache Zep results for 1 hour
+      bigquery_results_seconds: 1800  # Cache BigQuery results for 30 minutes
+
+    # Cache bypass rules
+    bypass:
+      enabled: true  # Enable cache bypass rules
+      # Conditions that trigger cache bypass:
+      strict_filters: true  # Bypass cache for time-bounded content (timestamp, date filters)
+      small_top_k_threshold: 5  # Bypass cache if top_k < 5
+      explicit_bypass_flag: true  # Honor explicit bypass flag in requests
+
+    # Cache size limits (memory backend only)
+    limits:
+      max_entries: 10000  # Maximum number of cached entries
+      max_memory_mb: 500  # Maximum memory usage in MB
+      eviction_policy: "lru"  # Eviction policy: "lru" (least recently used), "lfu" (least frequently used)
+
+    # Cache hit ratio tracking
+    metrics:
+      enabled: true  # Track cache hit ratio and statistics
+      report_interval_minutes: 15  # Report metrics every 15 minutes
+      track_per_query_type: true  # Track metrics separately per query type
+      track_per_source: true  # Track metrics separately per source
+
+    # Cache warming (optional)
+    warming:
+      enabled: false  # Enable cache warming on startup
+      preload_queries: []  # List of queries to preload (empty = disabled)
+      # Example:
+      # - "How to increase revenue"
+      # - "Best marketing strategies"
+
+    # Cache invalidation
+    invalidation:
+      enabled: true  # Enable cache invalidation
+      # Automatic invalidation rules:
+      on_new_content: true  # Invalidate cache when new content is indexed
+      on_schema_change: true  # Invalidate cache on schema changes
+      manual_endpoint: true  # Provide manual invalidation endpoint
+
+    # Performance monitoring
+    performance:
+      track_latency: true  # Track cache operation latency
+      track_memory_usage: true  # Track memory usage (memory backend only)
+      alert_on_high_miss_rate: true  # Alert if hit ratio drops below threshold
+      miss_rate_threshold: 50  # Alert if hit ratio < 50%
+
+    # Logging and debugging
+    logging:
+      enabled: true  # Log cache operations
+      log_level: "info"  # Options: "debug", "info", "warning", "error"
+      log_hits: false  # Log cache hits (verbose, set false in production)
+      log_misses: false  # Log cache misses (verbose, set false in production)
+      log_sets: true  # Log cache set operations
+      log_invalidations: true  # Log cache invalidation operations
+
