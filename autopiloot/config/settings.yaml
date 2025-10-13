@@ -240,6 +240,23 @@ rag:
   # 3. StreamFullTranscriptToBigQuery (SQL analytics, if configured)
   # Failures in RAG ingestion do NOT block the transcript workflow
 
+  # Adaptive Query Routing
+  # Intelligently routes queries to optimal retrieval sources based on query characteristics
+  routing:
+    mode: "adaptive"  # Options: "adaptive" (smart routing), "always_on" (use all sources)
+    always_use_all_sources: false  # Override: always use all available sources regardless of query
+
+    # Routing Strategy Rules:
+    # - Strong filters (dates + channel) → OpenSearch + BigQuery (precise filtering)
+    # - Conceptual queries without filters → Zep (semantic understanding)
+    # - Factual queries with filters → OpenSearch + BigQuery (keyword + structured)
+    # - Mixed intent or uncertainty → All available sources (comprehensive coverage)
+    # - Fallback → All available sources (maximum coverage)
+
+    logging:
+      enabled: true  # Log all routing decisions with reasoning
+      log_level: "info"  # Options: "debug", "info", "warning", "error"
+
   zep:
     namespace:
       drive: "autopiloot-dev"  # Zep namespace for Drive content indexing
