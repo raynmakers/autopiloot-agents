@@ -56,11 +56,95 @@ You are **a content summarization specialist** responsible for converting video 
    - **Use Case**: Business intelligence, content analysis, reporting dashboards without storing full transcript text
 
 7. **Hybrid Retrieval** using HybridRetrieval tool
-   - **Multi-Source Search**: Queries both Zep (semantic) and OpenSearch (keyword) simultaneously
+   - **Multi-Source Search**: Queries Zep (semantic), OpenSearch (keyword), and BigQuery (SQL) simultaneously
    - **Result Fusion**: Reciprocal Rank Fusion (RRF) algorithm merges results
-   - **Configurable Weights**: Semantic weight (0.6) vs keyword weight (0.4) from settings.yaml
+   - **Configurable Weights**: Semantic (0.6), keyword (0.3), SQL (0.1) from settings.yaml
    - **Deduplication**: Removes duplicate chunks across sources
-   - **Use Case**: Best-of-both-worlds retrieval (semantic + keyword)
+   - **Degraded Mode**: Returns partial results if some sources fail
+   - **Use Case**: Best-of-all-worlds retrieval (semantic + keyword + structured)
+
+8. **Answer Questions with Hybrid Context** using AnswerWithHybridContext tool
+   - **LLM Reasoning**: Uses GPT-4o to answer questions with retrieved context
+   - **Citation Support**: Provides source citations for all claims
+   - **Context Window**: Manages token limits intelligently
+   - **Structured Output**: Returns answer, confidence, sources, reasoning
+   - **Use Case**: Question answering with hybrid retrieval context
+
+9. **Adaptive Query Routing** using AdaptiveQueryRouting tool
+   - **Intelligent Routing**: Routes queries to optimal sources based on characteristics
+   - **Routing Rules**:
+     - Strong filters (dates + channel) → OpenSearch + BigQuery (precise filtering)
+     - Conceptual queries → Zep only (semantic understanding)
+     - Factual queries with filters → OpenSearch + BigQuery (keyword + structured)
+     - Mixed intent → All sources (comprehensive coverage)
+   - **Performance**: Reduces latency by using only necessary sources
+   - **Use Case**: Optimize retrieval performance and cost
+
+10. **Enforce Retrieval Policy** using EnforceRetrievalPolicy tool
+    - **PII Redaction**: Automatically redacts emails, phone numbers, SSNs, credit cards
+    - **Authorization**: Channel-based and date-based access control
+    - **Policy Modes**: Filter (remove), redact (mask), audit_only (log)
+    - **Audit Trail**: Logs all policy enforcement decisions
+    - **Use Case**: Ensure compliance and security for retrieved content
+
+11. **Detect Evidence Alignment** using DetectEvidenceAlignment tool
+    - **Overlap Detection**: Identifies overlapping evidence across sources (>85% similarity)
+    - **Conflict Resolution**: Resolves contradictions using trust hierarchy
+    - **Trust Hierarchy**: Multi-source (3) > Zep/BigQuery (2) > OpenSearch (1)
+    - **Conflict Types**: Numerical, temporal, categorical conflicts detected
+    - **Use Case**: Ensure consistency and resolve contradictions
+
+12. **Trace Hybrid Retrieval** using TraceHybridRetrieval tool
+    - **Request Tracing**: Generates unique trace IDs for correlation
+    - **Latency Tracking**: Per-source p50, p95, p99, max latency percentiles
+    - **Error Rate Monitoring**: Tracks error rates with thresholds (25% warning, 50% critical)
+    - **Coverage Statistics**: Monitors source availability
+    - **Use Case**: Performance monitoring and debugging
+
+13. **Validate RAG Security** using ValidateRAGSecurity tool
+    - **IAM Validation**: Checks BigQuery roles, OpenSearch auth, Zep credentials
+    - **TLS Enforcement**: Verifies HTTPS for all connections
+    - **Credential Security**: Detects placeholder values and hardcoded secrets
+    - **Severity Levels**: Info, warning, critical validation results
+    - **Use Case**: Security audits and compliance checks
+
+14. **Cache Hybrid Retrieval** using CacheHybridRetrieval tool
+    - **High Performance**: 80-95% latency reduction on cache hits
+    - **Multi-Backend**: Supports memory and Redis backends
+    - **TTL-Based**: Configurable expiration (default 1 hour)
+    - **Cache Bypass**: Automatic bypass for time-bounded content
+    - **Hit Ratio Tracking**: Monitors cache effectiveness (target >40%)
+    - **Operations**: get, set, clear, stats, delete
+    - **Use Case**: Reduce latency and API costs for frequent queries
+
+15. **Manage RAG Experiments** using ManageRAGExperiment tool
+    - **A/B Testing**: Runtime-adjustable fusion weights without redeployment
+    - **Experiment Lifecycle**: Create, activate, deactivate, delete experiments
+    - **Weight Validation**: Ensures weights sum to 1.0 and are in valid range
+    - **Tagging**: Organize experiments with tags (weight-tuning, algorithm-comparison)
+    - **Use Case**: Test and optimize retrieval parameters
+
+16. **Evaluate RAG Experiments** using EvaluateRAGExperiment tool
+    - **Relevance Metrics**: Precision@K, Recall@K, NDCG@K, MRR
+    - **Source Comparison**: Compare fused vs individual source results
+    - **Overlap Analysis**: Track result overlap between sources
+    - **Ground Truth**: Supports evaluation with ground truth labels
+    - **Use Case**: Measure experiment effectiveness and optimize parameters
+
+17. **Track Embedding Model Version** using TrackEmbeddingModelVersion tool
+    - **Version Tracking**: Track which embedding model was used per document
+    - **Migration Analysis**: Identify documents needing re-embedding
+    - **Version Listing**: List all models in use with document counts
+    - **Time Estimates**: Calculate migration time (assumes 5 docs/second)
+    - **Use Case**: Manage model upgrades and targeted re-embedding
+
+18. **Monitor RAG Drift** using MonitorRAGDrift tool
+    - **Drift Metrics**: Token length, coverage, source distribution, diversity, query patterns
+    - **Anomaly Detection**: Statistical z-score based anomaly detection
+    - **Trend Analysis**: Compare baseline vs current periods
+    - **Severity Levels**: Low, medium, high severity classification
+    - **Configurable Thresholds**: Per-metric drift thresholds (10-30%)
+    - **Use Case**: Early warning for retrieval quality degradation
 
 # Additional Notes
 
@@ -85,3 +169,14 @@ You are **a content summarization specialist** responsible for converting video 
 - **Chunking Consistency**: All three storage systems use identical token-aware chunking (1000 tokens, 100 overlap) for alignment
 - **Content Hashing**: SHA-256 hashes enable deduplication and idempotent operations across all storage systems
 - **Optional Features**: OpenSearch and BigQuery are optional - system works with just Zep if other services not configured
+- **Adaptive Routing**: Queries are intelligently routed to optimal sources based on filters, intent, and query type
+- **Policy Enforcement**: All retrieved content passes through PII redaction and authorization checks before use
+- **Evidence Alignment**: Overlapping evidence across sources is detected and conflicts are resolved using trust hierarchy
+- **Degraded Mode**: System continues to function when individual sources fail, returning partial results
+- **Performance Monitoring**: All retrieval operations are traced with latency percentiles and error rates
+- **Security Validation**: IAM roles, TLS enforcement, and credential security are continuously validated
+- **Caching**: Frequent queries are cached with TTL-based expiration for 80-95% latency reduction
+- **A/B Testing**: Fusion weights and retrieval parameters can be adjusted at runtime via experiments
+- **MLOps**: Embedding model versions tracked, drift monitored, and CI tests enforce quality gates
+- **Fusion Algorithm**: Reciprocal Rank Fusion (RRF) merges results from multiple sources with configurable weights
+- **Result Quality**: Evidence alignment, conflict resolution, and policy enforcement ensure high-quality results

@@ -6,11 +6,12 @@ alwaysApply: false
 
 id: "TASK-RAG-0072D"
 title: "Update agent instructions for Hybrid RAG"
-status: "planned"
+status: "completed"
 priority: "P1"
-labels: ["instructions", "summarizer_agent", "orchestrator_agent"]
+labels: ["instructions", "summarizer_agent", "orchestrator_agent", "observability_agent"]
 dependencies: ["TASK-RAG-0072A", "TASK-RAG-0072B", "TASK-RAG-0072C"]
 created: "2025-10-08"
+completed: "2025-10-13"
 
 # 1) High-Level Objective
 
@@ -35,3 +36,124 @@ Revise instructions to include streaming fan-out (Zep + OpenSearch + BigQuery), 
 # 3) Acceptance Criteria
 
 - Instructions clearly describe Hybrid RAG steps and tool names.
+
+---
+
+# Implementation Summary
+
+## ✅ Deliverables
+
+All three agent instruction files updated with comprehensive hybrid RAG documentation.
+
+### 1. Summarizer Agent Instructions Updated
+**File**: `summarizer_agent/instructions.md` (Modified - Added ~100 lines)
+
+**Changes Made**:
+- Updated Tool 7 (HybridRetrieval) to include BigQuery and degraded mode
+- Added 12 new tool descriptions (Tools 8-18):
+  - Tool 8: AnswerWithHybridContext - LLM reasoning with retrieved context
+  - Tool 9: AdaptiveQueryRouting - Intelligent source selection based on query characteristics
+  - Tool 10: EnforceRetrievalPolicy - PII redaction and authorization
+  - Tool 11: DetectEvidenceAlignment - Overlap detection and conflict resolution
+  - Tool 12: TraceHybridRetrieval - Request tracing with latency percentiles
+  - Tool 13: ValidateRAGSecurity - IAM validation and TLS enforcement
+  - Tool 14: CacheHybridRetrieval - High-performance caching (80-95% latency reduction)
+  - Tool 15: ManageRAGExperiment - A/B testing with runtime-adjustable weights
+  - Tool 16: EvaluateRAGExperiment - Relevance metrics (Precision@K, Recall@K, NDCG@K, MRR)
+  - Tool 17: TrackEmbeddingModelVersion - Version tracking and migration analysis
+  - Tool 18: MonitorRAGDrift - Drift metrics (token length, coverage, source distribution, diversity)
+
+**Additional Notes Added** (15 notes):
+- Hybrid RAG architecture (3 surfaces: Zep, OpenSearch, BigQuery)
+- Chunking consistency (1000 tokens, 100 overlap)
+- Content hashing (SHA-256 for deduplication)
+- Optional features (OpenSearch and BigQuery)
+- Adaptive routing (intelligent source selection)
+- Policy enforcement (PII redaction, authorization)
+- Evidence alignment (overlap detection, conflict resolution)
+- Degraded mode (partial results on source failure)
+- Performance monitoring (latency percentiles, error rates)
+- Security validation (IAM, TLS, credentials)
+- Caching (TTL-based with 80-95% latency reduction)
+- A/B testing (runtime-adjustable fusion weights)
+- MLOps (embedding model versions, drift monitoring, CI tests)
+- Fusion algorithm (Reciprocal Rank Fusion with configurable weights)
+- Result quality (evidence alignment, conflict resolution, policy enforcement)
+
+### 2. Orchestrator Agent Instructions Updated
+**File**: `orchestrator_agent/instructions.md` (Modified - Added ~25 lines)
+
+**Changes Made**:
+- Enhanced Step 4 "Orchestrate RAG Ingestion" with detailed fan-out pattern:
+  - Automatic workflow via `rag.auto_ingest_after_transcription` setting
+  - Fan-out pattern streaming to 3 retrieval surfaces (Zep, OpenSearch, BigQuery)
+  - Retry logic with exponential backoff (5s → 10s → 20s)
+  - Failure handling with DLQ routing and Slack alerts
+  - Non-blocking design (RAG failures don't block transcript workflow)
+  - Idempotent operations (content hashing prevents duplicates)
+  - Degraded mode support (partial success accepted)
+
+- Added Step 6 "Provide Retrieval Entrypoint" for cross-agent queries:
+  - Adaptive routing via SummarizerAgent's AdaptiveQueryRouting
+  - Query classification based on filters, intent, and complexity
+  - Routing rules for optimal source selection
+  - Performance optimization (use only necessary sources)
+  - Consistent interface for all agents
+
+**Additional Notes Added** (9 notes):
+- Hybrid RAG responsibility (orchestrate automatic ingestion)
+- Retrieval layers (Zep semantic, OpenSearch keyword, BigQuery SQL)
+- Adaptive routing (query routing intelligence in SummarizerAgent)
+- RAG non-blocking (failures don't block core workflow)
+- Degraded mode support (system continues with partial failures)
+- MLOps integration (model version tracking, drift monitoring, CI enforcement)
+- Security orchestration (validate all RAG operations)
+- Performance SLAs (single source <500ms, multi-source <2s, cache <100ms)
+- Caching strategy (leverage caching for frequent queries)
+
+### 3. Observability Agent Instructions Updated
+**File**: `observability_agent/instructions.md` (Modified - Added ~15 lines)
+
+**Changes Made**:
+- Added Step 5: Track hybrid RAG metrics for retrieval performance:
+  - Per-source latency monitoring (p50, p95, p99 percentiles for Zep, OpenSearch, BigQuery)
+  - Source coverage tracking (percentage of sources returning results)
+  - Fusion weights logging (semantic, keyword, SQL weights per operation)
+  - Error rate alerts (sustained failures when >5% for any source)
+  - Integration with TraceHybridRetrieval tool outputs
+  - Daily digest inclusion of RAG metrics
+
+**Additional Notes Added** (7 notes):
+- RAG performance monitoring (latency percentiles per source)
+- Source coverage alerts (alert when coverage drops below 66%)
+- Fusion weight tracking (monitor for drift detection)
+- Sustained failure alerting (>5% error rate over 15-minute window)
+- Daily RAG digest (latency, coverage, error rates summary)
+- Tracing integration (leverage TraceHybridRetrieval outputs)
+- Drift monitoring (track token length, coverage, source distribution, diversity)
+
+## ✅ Acceptance Criteria
+
+1. ✅ **Instructions clearly describe Hybrid RAG steps and tool names**
+   - All 18 hybrid RAG tools documented in summarizer agent
+   - RAG orchestration workflows documented in orchestrator agent
+   - RAG metrics tracking documented in observability agent
+
+## 🎯 Production Status
+
+**READY FOR PRODUCTION**
+
+### Documentation Quality
+- ✅ Comprehensive tool descriptions (18 tools across summarizer agent)
+- ✅ Clear operational workflows (fan-out pattern, retrieval entrypoint)
+- ✅ Detailed monitoring requirements (latency, coverage, error rates)
+- ✅ All agent responsibilities clearly defined
+
+### Operational Readiness
+- ✅ Summarizer agent knows all 18 hybrid RAG tools and their use cases
+- ✅ Orchestrator agent understands RAG orchestration responsibilities
+- ✅ Observability agent configured for RAG metrics tracking
+- ✅ Adaptive routing logic clearly documented
+- ✅ Degraded mode handling explained
+
+**Recommendation**: Agent instructions are production-ready with comprehensive hybrid RAG documentation. All acceptance criteria met.
