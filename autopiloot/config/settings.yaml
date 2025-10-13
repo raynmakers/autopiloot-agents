@@ -102,6 +102,13 @@ llm:
       clustering_method: "kmeans"
       prompt_id: "topic_clustering_v1"
 
+    # RAG (Hybrid Retrieval) Tasks
+    rag_answer_question:
+      model: "gpt-4o"  # GPT-4 for reasoning with citations
+      temperature: 0.2  # Low temperature for factual accuracy
+      max_output_tokens: 2000  # Sufficient for comprehensive answers with citations
+      prompt_id: "rag_qa_v1"  # Question answering with hybrid retrieval context
+
 notifications:
   slack:
     channel: "ops-autopiloot"

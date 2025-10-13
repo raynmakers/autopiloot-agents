@@ -6,11 +6,12 @@ alwaysApply: false
 
 id: "TASK-RAG-0072F"
 title: "Create answer_with_hybrid_context tool (LLM adapter)"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["reasoning", "summarizer_agent", "llm"]
 dependencies: ["TASK-RAG-0072E"]
 created: "2025-10-12"
+completed: "2025-10-13"
 
 # 1) High-Level Objective
 
@@ -36,3 +37,277 @@ Turn fused results into prompt-ready context and call the LLM with structured ou
 # 5) Testing Strategy
 
 - Mock hybrid_retrieval and LLM; test alignment/trim logic and JSON schema adherence.
+
+---
+
+# Implementation Summary
+
+## ✅ Deliverable
+
+**File**: `summarizer_agent/tools/answer_with_hybrid_context.py` (335 lines)
+**Test File**: `tests/summarizer_tools/test_answer_with_hybrid_context_coverage.py` (14 comprehensive tests)
+**Configuration**: LLM task config added to `config/settings.yaml` (rag_answer_question)
+
+### Features Implemented
+
+1. ✅ **Hybrid Retrieval Integration**: Calls HybridRetrieval to get fused Zep + OpenSearch results
+2. ✅ **Context Balancing**: Prevents single-source bias with configurable max tokens per source (default: 4000)
+3. ✅ **Evidence Alignment**: Detects multi-source chunks for high-confidence evidence
+4. ✅ **Trust Hierarchy**: Prioritizes multi-source > semantic (Zep) > keyword (OpenSearch)
+5. ✅ **Conflict Resolution**: Deterministic rules based on evidence overlap ratio
+6. ✅ **Structured Outputs**: OpenAI Structured Outputs with strict JSON schema enforcement
+7. ✅ **Citation Tracking**: Comprehensive citations with video titles, chunk IDs, and source types
+8. ✅ **Quality Metrics**: Confidence assessment, evidence quality, and limitation reporting
+
+### Architecture
+
+```python
+AnswerWithHybridContext(
+    query: str,                          # User question
+    top_k: int = 10,                     # Results to retrieve
+    max_tokens_per_source: int = 4000,   # Balance limit per source
+    channel_id: Optional[str] = None,    # Filter by channel
+    min_published_date: Optional[str] = None,  # Date range filter
+    max_published_date: Optional[str] = None
+)
+```
+
+**Process Flow:**
+1. Call HybridRetrieval to get fused results from Zep + OpenSearch
+2. Balance context per source (prevent single-source bias)
+3. Detect evidence overlaps (multi-source = high confidence)
+4. Build prompt with confidence markers and trust guidance
+5. Invoke LLM with structured outputs (JSON schema enforced)
+6. Return answer with citations and quality metrics
+
+### Trust Hierarchy for Conflict Resolution
+
+**Confidence Levels:**
+- **HIGH** (≥50% multi-source): Prioritize multi-source evidence
+- **MODERATE** (25-50% multi-source): Use caution with single-source claims
+- **LOW** (<25% multi-source): Clearly indicate evidence strength
+
+**Evidence Markers in Prompt:**
+- 🔵🔴 = Multi-source evidence (Zep + OpenSearch) - HIGHEST CONFIDENCE
+- 🔵 = Semantic search only (Zep) - Good for conceptual understanding
+- 🔴 = Keyword search only (OpenSearch) - Good for specific facts
+
+### LLM Configuration (settings.yaml)
+
+```yaml
+llm:
+  tasks:
+    rag_answer_question:
+      model: "gpt-4o"           # GPT-4 for reasoning with citations
+      temperature: 0.2          # Low temperature for factual accuracy
+      max_output_tokens: 2000   # Sufficient for comprehensive answers
+      prompt_id: "rag_qa_v1"    # Question answering with hybrid retrieval
+```
+
+### Response Format
+
+```json
+{
+  "query": "How do I hire A-players for my SaaS business?",
+  "answer": "To hire A-players, focus on attitude over aptitude [1]. Use structured interviews with behavioral questions [2]...",
+  "citations": [
+    {
+      "citation_number": 1,
+      "chunk_id": "vid1_chunk_1",
+      "video_id": "vid1",
+      "video_title": "Hiring Best Practices",
+      "source_type": "multi_source"
+    }
+  ],
+  "evidence_quality": {
+    "confidence": "high",
+    "limitations": "None identified",
+    "multi_source_count": 3,
+    "total_chunks_used": 10,
+    "confidence_ratio": 0.30
+  },
+  "retrieval_metadata": {
+    "sources_queried": {"zep": true, "opensearch": true},
+    "source_counts": {"zep": 15, "opensearch": 18},
+    "weights": {"semantic": 0.6, "keyword": 0.4},
+    "total_retrieved": 20,
+    "total_used": 10
+  },
+  "context_balance": {
+    "zep_tokens": 3500,
+    "opensearch_tokens": 3200,
+    "multi_source_tokens": 1200,
+    "max_tokens_per_source": 4000
+  },
+  "llm_metadata": {
+    "model": "gpt-4o",
+    "prompt_id": "rag_qa_v1",
+    "temperature": 0.2,
+    "token_usage": {
+      "input_tokens": 1500,
+      "output_tokens": 300,
+      "total_tokens": 1800
+    }
+  },
+  "status": "success"
+}
+```
+
+### Key Implementation Details
+
+#### Context Balancing (lines 85-130)
+Prevents single-source bias by enforcing token limits per source:
+- Tracks tokens separately for Zep-only, OpenSearch-only, and multi-source chunks
+- Multi-source evidence gets priority (counts towards both sources)
+- Skips chunks when per-source limit would be exceeded
+- Sorts by RRF score (highest first) before balancing
+
+#### Evidence Alignment (lines 132-166)
+Detects chunks appearing in both sources for high confidence:
+- Counts multi-source, Zep-only, and OpenSearch-only chunks
+- Calculates confidence ratio (multi-source / total chunks)
+- Returns list of high-confidence chunk IDs
+- Used to guide LLM trust hierarchy
+
+#### Conflict Resolution (lines 168-193)
+Applies deterministic trust hierarchy:
+- HIGH: ≥50% multi-source → "Prioritize multi-source evidence"
+- MODERATE: 25-50% multi-source → "Use caution with single-source claims"
+- LOW: <25% multi-source → "Clearly indicate evidence strength"
+
+#### Prompt Construction (lines 195-240)
+Builds comprehensive prompt with:
+- Question clearly stated
+- Evidence quality assessment (trust guidance)
+- Confidence markers (🔵🔴, 🔵, 🔴) for each chunk
+- Full context with video titles, chunk IDs, RRF scores, sources
+- Detailed instructions for citation and reasoning
+
+#### Structured Outputs (lines 290-320)
+Enforces strict JSON schema:
+- answer: Comprehensive answer with inline citations [n]
+- citations: Array with citation_number, chunk_id, video_id, video_title, source_type
+- confidence: Enum ("high", "moderate", "low")
+- limitations: String describing evidence gaps
+- Schema enforced by OpenAI (no parsing errors)
+
+### Low-Level Steps Implementation Status
+
+1. ✅ **Inputs**: query, filters (channel_id, dates), top_k, max_tokens_per_source
+2. ✅ **Call hybrid_retrieval**: Trim/dedupe context, balance per-source contributions
+3. ✅ **Evidence alignment**: Highlight overlaps with confidence markers
+4. ✅ **Conflict resolution**: Trust hierarchy and deterministic rules (multi-source > semantic > keyword)
+5. ✅ **Invoke LLM**: Structured outputs with schema enforcement
+6. ✅ **Return JSON**: Answer, citations, metrics
+
+## ✅ Acceptance Criteria
+
+1. ✅ **Returns valid JSON**: With answer, citations, and metrics
+2. ✅ **Handles conflicting signals**: Deterministic trust hierarchy based on evidence overlap
+3. ✅ **Context balancing**: Prevents single-source bias (max tokens per source)
+4. ✅ **Structured outputs**: OpenAI JSON schema enforcement (no parsing errors)
+5. ✅ **Citation tracking**: Complete with video titles and source types
+
+## ✅ Testing Strategy (Implemented)
+
+**Test File**: `tests/summarizer_tools/test_answer_with_hybrid_context_coverage.py` (14 tests, 600+ lines)
+
+**Coverage:**
+1. ✅ Successful answer generation with citations
+2. ✅ Missing OPENAI_API_KEY error handling
+3. ✅ Retrieval failure handling
+4. ✅ No results from retrieval
+5. ✅ Token estimation accuracy
+6. ✅ Context balancing per source
+7. ✅ Context balancing prevents overflow
+8. ✅ Evidence overlap detection
+9. ✅ Trust hierarchy conflict resolution (high/moderate/low confidence)
+10. ✅ Prompt construction with markers
+11. ✅ Structured output schema enforcement
+12. ✅ Channel filter passed to retrieval
+13. ✅ Date filters passed to retrieval
+14. ✅ General exception handling
+
+**Mock Strategy:**
+- Mock HybridRetrieval responses
+- Mock OpenAI client and structured outputs
+- Test alignment/trim logic with sample chunks
+- Test JSON schema adherence with response validation
+
+## 🎯 Production Status
+
+**READY FOR PRODUCTION**
+
+### Prerequisites
+
+1. **Environment Variables**:
+   - `OPENAI_API_KEY`: Required for LLM calls
+   - `ZEP_API_KEY` and/or `OPENSEARCH_HOST`: At least one search source
+
+2. **Configuration** (`config/settings.yaml`):
+   ```yaml
+   llm:
+     tasks:
+       rag_answer_question:
+         model: "gpt-4o"
+         temperature: 0.2
+         max_output_tokens: 2000
+         prompt_id: "rag_qa_v1"
+   ```
+
+3. **Dependencies**:
+   - HybridRetrieval tool must be operational
+   - Transcripts indexed in Zep and/or OpenSearch
+
+### Usage Example
+
+```python
+from answer_with_hybrid_context import AnswerWithHybridContext
+
+# Basic usage
+tool = AnswerWithHybridContext(
+    query="How do I hire A-players for my SaaS business?",
+    top_k=10,
+    max_tokens_per_source=4000
+)
+result = tool.run()
+
+# With filters
+tool = AnswerWithHybridContext(
+    query="What are the best pricing strategies?",
+    top_k=5,
+    max_tokens_per_source=3000,
+    channel_id="UCkP5J0pXI11VE81q7S7V1Jw",
+    min_published_date="2025-01-01T00:00:00Z"
+)
+result = tool.run()
+```
+
+### Integration Points
+
+1. **HybridRetrieval**: Calls tool directly for fused results
+2. **OpenAI**: Uses structured outputs with JSON schema enforcement
+3. **Configuration**: Loads settings from `config/settings.yaml`
+4. **Environment**: Respects OPENAI_API_KEY and search source configs
+
+## 📝 Summary
+
+**Status**: ✅ Fully implemented and production-ready
+
+**Core Functionality**: ✅ Complete
+- Hybrid retrieval integration (Zep + OpenSearch)
+- Context balancing (prevent bias)
+- Evidence alignment (multi-source detection)
+- Trust hierarchy (conflict resolution)
+- Structured outputs (JSON schema enforced)
+- Comprehensive citations and quality metrics
+
+**Spec Compliance**: ✅ All requirements met
+- Inputs: query, filters, top_k, max_tokens_per_source
+- Context balancing and per-source contributions
+- Evidence alignment with overlap highlighting
+- Conflict resolution using deterministic trust hierarchy
+- LLM invocation with structured outputs
+- JSON response with answer, citations, and metrics
+
+**Recommendation**: Production-ready for RAG-powered Q&A with comprehensive evidence tracking and quality assessment.
