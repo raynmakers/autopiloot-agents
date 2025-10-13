@@ -672,3 +672,132 @@ rag:
       log_sets: true  # Log cache set operations
       log_invalidations: true  # Log cache invalidation operations
 
+  # A/B Testing and Parameter Tuning
+  # Runtime-adjustable fusion weights and experiment management
+  # Enables testing different parameter configurations without redeployment
+  experiments:
+    enabled: true  # Enable A/B testing and experiment management
+
+    # Default fusion parameters (can be overridden by active experiments)
+    default_parameters:
+      # Fusion weights (must sum to 1.0)
+      weights:
+        semantic: 0.6  # Zep (semantic search) weight
+        keyword: 0.3   # OpenSearch (keyword search) weight
+        sql: 0.1       # BigQuery (SQL/structured) weight
+
+      # Retrieval parameters
+      retrieval:
+        top_k: 20  # Number of results to retrieve per source
+        timeout_ms: 2000  # Timeout per source in milliseconds
+
+      # Fusion algorithm configuration
+      fusion:
+        algorithm: "rrf"  # Options: "rrf" (reciprocal rank fusion), "weighted", "cascade"
+        rrf_k: 60  # RRF k parameter (controls rank discount)
+
+      # Reranking configuration
+      reranking:
+        enabled: false  # Enable reranking after fusion
+        model: null  # Reranking model name (e.g., "cohere-rerank-v3")
+
+    # Experiment management
+    management:
+      storage: "memory"  # Storage backend: "memory", "firestore"
+      auto_activate_on_create: false  # Automatically activate experiments on creation
+      allow_multiple_active: false  # Allow multiple active experiments simultaneously
+      default_ttl_hours: 168  # Default experiment TTL (7 days)
+
+    # Evaluation and metrics
+    evaluation:
+      enabled: true  # Enable experiment evaluation
+      # Relevance metrics to calculate
+      metrics:
+        - "precision@5"
+        - "precision@10"
+        - "precision@20"
+        - "recall@5"
+        - "recall@10"
+        - "recall@20"
+        - "ndcg@5"
+        - "ndcg@10"
+        - "ndcg@20"
+        - "mrr"  # Mean Reciprocal Rank
+
+      # Comparison settings
+      comparison:
+        baseline: "default"  # Baseline for comparison: "default", "single_source"
+        compare_sources: true  # Compare fused vs individual sources
+        track_overlap: true  # Track overlap between fused and source results
+
+      # Outcome logging
+      logging:
+        log_all_queries: false  # Log all query outcomes (verbose)
+        log_experiment_queries: true  # Log outcomes for experiment queries
+        log_ground_truth_queries: true  # Log outcomes when ground truth available
+        include_performance_metrics: true  # Include latency and coverage metrics
+
+    # Experiment tags (for organization and filtering)
+    tags:
+      - "weight-tuning"  # Weight optimization experiments
+      - "top-k-optimization"  # Top-K parameter tuning
+      - "timeout-tuning"  # Timeout optimization
+      - "algorithm-comparison"  # Compare fusion algorithms
+      - "reranking-tests"  # Reranking model experiments
+      - "source-ablation"  # Test removing individual sources
+
+    # Observability integration
+    observability:
+      enabled: true  # Include experiment metrics in observability
+      dashboard_enabled: true  # Enable experiment dashboards
+      report_interval_minutes: 60  # Report metrics every hour
+
+      # Metrics to track
+      tracked_metrics:
+        - "experiment_count"
+        - "active_experiment_count"
+        - "queries_per_experiment"
+        - "average_relevance_metrics"
+        - "parameter_distribution"
+        - "outcome_trends"
+
+      # Slack notifications
+      slack:
+        enabled: true  # Send experiment updates to Slack
+        channel: "ops-autopiloot"  # Slack channel for experiment notifications
+        notify_on_create: false  # Notify when experiments created
+        notify_on_activate: true  # Notify when experiments activated
+        notify_on_complete: true  # Notify when experiments completed
+        notify_on_significant_result: true  # Notify on significant metric changes
+
+    # Parameter constraints
+    constraints:
+      # Weight constraints
+      weights:
+        min_value: 0.0  # Minimum weight value
+        max_value: 1.0  # Maximum weight value
+        must_sum_to_one: true  # Weights must sum to 1.0
+        precision: 2  # Decimal precision for weights
+
+      # Retrieval constraints
+      retrieval:
+        min_top_k: 1  # Minimum top_k value
+        max_top_k: 100  # Maximum top_k value
+        min_timeout_ms: 100  # Minimum timeout (100ms)
+        max_timeout_ms: 10000  # Maximum timeout (10 seconds)
+
+      # Fusion algorithm options
+      fusion:
+        allowed_algorithms:
+          - "rrf"  # Reciprocal Rank Fusion
+          - "weighted"  # Weighted sum
+          - "cascade"  # Cascade (sequential fallback)
+        rrf_k_range: [1, 1000]  # Valid range for RRF k parameter
+
+    # Automated parameter tuning (optional)
+    auto_tuning:
+      enabled: false  # Enable automated parameter optimization
+      method: "grid_search"  # Options: "grid_search", "random_search", "bayesian"
+      objective: "ndcg@10"  # Metric to optimize
+      max_experiments: 50  # Maximum experiments for auto-tuning
+      convergence_threshold: 0.01  # Stop when improvement < 1%
