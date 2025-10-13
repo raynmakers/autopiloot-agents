@@ -3,6 +3,7 @@ google-api-python-client>=2.141.0
 google-auth>=2.33.0
 google-auth-oauthlib>=1.2.0
 google-cloud-firestore>=2.16.0
+google-cloud-bigquery>=3.11.0
 slack_sdk>=3.31.0
 openai>=1.43.0
 assemblyai>=0.33.0
