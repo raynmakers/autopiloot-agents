@@ -1,0 +1,299 @@
+---
+description: "Add output guardrails to critical agents for improved reliability and automatic retry on malformed outputs"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-AGS-0098"
+title: "Implement Agency Swarm v1.2.0 Output Guardrails"
+status: "planned"
+priority: "P2"
+labels: ["agency-swarm", "reliability", "validation", "upgrade"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Implement output guardrails (v1.1.0+ feature, renamed from `response_validator`) for critical agents to ensure valid, well-formed outputs with automatic retry on validation failures.
+
+# 2) Background / Context
+
+Agency Swarm v1.1.0+ provides `output_guardrails` parameter for agent initialization. When an agent's output fails validation, the framework automatically retries with the validation error as context.
+
+Current pain points without guardrails:
+- Orchestrator occasionally returns malformed JSON
+- Tool outputs sometimes missing required fields
+- Downstream errors when parsing invalid responses
+- Manual error handling in every tool
+
+# 3) Assumptions & Constraints
+
+- Guardrails apply to final agent responses, not individual tool outputs
+- Validation failures trigger automatic retry (up to 3 attempts)
+- Guardrails are Python callables that raise ValueError on failure
+- Focus on 4 critical agents: Orchestrator, Scraper, Transcriber, Summarizer
+
+# 4) Dependencies
+
+- files: All *_agent/*_agent.py files
+- existing: agency-swarm v1.2.0 installed
+- tasks: None (standalone upgrade)
+
+# 5) Context Plan
+
+Beginning:
+- orchestrator_agent/orchestrator_agent.py _(read & modify)_
+- scraper_agent/scraper_agent.py _(read & modify)_
+- transcriber_agent/transcriber_agent.py _(read & modify)_
+- summarizer_agent/summarizer_agent.py _(read & modify)_
+
+End state:
+- All 4 critical agents have output_guardrails configured
+- core/guardrails.py _(new - shared validation functions)_
+- tests/test_output_guardrails.py _(new)_
+
+# 6) Low-Level Steps
+
+1. Create `core/guardrails.py` with reusable validation functions:
+   ```python
+   """Output guardrails for Agency Swarm agents"""
+   import json
+   from typing import Dict, List, Any
+
+   def validate_json_output(output: str) -> str:
+       """Ensure output is valid JSON"""
+       try:
+           json.loads(output)
+           return output
+       except json.JSONDecodeError as e:
+           raise ValueError(f"Output must be valid JSON. Error: {e}")
+
+   def validate_required_fields(required_fields: List[str]):
+       """Factory for field validators"""
+       def validator(output: str) -> str:
+           try:
+               data = json.loads(output)
+               missing = [f for f in required_fields if f not in data]
+               if missing:
+                   raise ValueError(f"Missing required fields: {missing}")
+               return output
+           except json.JSONDecodeError:
+               raise ValueError("Output must be valid JSON")
+       return validator
+
+   def validate_no_errors(output: str) -> str:
+       """Ensure output doesn't contain error field"""
+       try:
+           data = json.loads(output)
+           if 'error' in data:
+               error_msg = data.get('message', data['error'])
+               raise ValueError(f"Output contains error: {error_msg}")
+           return output
+       except json.JSONDecodeError:
+           raise ValueError("Output must be valid JSON")
+
+   def validate_orchestrator_output(output: str) -> str:
+       """Orchestrator-specific validation"""
+       try:
+           data = json.loads(output)
+
+           # Check required fields
+           required = ['status', 'action']
+           missing = [f for f in required if f not in data]
+           if missing:
+               raise ValueError(f"Orchestrator output missing: {missing}")
+
+           # Validate status values
+           valid_statuses = ['success', 'pending', 'failed', 'delegated']
+           if data['status'] not in valid_statuses:
+               raise ValueError(f"Invalid status '{data['status']}'. Must be one of: {valid_statuses}")
+
+           return output
+       except json.JSONDecodeError as e:
+           raise ValueError(f"Orchestrator output must be valid JSON. Error: {e}")
+
+   def validate_scraper_output(output: str) -> str:
+       """Scraper-specific validation"""
+       try:
+           data = json.loads(output)
+
+           # Must have either videos_discovered or error
+           if 'videos_discovered' not in data and 'error' not in data:
+               raise ValueError("Scraper output must include 'videos_discovered' count or 'error'")
+
+           # If videos discovered, must be non-negative integer
+           if 'videos_discovered' in data:
+               count = data['videos_discovered']
+               if not isinstance(count, int) or count < 0:
+                   raise ValueError(f"videos_discovered must be non-negative integer, got: {count}")
+
+           return output
+       except json.JSONDecodeError as e:
+           raise ValueError(f"Scraper output must be valid JSON. Error: {e}")
+
+   def validate_summarizer_output(output: str) -> str:
+       """Summarizer-specific validation"""
+       try:
+           data = json.loads(output)
+
+           # If summary generated, must have required fields
+           if 'summary' in data or 'short_summary' in data:
+               summary_text = data.get('summary') or data.get('short_summary')
+               if not summary_text or len(summary_text.strip()) < 10:
+                   raise ValueError("Summary must be at least 10 characters")
+
+           # If rejected, must have reason
+           if data.get('status') == 'rejected':
+               if 'reason' not in data or not data['reason']:
+                   raise ValueError("Rejected videos must include 'reason' field")
+
+           return output
+       except json.JSONDecodeError as e:
+           raise ValueError(f"Summarizer output must be valid JSON. Error: {e}")
+   ```
+
+2. Update `orchestrator_agent/orchestrator_agent.py`:
+   ```python
+   from agency_swarm import Agent, ModelSettings
+   from core.guardrails import validate_orchestrator_output
+
+   orchestrator_agent = Agent(
+       name="Orchestrator",
+       description="...",
+       instructions="./instructions.md",
+       tools_folder="./tools",
+       model_settings=ModelSettings(...),
+       output_guardrails=validate_orchestrator_output  # NEW
+   )
+   ```
+
+3. Update `scraper_agent/scraper_agent.py`:
+   ```python
+   from agency_swarm import Agent, ModelSettings
+   from core.guardrails import validate_scraper_output
+
+   scraper_agent = Agent(
+       name="ScraperAgent",
+       description="...",
+       instructions="./instructions.md",
+       tools_folder="./tools",
+       model_settings=ModelSettings(...),
+       output_guardrails=validate_scraper_output  # NEW
+   )
+   ```
+
+4. Update `summarizer_agent/summarizer_agent.py`:
+   ```python
+   from agency_swarm import Agent, ModelSettings
+   from core.guardrails import validate_summarizer_output
+
+   summarizer_agent = Agent(
+       name="SummarizerAgent",
+       description="...",
+       instructions="./instructions.md",
+       tools_folder="./tools",
+       model_settings=ModelSettings(...),
+       output_guardrails=validate_summarizer_output  # NEW
+   )
+   ```
+
+5. Update `transcriber_agent/transcriber_agent.py`:
+   ```python
+   from agency_swarm import Agent, ModelSettings
+   from core.guardrails import validate_required_fields
+
+   # Transcriber validation: must have transcript_id or error
+   validate_transcriber = validate_required_fields(['transcript_id', 'video_id'])
+
+   transcriber_agent = Agent(
+       name="TranscriberAgent",
+       description="...",
+       instructions="./instructions.md",
+       tools_folder="./tools",
+       model_settings=ModelSettings(...),
+       output_guardrails=validate_transcriber  # NEW
+   )
+   ```
+
+6. Create comprehensive tests in `tests/test_output_guardrails.py`:
+   - Test each guardrail function with valid inputs
+   - Test each guardrail function with invalid inputs (should raise ValueError)
+   - Test agent initialization with guardrails
+   - Test automatic retry behavior on validation failure
+   - Test guardrail error messages are helpful
+
+# 7) Acceptance Criteria
+
+- ✅ All 4 critical agents have output_guardrails configured
+- ✅ Guardrails validate JSON structure and required fields
+- ✅ Invalid outputs trigger automatic retry with error context
+- ✅ Validation errors provide helpful messages
+- ✅ Tests verify all guardrail functions
+- ✅ No false positives (valid outputs pass validation)
+- ✅ Documentation updated with guardrail guidelines
+
+# 8) Testing Strategy
+
+**Unit Tests**:
+- Test each guardrail function independently
+- Verify ValueError raised on invalid inputs
+- Test edge cases (empty strings, null values, wrong types)
+
+**Integration Tests**:
+- Test agent initialization with guardrails
+- Mock agent responses to trigger validation failures
+- Verify retry behavior (agent gets validation error as context)
+
+**Regression Tests**:
+- Ensure valid agent outputs still pass
+- Test with real production data samples
+
+# 9) Risks & Mitigations
+
+**Risk**: Overly strict guardrails block valid outputs
+**Mitigation**: Start with minimal validation, iterate based on failures
+
+**Risk**: Guardrails add latency
+**Mitigation**: Keep validation logic fast (< 10ms per check)
+
+**Risk**: Retry loops if validation always fails
+**Mitigation**: Agency Swarm limits retries to 3 attempts
+
+# 10) Types & Interfaces
+
+```python
+from typing import Callable
+
+# Guardrail signature (Agency Swarm v1.1.0+)
+OutputGuardrail = Callable[[str], str]
+# Takes agent output string, returns validated output or raises ValueError
+
+# Example usage in Agent initialization
+Agent(
+    name="AgentName",
+    output_guardrails=my_validation_function  # OutputGuardrail callable
+)
+```
+
+# 11) Expected Benefits
+
+- **Reliability**: Automatic retry on malformed outputs
+- **Error Prevention**: Catch validation errors before downstream processing
+- **Better Error Messages**: Validation errors provide specific guidance
+- **Reduced Debugging**: Fewer parsing errors in production
+- **Self-Healing**: Agents automatically correct malformed responses
+
+# 12) Estimated Effort
+
+- Guardrail functions: 1 hour
+- Agent updates: 1 hour
+- Testing: 1 hour
+- Documentation: 30 minutes
+- **Total**: 3.5 hours
+
+# 13) Future Enhancements
+
+- Add guardrails for remaining agents (LinkedIn, Drive, Strategy)
+- Create guardrail metrics (validation failure rate, retry success rate)
+- Build guardrail library for common validation patterns
+- Add schema validation using Pydantic models

@@ -1,0 +1,235 @@
+---
+description: "Add conversation persistence to enable stateful workflows across Firebase Function invocations"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-AGS-0097"
+title: "Implement Agency Swarm v1.2.0 Conversation Persistence"
+status: "planned"
+priority: "P1"
+labels: ["agency-swarm", "firebase", "persistence", "upgrade"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Implement conversation persistence using Agency Swarm v1.2.0's `save_threads_callback` and `load_threads_callback` to enable stateful multi-step workflows across Firebase Function invocations.
+
+# 2) Background / Context
+
+Currently, Firebase Functions run stateless - each invocation starts fresh without memory of previous conversations. This prevents:
+- Resuming multi-step workflows after timeouts
+- Maintaining context across scheduled runs (daily scraper, digest, LinkedIn ingestion)
+- Full audit trail of agent conversations
+
+Agency Swarm v1.2.0 provides conversation persistence callbacks that can integrate with Firestore to solve this.
+
+# 3) Assumptions & Constraints
+
+- Firestore collection `agency_threads` will store conversation threads
+- Thread data includes message history and metadata
+- Persistence is transparent to agents (no agent code changes)
+- Old threads can be cleaned up after N days (configurable)
+
+# 4) Dependencies
+
+- files: agents/autopiloot/agency.py, agents/autopiloot/config/settings.yaml
+- existing: Firestore client, agency-swarm v1.2.0 installed
+- tasks: None (standalone upgrade)
+
+# 5) Context Plan
+
+Beginning:
+- agents/autopiloot/agency.py _(read & modify)_
+- agents/autopiloot/config/settings.yaml _(read-only for thread retention config)_
+
+End state:
+- agents/autopiloot/agency.py _(with persistence callbacks)_
+- Firestore collection: `agency_threads` _(auto-created)_
+- agents/autopiloot/tests/test_conversation_persistence.py _(new)_
+
+# 6) Low-Level Steps
+
+1. Add thread persistence configuration to `config/settings.yaml`:
+   ```yaml
+   agency:
+     persistence:
+       enabled: true
+       collection: "agency_threads"
+       retention_days: 30  # Auto-delete threads older than 30 days
+   ```
+
+2. Update `agency.py` AutopilootAgency class:
+   ```python
+   class AutopilootAgency(Agency):
+       def __init__(self, config=None):
+           # ... existing code ...
+
+           # Add persistence callbacks if enabled
+           persistence_config = self.config.get('agency', {}).get('persistence', {})
+           persistence_enabled = persistence_config.get('enabled', True)
+
+           callbacks = {}
+           if persistence_enabled:
+               callbacks['save_threads_callback'] = self._save_threads_to_firestore
+               callbacks['load_threads_callback'] = self._load_threads_from_firestore
+
+           super().__init__(
+               ceo_agent,
+               communication_flows=communication_flows,
+               shared_instructions="./agency_manifesto.md",
+               **callbacks  # Pass callbacks to Agency
+           )
+
+       def _save_threads_to_firestore(self, threads: Dict[str, Any]):
+           """Persist conversation threads to Firestore"""
+           from google.cloud import firestore
+           from datetime import datetime, timezone
+
+           db = firestore.Client()
+           collection = self.config.get('agency', {}).get('persistence', {}).get('collection', 'agency_threads')
+
+           for thread_id, thread_data in threads.items():
+               db.collection(collection).document(thread_id).set({
+                   'thread_id': thread_id,
+                   'messages': thread_data,
+                   'updated_at': firestore.SERVER_TIMESTAMP,
+                   'created_at': firestore.SERVER_TIMESTAMP
+               }, merge=True)
+
+           logger.info(f"Persisted {len(threads)} conversation threads to Firestore")
+
+       def _load_threads_from_firestore(self) -> Dict[str, Any]:
+           """Load conversation threads from Firestore"""
+           from google.cloud import firestore
+
+           db = firestore.Client()
+           collection = self.config.get('agency', {}).get('persistence', {}).get('collection', 'agency_threads')
+
+           threads = {}
+           for doc in db.collection(collection).stream():
+               doc_data = doc.to_dict()
+               threads[doc.id] = doc_data.get('messages', [])
+
+           logger.info(f"Loaded {len(threads)} conversation threads from Firestore")
+           return threads
+   ```
+
+3. Add thread cleanup utility in `core/thread_cleanup.py`:
+   ```python
+   def cleanup_old_threads(retention_days: int = 30):
+       """Delete threads older than retention_days"""
+       from google.cloud import firestore
+       from datetime import datetime, timedelta, timezone
+
+       db = firestore.Client()
+       cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+       old_threads = db.collection('agency_threads').where(
+           'updated_at', '<', cutoff_date
+       ).stream()
+
+       deleted_count = 0
+       for doc in old_threads:
+           doc.reference.delete()
+           deleted_count += 1
+
+       return deleted_count
+   ```
+
+4. Add Firebase Function for thread cleanup (in `services/firebase/functions/scheduler.py`):
+   ```python
+   @scheduler_fn.on_schedule(
+       schedule="0 2 * * *",  # Daily at 02:00
+       timezone="Europe/Amsterdam",
+       memory=options.MemoryOption.MB_256,
+       timeout_sec=60
+   )
+   def cleanup_old_threads(event: scheduler_fn.ScheduledEvent):
+       """Clean up old conversation threads daily"""
+       from agents.autopiloot.core.thread_cleanup import cleanup_old_threads
+       from agents.autopiloot.config.loader import get_config_value
+
+       retention_days = get_config_value('agency.persistence.retention_days', 30)
+       deleted_count = cleanup_old_threads(retention_days)
+
+       logger.info(f"Cleaned up {deleted_count} old threads (>{retention_days} days)")
+       return {'ok': True, 'deleted_count': deleted_count}
+   ```
+
+5. Create comprehensive tests in `tests/test_conversation_persistence.py`:
+   - Test thread saving to Firestore
+   - Test thread loading from Firestore
+   - Test thread resumption after Firebase Function restart
+   - Test thread cleanup after retention period
+   - Test persistence disable/enable toggle
+
+# 7) Acceptance Criteria
+
+- ✅ Conversation threads persist across Firebase Function invocations
+- ✅ Multi-step workflows can resume after timeouts
+- ✅ Thread data stored in Firestore collection `agency_threads`
+- ✅ Old threads automatically cleaned up after retention period
+- ✅ Persistence can be disabled via configuration
+- ✅ Tests verify save/load/cleanup functionality
+- ✅ No performance degradation (< 100ms overhead per save/load)
+
+# 8) Testing Strategy
+
+**Unit Tests**:
+- Mock Firestore client to test callback logic
+- Verify thread serialization/deserialization
+- Test configuration loading
+
+**Integration Tests**:
+- Real Firestore instance with test collection
+- Verify thread persistence across multiple agency runs
+- Test thread cleanup with old timestamps
+
+**Performance Tests**:
+- Measure save/load overhead (target: < 100ms)
+- Test with large thread histories (100+ messages)
+
+# 9) Risks & Mitigations
+
+**Risk**: Thread data grows unbounded
+**Mitigation**: Automatic cleanup after 30 days (configurable)
+
+**Risk**: Firestore write costs increase
+**Mitigation**: Only save on significant state changes, not every message
+
+**Risk**: Thread corruption causes failures
+**Mitigation**: Graceful fallback - start fresh if load fails
+
+# 10) Types & Interfaces
+
+```python
+from typing import Dict, Any, List
+
+# Thread structure in Firestore
+class ThreadDocument(TypedDict):
+    thread_id: str
+    messages: List[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
+
+# Callback signatures (Agency Swarm v1.2.0)
+SaveThreadsCallback = Callable[[Dict[str, Any]], None]
+LoadThreadsCallback = Callable[[], Dict[str, Any]]
+```
+
+# 11) Expected Benefits
+
+- **Stateful Workflows**: Resume interrupted multi-step processes
+- **Better Context**: Maintain conversation history across runs
+- **Audit Trail**: Complete record of all agent conversations
+- **Reliability**: Recover from Firebase Function timeouts
+- **Debugging**: Inspect conversation history for troubleshooting
+
+# 12) Estimated Effort
+
+- Implementation: 3 hours
+- Testing: 1 hour
+- Documentation: 30 minutes
+- **Total**: 4.5 hours

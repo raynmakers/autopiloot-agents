@@ -2,8 +2,8 @@
 
 Legend: [x] done, [ ] planned
 
-**Status**: 🎉 **ALL TASKS COMPLETED** 🎉
-**Total**: 100/100 tasks complete (all archived to planning/archive/)
+**Status**: 100/100 core tasks completed, 3 new upgrade tasks planned
+**Total**: 100/100 tasks complete (all archived to planning/archive/), 3 planned
 **Last Updated**: 2025-10-14
 
 ## Core Configuration & Infrastructure
@@ -137,10 +137,16 @@ Legend: [x] done, [ ] planned
 
 - [x] 73-detect-linkedin-lead-magnet-posts.mdc — Language-agnostic lead magnet detector with 10 regex patterns and LLM-based semantic understanding (92% coverage, 35/35 tests passing)
 
-## Future Enhancement Tasks (91+)
+## Future Enhancement Tasks (91-96)
 
 - [ ] 91-assemblyai-webhooks.mdc — Implement AssemblyAI webhooks for real-time transcription completion notifications
 - [ ] 92-env-to-settings-migration.mdc — Migrate environment variables from .env to settings.yaml for centralized configuration
+
+## Agency Swarm v1.2.0 Upgrade Tasks (97-99)
+
+- [ ] 97-agency-swarm-conversation-persistence.mdc — Implement conversation persistence to enable stateful workflows across Firebase Function invocations (saves/loads threads from Firestore)
+- [ ] 98-agency-swarm-output-guardrails.mdc — Add output guardrails to critical agents for improved reliability and automatic retry on malformed outputs
+- [ ] 99-agency-swarm-handoff-reminders.mdc — Add handoff reminders to reinforce policy enforcement during agent transitions
 
 ---
 

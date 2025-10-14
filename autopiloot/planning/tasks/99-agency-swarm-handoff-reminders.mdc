@@ -1,0 +1,341 @@
+---
+description: "Add handoff reminders to reinforce policy enforcement during agent transitions"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-AGS-0099"
+title: "Implement Agency Swarm v1.1.0 Handoff Reminders"
+status: "planned"
+priority: "P2"
+labels: ["agency-swarm", "communication", "policy", "upgrade"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Implement handoff reminders (v1.1.0+ feature) to inject system messages during agent transitions, reinforcing policy constraints and workflow context at critical handoff points.
+
+# 2) Background / Context
+
+Agency Swarm v1.1.0+ supports handoff reminders - system messages injected when control transfers between agents. This helps agents maintain context and follow policies during transitions.
+
+Current challenges without handoff reminders:
+- Agents sometimes forget quota limits during transitions
+- Policy violations occur at handoff boundaries
+- New agents don't receive critical context from previous agent
+- Budget overruns when transcriber doesn't check limits
+
+# 3) Assumptions & Constraints
+
+- Handoff reminders are system messages (not visible to user)
+- Reminders only appear during agent-to-agent transitions
+- Can configure different reminders for each communication flow
+- Reminders should be concise (< 100 words) to avoid token overhead
+
+# 4) Dependencies
+
+- files: agents/autopiloot/agency.py, agents/autopiloot/config/settings.yaml
+- existing: agency-swarm v1.2.0 installed
+- tasks: None (standalone upgrade)
+
+# 5) Context Plan
+
+Beginning:
+- agents/autopiloot/agency.py _(read & modify)_
+- agents/autopiloot/config/settings.yaml _(read & modify)_
+
+End state:
+- config/settings.yaml _(with handoff_reminders configuration)_
+- agency.py _(updated communication flows with reminders)_
+- tests/test_handoff_reminders.py _(new)_
+
+# 6) Low-Level Steps
+
+1. Add handoff reminder configuration to `config/settings.yaml`:
+   ```yaml
+   # Handoff reminders for agent transitions (Agency Swarm v1.1.0+)
+   handoff_reminders:
+     orchestrator_to_scraper: |
+       POLICY ENFORCEMENT:
+       - YouTube API quota: 10,000 units/day
+       - Max 10 videos per channel per day
+       - Max video duration: 70 minutes (4200 seconds)
+       - Graceful degradation on quota exhaustion
+
+     scraper_to_transcriber: |
+       VIDEO READY FOR TRANSCRIPTION:
+       - Video metadata available in context
+       - Check duration < 4200s before transcription
+       - Daily budget: $5 USD for transcription (check before proceeding)
+       - AssemblyAI quota enforced
+
+     transcriber_to_summarizer: |
+       TRANSCRIPT READY FOR SUMMARIZATION:
+       - Full transcript available with timestamps
+       - Generate business-focused summary per instructions
+       - Filter non-business content (entertainment, music, etc.)
+       - Store to Zep GraphRAG and Google Drive
+
+     orchestrator_to_observability: |
+       MONITORING REQUEST:
+       - Report on quotas, budgets, and system health
+       - Check for stuck jobs and DLQ entries
+       - Alert on threshold violations (80% budget, quota exhaustion)
+
+     orchestrator_to_linkedin: |
+       LINKEDIN INGESTION:
+       - Process configured profiles from settings.yaml
+       - Respect RapidAPI rate limits (monthly + per-minute)
+       - Deduplicate content before storage
+       - Store to Zep GraphRAG with proper grouping
+
+     linkedin_to_strategy: |
+       LINKEDIN DATA READY FOR ANALYSIS:
+       - LinkedIn corpus available in Zep
+       - Compute engagement signals and topic clusters
+       - Generate actionable content strategy
+       - Create content briefs and playbooks
+
+     orchestrator_to_drive: |
+       DRIVE CONTENT INGESTION:
+       - Track configured Drive targets from settings.yaml
+       - List changes since last checkpoint
+       - Extract text from supported formats (PDF, DOCX, etc.)
+       - Index to Zep GraphRAG with metadata
+   ```
+
+2. Update `agency.py` to use handoff reminders from configuration:
+   ```python
+   class AutopilootAgency(Agency):
+       def _build_communication_flows(self):
+           """
+           Build communication flows from configuration with handoff reminders.
+           """
+           flows = []
+           agents = self.loaded_agents
+           config_flows = self.config.get('communication_flows', [])
+           handoff_reminders = self.config.get('handoff_reminders', {})
+
+           logger.info(f"Processing {len(config_flows)} configured communication flows")
+
+           for flow_config in config_flows:
+               if not isinstance(flow_config, list) or len(flow_config) != 2:
+                   logger.warning(f"Invalid flow: {flow_config}")
+                   continue
+
+               source_name, target_name = flow_config
+
+               # Validate both agents exist
+               if source_name not in agents or target_name not in agents:
+                   logger.debug(f"Skipping flow {source_name} -> {target_name}: agent not enabled")
+                   continue
+
+               # Get agent instances
+               source_agent = agents[source_name]
+               target_agent = agents[target_name]
+
+               # Check for handoff reminder
+               reminder_key = f"{source_name}_to_{target_name}"
+               reminder_text = handoff_reminders.get(reminder_key)
+
+               if reminder_text:
+                   # Add flow with handoff reminder
+                   flows.append([
+                       source_agent,
+                       target_agent,
+                       {"handoff_reminder": reminder_text}
+                   ])
+                   logger.debug(f"Added flow with reminder: {source_name} -> {target_name}")
+               else:
+                   # Add flow without reminder
+                   flows.append([source_agent, target_agent])
+                   logger.debug(f"Added flow: {source_name} -> {target_name}")
+
+           logger.info(f"Built {len(flows)} communication flows ({sum(1 for f in flows if len(f) == 3)} with reminders)")
+           return flows
+   ```
+
+3. Create validation function in `core/guardrails.py`:
+   ```python
+   def validate_handoff_reminder(reminder: str) -> str:
+       """Validate handoff reminder is appropriate length and format"""
+       if not reminder or not isinstance(reminder, str):
+           raise ValueError("Handoff reminder must be non-empty string")
+
+       # Check length (reminders should be concise)
+       if len(reminder) > 500:
+           logger.warning(f"Handoff reminder is long ({len(reminder)} chars). Consider shortening.")
+
+       # Check for common issues
+       if reminder.lower().startswith("you must"):
+           logger.warning("Handoff reminder uses directive language. Consider rephrasing positively.")
+
+       return reminder.strip()
+   ```
+
+4. Add handoff reminder testing in `tests/test_handoff_reminders.py`:
+   ```python
+   import unittest
+   from agency import AutopilootAgency
+   from config.loader import load_app_config
+
+   class TestHandoffReminders(unittest.TestCase):
+       def test_handoff_reminders_loaded_from_config(self):
+           """Test that handoff reminders are loaded from settings.yaml"""
+           config = load_app_config()
+           reminders = config.get('handoff_reminders', {})
+
+           self.assertGreater(len(reminders), 0, "Should have handoff reminders configured")
+           self.assertIn('orchestrator_to_scraper', reminders)
+
+       def test_communication_flows_include_reminders(self):
+           """Test that communication flows include handoff reminders"""
+           agency = AutopilootAgency()
+           flows = agency._build_communication_flows()
+
+           # Check that at least some flows have reminders
+           flows_with_reminders = [f for f in flows if len(f) == 3]
+           self.assertGreater(len(flows_with_reminders), 0, "Should have flows with handoff reminders")
+
+           # Validate reminder structure
+           for flow in flows_with_reminders:
+               source, target, options = flow
+               self.assertIn('handoff_reminder', options)
+               self.assertIsInstance(options['handoff_reminder'], str)
+               self.assertGreater(len(options['handoff_reminder']), 10)
+
+       def test_reminder_content_is_policy_focused(self):
+           """Test that reminders contain policy keywords"""
+           config = load_app_config()
+           reminders = config.get('handoff_reminders', {})
+
+           # Orchestrator -> Scraper should mention quotas
+           orch_to_scraper = reminders.get('orchestrator_to_scraper', '')
+           self.assertIn('quota', orch_to_scraper.lower())
+           self.assertIn('10', orch_to_scraper)  # Daily limit per channel
+
+           # Scraper -> Transcriber should mention budget
+           scraper_to_trans = reminders.get('scraper_to_transcriber', '')
+           self.assertIn('budget', scraper_to_trans.lower())
+           self.assertIn('$5', scraper_to_trans)
+
+       def test_reminder_length_is_reasonable(self):
+           """Test that reminders are concise (< 500 chars)"""
+           config = load_app_config()
+           reminders = config.get('handoff_reminders', {})
+
+           for key, reminder in reminders.items():
+               self.assertLess(
+                   len(reminder), 500,
+                   f"Reminder '{key}' is too long ({len(reminder)} chars). Keep under 500."
+               )
+   ```
+
+5. Update documentation in `docs/AGENTS_OVERVIEW.md`:
+   ```markdown
+   ## Handoff Reminders
+
+   Agency Swarm v1.1.0+ supports handoff reminders - system messages injected
+   during agent transitions to reinforce policies and context.
+
+   ### Configuration
+
+   Handoff reminders are configured in `config/settings.yaml`:
+
+   ```yaml
+   handoff_reminders:
+     orchestrator_to_scraper: |
+       Policy enforcement message...
+   ```
+
+   ### Best Practices
+
+   - Keep reminders concise (< 100 words)
+   - Focus on policies and constraints specific to the transition
+   - Use positive language ("Check X before Y" vs "Don't forget X")
+   - Include specific numbers (quotas, budgets, limits)
+   - Test reminders by observing agent behavior at handoffs
+   ```
+
+# 7) Acceptance Criteria
+
+- ✅ Handoff reminders configured for all critical agent transitions
+- ✅ Reminders loaded from `settings.yaml` configuration
+- ✅ Communication flows include reminder options
+- ✅ Reminders are concise (< 500 characters each)
+- ✅ Reminders mention specific policies (quotas, budgets, limits)
+- ✅ Tests verify reminder loading and structure
+- ✅ Documentation explains handoff reminder system
+
+# 8) Testing Strategy
+
+**Unit Tests**:
+- Test reminder loading from configuration
+- Test flow building with reminders
+- Test reminder validation function
+
+**Integration Tests**:
+- Test agency initialization with reminders
+- Verify reminders appear in agent context (if possible to inspect)
+- Test that reminders don't break existing workflows
+
+**Manual Testing**:
+- Run multi-agent workflows and observe behavior
+- Check if agents follow policies better with reminders
+- Monitor for policy violations at handoff points
+
+# 9) Risks & Mitigations
+
+**Risk**: Reminders add token overhead
+**Mitigation**: Keep reminders concise (< 100 words each)
+
+**Risk**: Overly prescriptive reminders reduce agent autonomy
+**Mitigation**: Focus on constraints and context, not step-by-step instructions
+
+**Risk**: Reminders get stale as policies change
+**Mitigation**: Centralize in settings.yaml for easy updates
+
+# 10) Types & Interfaces
+
+```python
+from typing import TypedDict, Dict
+
+# Handoff reminder configuration
+class HandoffReminders(TypedDict, total=False):
+    orchestrator_to_scraper: str
+    scraper_to_transcriber: str
+    transcriber_to_summarizer: str
+    orchestrator_to_observability: str
+    orchestrator_to_linkedin: str
+    linkedin_to_strategy: str
+    orchestrator_to_drive: str
+
+# Communication flow with reminder
+FlowWithReminder = [Agent, Agent, Dict[str, str]]
+# Example: [source_agent, target_agent, {"handoff_reminder": "text"}]
+```
+
+# 11) Expected Benefits
+
+- **Policy Enforcement**: Agents reminded of constraints at transitions
+- **Better Context**: New agents receive critical info from previous step
+- **Reduced Violations**: Fewer quota/budget overruns
+- **Workflow Consistency**: Same policies enforced across all runs
+- **Self-Documenting**: Reminders serve as inline policy documentation
+
+# 12) Estimated Effort
+
+- Configuration: 30 minutes (write reminder messages)
+- Agency.py updates: 30 minutes
+- Testing: 1 hour
+- Documentation: 30 minutes
+- **Total**: 2.5 hours
+
+# 13) Future Enhancements
+
+- Dynamic reminders based on current quota/budget status
+- Reminder templates with variable substitution
+- Metrics on policy violation rates before/after reminders
+- A/B testing different reminder phrasings
+- Reminder effectiveness scoring
