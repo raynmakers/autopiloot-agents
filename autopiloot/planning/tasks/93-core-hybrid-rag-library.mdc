@@ -1,0 +1,174 @@
+---
+description: "Build an agent-agnostic Hybrid RAG core library with shared ingest, storage, and retrieval."
+globs:
+  [
+    "agents/autopiloot/core/rag/**/*.py",
+    "agents/autopiloot/config/settings.yaml",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0093"
+title: "Implement shared Hybrid RAG core library (ingest, stores, retrieval)"
+status: "planned"
+priority: "P0"
+labels: ["rag", "core", "opensearch", "bigquery", "zep", "retrieval"]
+dependencies: []
+created: "2025-10-13"
+
+# 1) High-Level Objective
+
+Create a centralized, agent-agnostic Hybrid RAG library under `agents/autopiloot/core/rag/` that any agent can call for transcript/document ingest and hybrid retrieval (semantic + keyword) with policy, tracing, and configuration in one place.
+
+# 2) Background / Context
+
+Hybrid retrieval is currently embedded in agent-specific tools. We need a single shared implementation so `transcriber_agent`, `drive_agent`, `strategy_agent`, and `summarizer_agent` can all index and query consistently without duplicating logic or coupling to Firestore.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: OpenSearch, BigQuery, and Zep credentials may be absent; library must feature-flag sinks and degrade gracefully.
+- Constraint: No Firestore triggers. Ingest is invoked explicitly by agents or orchestrator.
+- Constraint: Keep full text out of BigQuery; store metadata + short snippet only.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- files/agents/autopiloot/config/settings.yaml
+- Optional: existing summarizer RAG tools (read-only, for reference)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/config/settings.yaml _(read-only)_
+- agents/autopiloot/summarizer*agent/tools/index_full_transcript_to_opensearch.py *(read-only)\_
+- agents/autopiloot/summarizer*agent/tools/stream_full_transcript_to_bigquery.py *(read-only)\_
+
+End state (must exist after completion):
+
+- agents/autopiloot/core/rag/chunker.py
+- agents/autopiloot/core/rag/hashing.py
+- agents/autopiloot/core/rag/opensearch_indexer.py
+- agents/autopiloot/core/rag/bigquery_streamer.py
+- agents/autopiloot/core/rag/zep_upsert.py
+- agents/autopiloot/core/rag/ingest_transcript.py
+- agents/autopiloot/core/rag/ingest_document.py
+- agents/autopiloot/core/rag/ingest_strategy.py
+- agents/autopiloot/core/rag/hybrid_retrieve.py
+- agents/autopiloot/core/rag/retrieval_policy.py
+- agents/autopiloot/core/rag/tracing.py
+- agents/autopiloot/core/rag/config.py
+- tests/rag_core/test_chunker_integration.py
+- tests/rag_core/test_ingest_opensearch_bigquery.py
+- tests/rag_core/test_hybrid_retrieve_integration.py
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create shared types and config access
+
+   - File: `agents/autopiloot/core/rag/config.py`
+   - Exports:
+     - `def get_rag_flag(key: str, default: bool) -> bool`
+     - `def get_rag_value(key: str, default: Any) -> Any`
+   - Resolve keys under `rag.*` from `settings.yaml` with sane defaults.
+
+2. Implement token-aware chunking and hashing
+
+   - File: `agents/autopiloot/core/rag/chunker.py`
+   - Exports: `def chunk_text(text: str, max_tokens: int, overlap_tokens: int) -> List[str]`
+   - Use `tiktoken` (`cl100k_base`).
+   - File: `agents/autopiloot/core/rag/hashing.py`
+   - Exports: `def sha256_hex(s: str) -> str`
+
+3. Implement OpenSearch indexer (BM25 keyword)
+
+   - File: `agents/autopiloot/core/rag/opensearch_indexer.py`
+   - Exports: `def index_transcript_chunks(docs: List[dict]) -> dict`
+   - Idempotent by `(video_id, chunk_id)`; create index if missing; feature-flagged by `rag.sinks.opensearch.enabled`.
+
+4. Implement BigQuery streamer (metadata only)
+
+   - File: `agents/autopiloot/core/rag/bigquery_streamer.py`
+   - Exports: `def stream_transcript_chunks(rows: List[dict]) -> dict`
+   - Create dataset/table if missing; upsert by `(video_id, chunk_id)` or content hash; feature-flagged by `rag.sinks.bigquery.enabled`.
+
+5. Implement Zep upsert (optional)
+
+   - File: `agents/autopiloot/core/rag/zep_upsert.py`
+   - Exports: `def upsert_transcript(text: str, metadata: dict) -> dict`
+   - Feature-flagged by `rag.sinks.zep.enabled`.
+
+6. Implement ingest flows
+
+   - Files: `ingest_transcript.py`, `ingest_document.py`, `ingest_strategy.py`
+   - Exports: `def ingest(payload: dict) -> dict`
+   - Steps: chunk → hash → prepare per-sink payloads → send to enabled sinks → collect results; never require Firestore.
+
+7. Implement hybrid retrieval (fusion)
+
+   - File: `agents/autopiloot/core/rag/hybrid_retrieve.py`
+   - Exports: `def search(query: str, filters: dict | None, limit: int = 20) -> dict`
+   - Combine semantic (Zep) + keyword (OpenSearch) with simple score fusion; dedupe by content hash; return ranked results + provenance.
+
+8. Implement retrieval policy and tracing hooks
+
+   - Files: `retrieval_policy.py`, `tracing.py`
+   - Enforce allowed sources, channel filters, and feature toggles; emit observability events via existing observability agent interfaces if present.
+
+9. Update configuration
+
+   - File: `agents/autopiloot/config/settings.yaml`
+   - Add `rag.sinks.*` flags, `rag.opensearch.*`, `rag.bigquery.*`, `rag.chunking.*`, `rag.features.*` defaults.
+
+10. Tests
+
+- Add integration tests under `tests/rag_core/` for chunking, sink idempotency, and retrieval fusion with dependency mocking. Generate coverage HTML.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+from typing import List, Dict, Any, Optional
+
+Chunk = str
+ChunkDoc = Dict[str, Any]  # includes: video_id, chunk_id, text, tokens, content_sha256, metadata
+SearchResult = Dict[str, Any]  # includes: id, text_snippet, score, source, metadata
+```
+
+# 8) Acceptance Criteria
+
+- Core files exist in `agents/autopiloot/core/rag/` with working imports.
+- OpenSearch and BigQuery sinks are optional and gated by flags; return `status: "skipped"` when disabled/misconfigured.
+- BigQuery stores metadata + snippet only; no full text.
+- Hybrid retrieval returns fused, deduplicated results with provenance and scores.
+- Tests in `tests/rag_core/` pass; coverage report generated (≥80% per file; target 90%).
+- No changes to agent tools required to import the core library.
+
+# 9) Testing Strategy
+
+- Mock external clients (OpenSearch, BigQuery, Zep); import real core code.
+- Verify: chunking boundaries, idempotent upserts, disabled-sink behavior, retrieval fusion order, and deduplication.
+- Generate coverage:
+  - `coverage run --source=agents/autopiloot/core/rag -m unittest discover tests/rag_core -v`
+  - `coverage html --directory=coverage/core_rag --include="agents/autopiloot/core/rag/*"`
+  - `coverage report --include="agents/autopiloot/core/rag/*" --show-missing`
+
+# 10) Notes / Links
+
+- Reference existing tools in summarizer_agent for prior logic.
+- Keep full text out of BigQuery; use OpenSearch/Zep for text storage/search.

@@ -1,0 +1,114 @@
+---
+description: "Refactor summarizer_agent to use shared Hybrid RAG core via wrappers; remove duplicate logic and align docs."
+globs:
+  [
+    "agents/autopiloot/summarizer_agent/tools/**/*.py",
+    "agents/autopiloot/summarizer_agent/instructions.md",
+    "agents/autopiloot/core/rag/**/*.py",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0097"
+title: "Clean up summarizer_agent to use shared Hybrid RAG core and wrappers"
+status: "planned"
+priority: "P1"
+labels: ["rag", "refactor", "summarizer", "cleanup"]
+dependencies: ["TASK-0093", "TASK-0094", "TASK-0095"]
+created: "2025-10-13"
+
+# 1) High-Level Objective
+
+Refactor `summarizer_agent` to remove agent-local RAG implementation, rely on the shared `core/rag` library and the mandatory wrapper tool(s), and update instructions/documentation accordingly.
+
+# 2) Background / Context
+
+Hybrid RAG is now a shared capability. Summarizer should consume it via thin wrappers and must not contain separate indexing logic to avoid drift and duplication.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Core library (TASK-0093) and wrappers (TASK-0094) are complete; orchestration updates (TASK-0095) are merged.
+- Constraint: Keep backward compatibility temporarily by retaining shim modules that import the new core until callers are migrated.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- TASK-0093, TASK-0094, TASK-0095
+- agents/autopiloot/config/settings.yaml
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/summarizer_agent/tools/ _(read-only for review)_
+- agents/autopiloot/core/rag/ _(read-only)_
+
+End state (must exist after completion):
+
+- summarizer_agent/tools/rag_hybrid_search.py (wrapper calling `core.rag.hybrid_retrieve.search`)
+- summarizer_agent/tools/index_full_transcript_to_opensearch.py (shim → delegates to core or marked deprecated)
+- summarizer_agent/tools/stream_full_transcript_to_bigquery.py (shim → delegates to core or marked deprecated)
+- summarizer_agent/tools/upsert_full_transcript_to_zep.py (shim → delegates to core or marked deprecated)
+- summarizer_agent/instructions.md updated to reference shared RAG usage
+- tests/summarizer_rag/test_wrappers_and_shims.py
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Audit current RAG tools in `summarizer_agent/tools/`
+
+   - Identify modules that duplicate core functionality: indexing to OpenSearch, streaming to BigQuery, Zep upsert, hybrid retrieval.
+
+2. Create or confirm wrapper for retrieval
+
+   - Ensure `rag_hybrid_search.py` exists and calls `core.rag.hybrid_retrieve.search(query, filters, limit)`; return JSON string.
+
+3. Convert indexing tools into shims
+
+   - For `index_full_transcript_to_opensearch.py`, `stream_full_transcript_to_bigquery.py`, `upsert_full_transcript_to_zep.py`:
+     - Replace internal logic with thin delegation to corresponding `core.rag.*` functions.
+     - Add deprecation note at top of file docstring: "Delegates to core/rag; kept for backward compatibility."
+
+4. Remove dead code
+
+   - Delete any helper functions or classes superseded by `core/rag` that are not required by shims.
+
+5. Update instructions
+
+   - File: `summarizer_agent/instructions.md`
+   - Replace references to agent-local implementations with guidance to use wrappers (which call shared core).
+
+6. Tests
+   - Add `tests/summarizer_rag/test_wrappers_and_shims.py` verifying shims delegate to core and return JSON strings; mock core calls.
+   - Generate coverage HTML; ensure ≥80% coverage for changed files.
+
+# 7) Types & Interfaces (if applicable)
+
+```python
+def rag_hybrid_search(query: str, filters: dict | None = None, limit: int = 20) -> str: ...
+```
+
+# 8) Acceptance Criteria
+
+- Summarizer no longer contains duplicate RAG logic; shims delegate to `core/rag`.
+- `rag_hybrid_search` works and is discoverable as an Agency Swarm tool.
+- Instructions updated; tests pass; coverage ≥80% for modified modules.
+
+# 9) Testing Strategy
+
+- Use dependency mocking to assert delegation to core; ensure JSON return structures and error handling.

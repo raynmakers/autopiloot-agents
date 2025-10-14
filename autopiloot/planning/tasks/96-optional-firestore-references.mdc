@@ -1,0 +1,86 @@
+---
+description: "Add optional lightweight Firestore references for RAG artifacts (audit/search pointers only)."
+globs:
+  [
+    "agents/autopiloot/**/tools/**/*.py",
+    "agents/autopiloot/services/firebase/functions/**/*.py",
+    "agents/autopiloot/config/settings.yaml",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0096"
+title: "Optional Firestore RAG references (audit/search pointers)"
+status: "planned"
+priority: "P2"
+labels: ["rag", "firestore", "audit"]
+dependencies: ["TASK-0093", "TASK-0094", "TASK-0095"]
+created: "2025-10-13"
+
+# 1) High-Level Objective
+
+Add lightweight Firestore references to help ops/audit find where artifacts are indexed, without coupling indexing to Firestore.
+
+# 2) Background / Context
+
+Firestore should not be required for RAG. References are purely optional pointers for operations/discovery.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Not all artifacts exist in Firestore; do not enforce presence.
+- Constraint: Writes must be best-effort and non-blocking; failures are logged only.
+
+# 4) Dependencies
+
+- TASK-0093, TASK-0094, TASK-0095
+
+# 5) Context Plan
+
+End state (must exist):
+
+- Collection design `rag_refs/{id}` documented in `docs/firestore_schema_rag.md`
+- Helper: `agents/autopiloot/core/rag/refs.py` with `def upsert_ref(ref: dict) -> None`
+- Optional calls in wrappers after successful indexing
+- tests/rag_refs/test_refs_best_effort.py
+
+# 6) Low-Level Steps
+
+1. Define document schema in docs
+
+   - File: `agents/autopiloot/docs/firestore_schema_rag.md`
+   - Fields: `type`, `source_ref`, `opensearch_index`, `bigquery_table`, `zep_doc_id?`, `content_hashes[]`, `created_at`, `created_by_agent`.
+
+2. Implement best-effort helper
+
+   - File: `agents/autopiloot/core/rag/refs.py`
+   - `upsert_ref(ref: dict) -> None` catches all exceptions and only logs warnings.
+
+3. Wire optional ref writes
+
+   - In per-agent wrappers, after successful indexing, call `refs.upsert_ref({...})` if `rag.features.write_firestore_refs` true.
+
+4. Tests
+   - Verify helper does not raise; ensure wrappers continue on failures.
+
+# 7) Acceptance Criteria
+
+- Reference helper exists and is optional via feature flag.
+- No hard dependency on Firestore for indexing/search.
+- Tests pass; coverage ≥80% for refs helper and wrapper ref paths.

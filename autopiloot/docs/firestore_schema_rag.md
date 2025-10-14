@@ -185,3 +185,162 @@ To re-ingest a transcript:
 - **Tools**: `summarizer_agent/tools/upsert_full_transcript_to_zep.py` - Primary ingestion tool
 - **Architecture**: `docs/testing.md` - Testing patterns for RAG systems
 - **Workflow**: `summarizer_agent/instructions.md` - Agent workflow documentation
+
+---
+
+# Optional Firestore RAG References
+
+**Collection**: `rag_refs/{document_id}` *(TASK-0096)*
+
+## Purpose
+
+Optional lightweight Firestore references that point to where RAG artifacts are indexed. These are **audit/discovery pointers only** and do not couple RAG indexing to Firestore.
+
+## Key Principles
+
+1. **Optional**: Controlled by `rag.features.write_firestore_refs` feature flag (default: false)
+2. **Best-Effort**: Reference writes never block indexing operations
+3. **Non-Blocking**: All exceptions caught and logged as warnings only
+4. **No Hard Dependency**: RAG indexing/search works perfectly without Firestore
+5. **Audit Trail**: Helps operations team locate where artifacts are stored
+
+## Document ID Format
+
+Document IDs use natural keys from source artifacts:
+- Transcripts: `transcript_{video_id}` (e.g., `transcript_abc123`)
+- Summaries: `summary_{video_id}` (e.g., `summary_abc123`)
+- Documents: `document_{doc_id}` (e.g., `document_google_doc_xyz`)
+- LinkedIn: `linkedin_{post_id}` (e.g., `linkedin_urn_123`)
+- Strategy: `strategy_{strategy_id}` (e.g., `strategy_playbook_001`)
+
+## Reference Schema
+
+```typescript
+interface RAGReference {
+  // Required fields
+  type: "transcript" | "summary" | "document" | "linkedin" | "strategy";
+  source_ref: string;  // Original source identifier (video_id, doc_id, etc.)
+  created_at: Timestamp;
+  created_by_agent: string;  // Agent that created the reference
+
+  // Optional sink references (only set if sink enabled and indexing succeeded)
+  opensearch_index?: string;  // OpenSearch index name
+  bigquery_table?: string;    // BigQuery table ID (project.dataset.table)
+  zep_doc_id?: string;        // Zep document/thread ID
+
+  // Content metadata
+  content_hashes: string[];   // SHA-256 hashes of all chunks
+  chunk_count: number;        // Total number of chunks created
+  total_tokens: number;       // Total tokens across all chunks
+
+  // Optional metadata
+  title?: string;             // Human-readable title
+  channel_id?: string;        // YouTube channel ID (for transcripts/summaries)
+  published_at?: string;      // Publication date (ISO 8601)
+  tags?: string[];            // Categorization tags
+
+  // Status tracking
+  indexing_status: "success" | "partial" | "error";
+  sink_statuses: {
+    opensearch?: "indexed" | "skipped" | "error";
+    bigquery?: "streamed" | "skipped" | "error";
+    zep?: "upserted" | "skipped" | "error";
+  };
+
+  // Audit trail
+  last_updated_at: Timestamp;
+  indexing_duration_ms: number;  // Total time taken for indexing operation
+}
+```
+
+## Example: Transcript Reference
+
+```json
+{
+  "type": "transcript",
+  "source_ref": "abc123",
+  "created_at": "2025-10-13T14:30:00Z",
+  "created_by_agent": "transcriber_agent",
+
+  "opensearch_index": "autopiloot_transcripts",
+  "bigquery_table": "autopiloot-prod.autopiloot.transcript_chunks",
+  "zep_doc_id": "transcript_abc123",
+
+  "content_hashes": ["a1b2c3d4e5f6...", "f6e5d4c3b2a1..."],
+  "chunk_count": 10,
+  "total_tokens": 8500,
+
+  "title": "How to Scale a SaaS Business",
+  "channel_id": "UCkP5J0pXI11VE81q7S7V1Jw",
+  "published_at": "2025-10-08T12:00:00Z",
+  "tags": ["saas", "scaling", "business"],
+
+  "indexing_status": "success",
+  "sink_statuses": {
+    "opensearch": "indexed",
+    "bigquery": "streamed",
+    "zep": "upserted"
+  },
+
+  "last_updated_at": "2025-10-13T14:30:05Z",
+  "indexing_duration_ms": 5234
+}
+```
+
+## Usage in Code
+
+```python
+from core.rag.refs import upsert_ref
+
+# After successful RAG indexing (best-effort, never blocks)
+upsert_ref({
+    "type": "transcript",
+    "source_ref": video_id,
+    "created_by_agent": "transcriber_agent",
+    "opensearch_index": "autopiloot_transcripts",
+    "bigquery_table": f"{project_id}.{dataset}.transcript_chunks",
+    "zep_doc_id": f"transcript_{video_id}",
+    "content_hashes": chunk_hashes,
+    "chunk_count": len(chunks),
+    "total_tokens": total_tokens,
+    "indexing_status": "success",
+    "sink_statuses": sink_statuses,
+    "indexing_duration_ms": duration_ms
+})
+```
+
+## Firestore Indexes
+
+For efficient querying:
+
+```
+rag_refs:
+- type (ASC) + created_at (DESC)
+- source_ref (ASC) + type (ASC)
+- indexing_status (ASC) + created_at (DESC)
+- created_by_agent (ASC) + created_at (DESC)
+```
+
+## Feature Flag
+
+In `config/settings.yaml`:
+
+```yaml
+rag:
+  features:
+    write_firestore_refs: false  # Default: disabled (opt-in)
+```
+
+## Behavior Notes
+
+- **Feature Flag Disabled (Default)**: No Firestore writes, zero overhead
+- **Feature Flag Enabled**: Best-effort writes, failures logged only
+- **Error Handling**: All exceptions caught, never propagate
+- **Use Cases**: Operations audit, debugging, analytics, recovery planning
+
+## Non-Goals
+
+- ❌ **NOT a required dependency**: RAG must work without Firestore
+- ❌ **NOT for retrieval**: Use RAG sinks directly for search
+- ❌ **NOT for synchronization**: References don't guarantee sink state
+- ❌ **NOT transactional**: References may be stale or missing

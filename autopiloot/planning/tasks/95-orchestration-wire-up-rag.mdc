@@ -1,0 +1,111 @@
+---
+description: "Wire orchestrations so agents explicitly invoke Hybrid RAG wrappers; no Firestore triggers."
+globs:
+  [
+    "agents/autopiloot/orchestrator_agent/tools/**/*.py",
+    "agents/autopiloot/transcriber_agent/tools/**/*.py",
+    "agents/autopiloot/drive_agent/tools/**/*.py",
+    "agents/autopiloot/strategy_agent/tools/**/*.py",
+    "agents/autopiloot/config/settings.yaml",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0095"
+title: "Update orchestrations to call mandatory Hybrid RAG wrappers explicitly"
+status: "planned"
+priority: "P0"
+labels: ["rag", "orchestration", "agents"]
+dependencies: ["TASK-0093", "TASK-0094"]
+created: "2025-10-13"
+
+# 1) High-Level Objective
+
+Ensure RAG indexing/search is invoked explicitly in agent workflows (no Firestore triggers): transcriber indexes after transcript save; drive indexes after text extraction; strategy indexes only behind feature flag.
+
+# 2) Background / Context
+
+We avoid datastore coupling; indexing is an explicit step. Orchestrator should ensure sequence correctness and error handling without side effects.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Wrapper tools exist and return JSON strings with `status` and details.
+- Constraint: Preserve current status transitions; add RAG calls as additional steps.
+
+# 4) Dependencies
+
+- TASK-0093, TASK-0094
+
+# 5) Context Plan
+
+End state (must be updated):
+
+- orchestrator_agent/tools/dispatch_transcriber.py (call `rag_index_transcript` after `SaveTranscriptRecord`)
+- drive_agent workflows: call `rag_index_document` after text extraction
+- summarizer_agent workflows: call `rag_index_summary` after summary generation/storage
+- linkedin_agent workflows: call `rag_index_linkedin` after fetch/normalize steps for posts and comments
+- strategy_agent workflows: use `rag_hybrid_search` for retrieval; call `rag_index_strategy` only if `rag.features.persist_strategies` true
+- config/settings.yaml: add feature flags + timeouts/retries for RAG steps
+- tests/orchestration/test_rag_calls.py
+
+# 6) Low-Level Steps
+
+1. Update transcriber flow
+
+   - After `save_transcript_record.run()`, invoke `rag_index_transcript` with metadata.
+   - On failure, log and continue (non-blocking) unless `rag.features.rag_required` is true.
+
+2. Update drive flow
+
+   - After text extraction tool, invoke `rag_index_document`.
+   - Respect flags: skip when disabled; propagate status in result summary.
+
+3. Update summarizer flow (write)
+
+   - After summary creation and persistence (e.g., `save_summary_record*`), invoke `rag_index_summary` with `summary_id`, `text`, and optional `video_id/title/tags`.
+   - Non-blocking on failure unless `rag.features.rag_required` is true.
+
+4. Update LinkedIn flow (write)
+
+   - After ingesting/normalizing posts and comments, invoke `rag_index_linkedin` with `post_or_comment_id`, `text`, `author`, `permalink`, `created_at`, `tags`.
+   - Non-blocking on failure unless `rag.features.rag_required` is true.
+
+5. Update strategy flow (read, optional write)
+
+   - Use `rag_hybrid_search` where strategy tools require retrieval.
+   - Optional indexing via `rag_index_strategy` is guarded by `rag.features.persist_strategies`.
+
+6. Add config flags
+
+   - `rag.features.rag_required` (bool, default false)
+   - `rag.timeouts.index_ms`, `rag.retries.max_attempts`
+
+7. Tests
+   - Validate call order and flag behavior with dependency mocks.
+
+# 7) Acceptance Criteria
+
+- Orchestrations call RAG wrappers in correct order with required inputs.
+- Behavior controlled by feature flags and does not rely on Firestore triggers.
+- Tests pass; coverage ≥80% for updated orchestration modules.
+
+# 8) Testing Strategy
+
+- Mock wrapper tools; assert invocation with expected payloads and flag handling.

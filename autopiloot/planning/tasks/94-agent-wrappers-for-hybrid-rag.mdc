@@ -1,0 +1,146 @@
+---
+description: "Create mandatory per-agent wrappers (@function_tool) that call the shared Hybrid RAG core library."
+globs: ["agents/autopiloot/*_agent/tools/rag_*.py"]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0094"
+title: "Add mandatory per-agent Hybrid RAG wrappers (tools)"
+status: "planned"
+priority: "P0"
+labels: ["rag", "wrappers", "tools", "agents"]
+dependencies: ["TASK-0093"]
+created: "2025-10-13"
+
+# 1) High-Level Objective
+
+Expose the shared Hybrid RAG library through mandatory per-agent tools so Agency Swarm can discover and invoke them consistently without duplicating logic.
+
+# 2) Background / Context
+
+Agents should not reimplement RAG. They should call shared core functions via thin wrappers for indexing/search. This keeps logic centralized, and tools discoverable.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: Core RAG API stable: `ingest(payload)`, `search(query, filters, limit)`.
+- Constraint: Use `@function_tool` wrappers with strict Pydantic validation and JSON string return format.
+
+# 4) Dependencies
+
+- TASK-0093 (shared core library)
+
+# 5) Context Plan
+
+End state (must exist):
+
+- agents/autopiloot/transcriber_agent/tools/rag_index_transcript.py # write
+- agents/autopiloot/drive_agent/tools/rag_index_document.py # write
+- agents/autopiloot/linkedin_agent/tools/rag_index_linkedin.py # write
+- agents/autopiloot/summarizer_agent/tools/rag_index_summary.py # write
+- agents/autopiloot/strategy_agent/tools/rag_hybrid_search.py # read
+- agents/autopiloot/strategy_agent/tools/rag_index_strategy.py # optional write (feature-flagged)
+- tests/rag_wrappers/test_transcriber_wrapper.py
+- tests/rag_wrappers/test_drive_wrapper.py
+- tests/rag_wrappers/test_linkedin_index_wrapper.py
+- tests/rag_wrappers/test_strategy_search_wrapper.py
+- tests/rag_wrappers/test_strategy_optional_index_wrapper.py
+- tests/rag_wrappers/test_summarizer_index_wrapper.py
+
+# 6) Low-Level Steps
+
+1. Implement transcriber wrapper (write)
+
+   - File: `transcriber_agent/tools/rag_index_transcript.py`
+   - `@function_tool` API:
+     ```python
+     def rag_index_transcript(video_id: str, transcript_text: str, channel_id: str, title: str | None = None, published_at: str | None = None, duration_sec: int | None = None) -> str
+     ```
+   - Validate inputs, build payload, call `core.rag.ingest_transcript.ingest(payload)`.
+
+2. Implement drive wrapper (write)
+
+   - File: `drive_agent/tools/rag_index_document.py`
+   - API:
+     ```python
+     def rag_index_document(doc_id: str, text: str, source_uri: str | None = None, mime_type: str | None = None, title: str | None = None, tags: list[str] | None = None) -> str
+     ```
+   - Calls `core.rag.ingest_document.ingest(payload)`.
+
+3. Implement LinkedIn wrapper (write)
+
+   - File: `linkedin_agent/tools/rag_index_linkedin.py`
+   - API:
+     ```python
+     def rag_index_linkedin(
+         post_or_comment_id: str,
+         text: str,
+         author: str | None = None,
+         permalink: str | None = None,
+         created_at: str | None = None,
+         tags: list[str] | None = None
+     ) -> str
+     ```
+   - Build payload with `type: "linkedin"`, include `source="linkedin"`, then call `core.rag.ingest_document.ingest(payload)`.
+
+4. Implement strategy search wrapper (read)
+
+   - File: `strategy_agent/tools/rag_hybrid_search.py`
+   - API:
+     ```python
+     def rag_hybrid_search(query: str, filters: dict | None = None, limit: int = 20) -> str
+     ```
+   - Calls `core.rag.hybrid_retrieve.search(...)`.
+
+5. Implement optional strategy index wrapper (feature flag)
+
+   - File: `strategy_agent/tools/rag_index_strategy.py`
+   - API:
+     ```python
+     def rag_index_strategy(strategy_id: str, text: str, title: str | None = None, tags: list[str] | None = None) -> str
+     ```
+   - If `rag.features.persist_strategies` is false, return skipped.
+
+6. Implement summarizer index wrapper (write)
+
+   - File: `summarizer_agent/tools/rag_index_summary.py`
+   - API:
+     ```python
+     def rag_index_summary(summary_id: str, text: str, video_id: str | None = None, title: str | None = None, tags: list[str] | None = None) -> str
+     ```
+   - Build payload with `type: "summary"` and call `core.rag.ingest_document.ingest(payload)`.
+
+7. Tests
+   - Mock core functions; verify payload pass-through, flag handling, and JSON return contract.
+
+# 7) Acceptance Criteria
+
+- Write access: transcriber (index transcripts), drive (index documents), linkedin (index posts/comments), summarizer (index summaries).
+- Read access where needed: strategy (hybrid search). Summarizer writes summaries; no search wrapper in this task.
+- Strategy optional write exists but gated by `rag.features.persist_strategies` (default false).
+- All wrappers delegate to shared core; no indexing logic lives in agent tools.
+- Tests pass; coverage ≥80% per file; HTML coverage generated.
+
+# 8) Testing Strategy
+
+- Use direct file imports with dependency mocking; validate inputs/outputs and feature flag behavior.
+
+# 9) Notes
+
+- Keep wrappers minimal; no network calls directly—only via core library.

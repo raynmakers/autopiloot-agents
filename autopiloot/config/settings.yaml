@@ -232,13 +232,30 @@ drive:
       - ".csv"
 
 rag:
-  # Automatic workflow integration
+  # Orchestration and Workflow Integration
+  # Controls how RAG wrappers are invoked in agent workflows
+  features:
+    rag_required: false  # If true, RAG failures block workflows; if false, failures logged but workflow continues
+    persist_strategies: false  # If true, enable strategy content indexing via rag_index_strategy tool
+    auto_index_after_save: true  # Automatically call RAG indexing tools after Firestore saves
+    write_firestore_refs: false  # If true, write optional Firestore references (rag_refs collection) for audit/discovery; best-effort only (never blocks)
+
+  # Timeouts and Retries for RAG Operations
+  timeouts:
+    index_ms: 5000  # Timeout for indexing operations (5 seconds)
+    search_ms: 2000  # Timeout for search operations (2 seconds)
+
+  retries:
+    max_attempts: 2  # Maximum retry attempts for RAG operations
+    backoff_multiplier: 2  # Exponential backoff multiplier
+
+  # Automatic workflow integration (DEPRECATED - use features.auto_index_after_save)
   auto_ingest_after_transcription: true  # Automatically ingest full transcripts to RAG systems after save_transcript_record
   # When enabled, transcript workflow will automatically call:
-  # 1. UpsertFullTranscriptToZep (semantic search)
+  # 1. rag_index_transcript (via new wrapper tool)
   # 2. IndexFullTranscriptToOpenSearch (keyword search, if configured)
   # 3. StreamFullTranscriptToBigQuery (SQL analytics, if configured)
-  # Failures in RAG ingestion do NOT block the transcript workflow
+  # Failures in RAG ingestion do NOT block the transcript workflow unless rag.features.rag_required=true
 
   # Adaptive Query Routing
   # Intelligently routes queries to optimal retrieval sources based on query characteristics
