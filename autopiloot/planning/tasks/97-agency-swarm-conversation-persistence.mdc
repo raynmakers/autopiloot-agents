@@ -6,8 +6,9 @@ alwaysApply: false
 
 id: "TASK-AGS-0097"
 title: "Implement Agency Swarm v1.2.0 Conversation Persistence"
-status: "planned"
+status: "completed"
 priority: "P1"
+completed: "2025-10-14"
 labels: ["agency-swarm", "firebase", "persistence", "upgrade"]
 dependencies: []
 created: "2025-10-14"

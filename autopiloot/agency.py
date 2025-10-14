@@ -43,10 +43,21 @@ class AutopilootAgency(Agency):
         # Get CEO agent (orchestrator_agent is required)
         ceo_agent = self.agent_registry.get_agent("orchestrator_agent")
 
+        # Add persistence callbacks if enabled (Agency Swarm v1.2.0)
+        persistence_config = self.config.get('agency', {}).get('persistence', {})
+        persistence_enabled = persistence_config.get('enabled', True)
+
+        callbacks = {}
+        if persistence_enabled:
+            callbacks['save_threads_callback'] = self._save_threads_to_firestore
+            callbacks['load_threads_callback'] = self._load_threads_from_firestore
+            logger.info("Conversation persistence enabled (Agency Swarm v1.2.0)")
+
         super().__init__(
             ceo_agent,
             communication_flows=communication_flows,
             shared_instructions="./agency_manifesto.md",
+            **callbacks  # Pass callbacks to Agency
         )
 
         logger.info("AutopilootAgency initialization complete")
@@ -92,6 +103,65 @@ class AutopilootAgency(Agency):
 
         logger.info(f"Built {len(flows)} communication flows from configuration")
         return flows
+
+    def _save_threads_to_firestore(self, threads: dict) -> None:
+        """
+        Persist conversation threads to Firestore (Agency Swarm v1.2.0 callback).
+
+        Stores thread data with timestamps for stateful workflows across Firebase Function invocations.
+
+        Args:
+            threads: Dictionary mapping thread_id to thread data (messages, metadata)
+        """
+        try:
+            from google.cloud import firestore
+
+            db = firestore.Client()
+            collection = self.config.get('agency', {}).get('persistence', {}).get('collection', 'agency_threads')
+
+            for thread_id, thread_data in threads.items():
+                doc_ref = db.collection(collection).document(thread_id)
+                doc_ref.set({
+                    'thread_id': thread_id,
+                    'messages': thread_data,
+                    'updated_at': firestore.SERVER_TIMESTAMP,
+                    'created_at': firestore.SERVER_TIMESTAMP
+                }, merge=True)
+
+            logger.info(f"Persisted {len(threads)} conversation threads to Firestore collection '{collection}'")
+
+        except Exception as e:
+            logger.error(f"Failed to persist conversation threads: {e}")
+            # Don't raise - persistence failure should not break the main workflow
+
+    def _load_threads_from_firestore(self) -> dict:
+        """
+        Load conversation threads from Firestore (Agency Swarm v1.2.0 callback).
+
+        Retrieves persisted thread data to resume workflows across Firebase Function invocations.
+
+        Returns:
+            dict: Dictionary mapping thread_id to thread data (messages, metadata)
+        """
+        try:
+            from google.cloud import firestore
+
+            db = firestore.Client()
+            collection = self.config.get('agency', {}).get('persistence', {}).get('collection', 'agency_threads')
+
+            threads = {}
+            for doc in db.collection(collection).stream():
+                doc_data = doc.to_dict()
+                if doc_data and 'messages' in doc_data:
+                    threads[doc.id] = doc_data['messages']
+
+            logger.info(f"Loaded {len(threads)} conversation threads from Firestore collection '{collection}'")
+            return threads
+
+        except Exception as e:
+            logger.error(f"Failed to load conversation threads: {e}")
+            # Return empty dict on failure - start fresh
+            return {}
 
     def get_enabled_agents(self):
         """Get list of enabled agent names."""

@@ -46,6 +46,13 @@ communication_flows:
   - ["strategy_agent", "observability_agent"]
   - ["drive_agent", "observability_agent"]
 
+# Agency Swarm v1.2.0 Configuration
+agency:
+  persistence:
+    enabled: true  # Enable conversation persistence across Firebase Function invocations
+    collection: "agency_threads"  # Firestore collection for storing conversation threads
+    retention_days: 30  # Auto-delete threads older than 30 days
+
 # ID of the Google Sheet used for backfill links
 sheet: "1ikj9GU4_LG-q4i0ACsgrJ8BECX_YW-ujfr4kKWlJt8A"
 

@@ -1030,4 +1030,113 @@ def _send_drive_error_alert(run_id: str, targets_count: int, error: str, duratio
         logger.error(f"Failed to send Drive error alert: {str(e)}")
 
 
+# ==================================================================================
+# SCHEDULED FUNCTION: Thread Cleanup at 02:00 Europe/Amsterdam
+# ==================================================================================
+
+@scheduler_fn.on_schedule(
+    schedule="0 2 * * *",  # Daily at 02:00
+    timezone=scheduler_fn.Timezone("Europe/Amsterdam"),
+    memory=options.MemoryOption.MB_256,
+    timeout_sec=60,
+    max_instances=1,  # Only one instance at a time
+)
+def cleanup_old_threads(event: scheduler_fn.ScheduledEvent) -> Dict[str, Any]:
+    """
+    Scheduled function to clean up old conversation threads daily at 02:00 Europe/Amsterdam.
+
+    Removes conversation threads older than the configured retention period to prevent
+    unbounded Firestore growth and manage storage costs.
+
+    Part of Agency Swarm v1.2.0 conversation persistence feature (TASK-AGS-0097).
+    """
+    try:
+        logger.info(f"Starting thread cleanup at {event.timestamp}")
+
+        # Get cleanup configuration
+        from agents.autopiloot.config.loader import get_config_value
+
+        persistence_config = get_config_value("agency.persistence", {})
+        retention_days = persistence_config.get("retention_days", 30)
+        collection = persistence_config.get("collection", "agency_threads")
+
+        # Check if persistence is enabled
+        if not persistence_config.get("enabled", True):
+            logger.info("Thread persistence is disabled, skipping cleanup")
+            return {"ok": True, "message": "Thread persistence disabled"}
+
+        logger.info(f"Cleaning threads in '{collection}' older than {retention_days} days")
+
+        # Import cleanup utility
+        from agents.autopiloot.core.thread_cleanup import cleanup_old_threads as do_cleanup, get_thread_stats
+
+        # Get stats before cleanup
+        stats_before = get_thread_stats(collection=collection)
+        logger.info(f"Thread stats before cleanup: {stats_before}")
+
+        # Perform cleanup
+        deleted_count = do_cleanup(retention_days=retention_days, collection=collection)
+
+        # Get stats after cleanup
+        stats_after = get_thread_stats(collection=collection)
+        logger.info(f"Thread stats after cleanup: {stats_after}")
+
+        # Log successful cleanup to audit
+        audit_ref = db.collection('audit_logs').document()
+        audit_ref.set({
+            'type': 'thread_cleanup',
+            'collection': collection,
+            'retention_days': retention_days,
+            'threads_deleted': deleted_count,
+            'threads_remaining': stats_after['total_threads'],
+            'oldest_thread_age_days': stats_after['oldest_thread_age_days'],
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'status': 'success',
+            'event_id': event.id if hasattr(event, 'id') else None
+        })
+
+        logger.info(f"Thread cleanup completed successfully. Deleted {deleted_count} old threads, {stats_after['total_threads']} remaining")
+
+        return {
+            'ok': True,
+            'collection': collection,
+            'retention_days': retention_days,
+            'deleted_count': deleted_count,
+            'remaining_threads': stats_after['total_threads'],
+            'oldest_thread_age_days': stats_after['oldest_thread_age_days'],
+            'execution_time': datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Thread cleanup failed: {str(e)}")
+
+        # Log failure to audit
+        try:
+            audit_ref = db.collection('audit_logs').document()
+            audit_ref.set({
+                'type': 'thread_cleanup',
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'error': str(e),
+                'status': 'failed',
+                'event_id': event.id if hasattr(event, 'id') else None
+            })
+        except:
+            pass  # Don't fail on audit logging failure
+
+        # Send error alert
+        try:
+            _send_error_alert(
+                message=f"Thread cleanup failed",
+                context={'error': str(e), 'timestamp': event.timestamp}
+            )
+        except:
+            pass  # Don't fail on alert failure
+
+        return {
+            'ok': False,
+            'error': str(e),
+            'execution_time': datetime.now(timezone.utc).isoformat()
+        }
+
+
 # Agent getters are imported from shared helpers above

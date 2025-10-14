@@ -144,7 +144,7 @@ Legend: [x] done, [ ] planned
 
 ## Agency Swarm v1.2.0 Upgrade Tasks (97-99)
 
-- [ ] 97-agency-swarm-conversation-persistence.mdc — Implement conversation persistence to enable stateful workflows across Firebase Function invocations (saves/loads threads from Firestore)
+- [x] 97-agency-swarm-conversation-persistence.mdc — Implemented conversation persistence to enable stateful workflows across Firebase Function invocations (saves/loads threads from Firestore)
 - [ ] 98-agency-swarm-output-guardrails.mdc — Add output guardrails to critical agents for improved reliability and automatic retry on malformed outputs
 - [ ] 99-agency-swarm-handoff-reminders.mdc — Add handoff reminders to reinforce policy enforcement during agent transitions
 
