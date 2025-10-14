@@ -1,0 +1,304 @@
+---
+description: "Wire orchestrations so agents explicitly invoke Hybrid RAG wrappers; no Firestore triggers."
+globs:
+  [
+    "agents/autopiloot/orchestrator_agent/tools/**/*.py",
+    "agents/autopiloot/transcriber_agent/tools/**/*.py",
+    "agents/autopiloot/drive_agent/tools/**/*.py",
+    "agents/autopiloot/strategy_agent/tools/**/*.py",
+    "agents/autopiloot/config/settings.yaml",
+  ]
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. **One task = one file.**
+Follow the steps below when creating new tasks.
+
+1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
+5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. **Keep scope tight**: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. **Context plan** must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-0095"
+title: "Update orchestrations to call mandatory Hybrid RAG wrappers explicitly"
+status: "planned"
+priority: "P1"
+labels: ["rag", "orchestration", "agents", "migration"]
+dependencies: ["TASK-0093", "TASK-0094"]
+created: "2025-10-13"
+updated: "2025-10-14"
+
+# 1) High-Level Objective
+
+Migrate orchestrations from deprecated RAG shims to new RAG wrapper tools. Update `OrchestrateRagIngestion` to call `RagIndexTranscript` instead of three separate deprecated tools. Update agent instructions to reference new wrappers. Add explicit RAG calls for Drive, LinkedIn, Summarizer, and Strategy agents.
+
+# 2) Background / Context
+
+**Current State:**
+- ✅ RAG wrapper tools exist: `RagIndexTranscript`, `RagIndexSummary`, `RagIndexDocument`, `RagIndexLinkedin`, `RagIndexStrategy`, `RagHybridSearch`
+- ✅ Configuration flags exist: `rag.features.rag_required`, `rag.features.persist_strategies`, `rag.features.auto_index_after_save`, `rag.auto_ingest_after_transcription`
+- ✅ Orchestration tool exists: `OrchestrateRagIngestion` (orchestrator_agent/tools/orchestrate_rag_ingestion.py)
+- ❌ **Problem**: `OrchestrateRagIngestion` calls OLD deprecated tools (UpsertFullTranscriptToZep, IndexFullTranscriptToOpenSearch, StreamFullTranscriptToBigQuery) instead of new `RagIndexTranscript` wrapper
+- ❌ **Problem**: Agent instructions (transcriber_agent/instructions.md lines 29-37) reference old deprecated tools
+- ❌ **Problem**: No explicit orchestration calls for Drive, LinkedIn, Summarizer, Strategy agents
+
+**Why This Matters:**
+- New wrapper tools delegate to core library (`core.rag.ingest_transcript`) for unified behavior
+- Old tools are shims that will be deprecated/removed
+- Agents have new wrappers available but orchestrations don't use them
+- We avoid datastore coupling; indexing must be explicit, not triggered
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: All RAG wrapper tools (TASK-0094) are implemented and return JSON strings with `status` field
+- ASSUMPTION: Core RAG library (TASK-0093) handles all sink routing (Zep, OpenSearch, BigQuery)
+- Constraint: Preserve current status transitions and non-blocking failure behavior
+- Constraint: Configuration flags already exist; no new flags needed
+- Constraint: Maintain backward compatibility during migration (old tools can coexist temporarily)
+
+# 4) Dependencies
+
+- ✅ TASK-0093 (core RAG library) - COMPLETED
+- ✅ TASK-0094 (agent RAG wrappers) - COMPLETED
+- Dependencies satisfied; ready for implementation
+
+# 5) Context Plan
+
+**Beginning (read for current implementation):**
+
+- `orchestrator_agent/tools/orchestrate_rag_ingestion.py` (lines 120-122 call old tools)
+- `transcriber_agent/instructions.md` (lines 29-37 reference old tools)
+- `config/settings.yaml` (lines 306-323 for RAG config)
+- `transcriber_agent/tools/rag_index_transcript.py` (read-only - new wrapper)
+- `summarizer_agent/tools/rag_index_summary.py` (read-only - new wrapper)
+- `drive_agent/tools/rag_index_document.py` (read-only - new wrapper)
+- `linkedin_agent/tools/rag_index_linkedin.py` (read-only - new wrapper)
+
+**End state (must be updated):**
+
+- `orchestrator_agent/tools/orchestrate_rag_ingestion.py` (MODIFY - call `RagIndexTranscript` instead of 3 deprecated tools)
+- `transcriber_agent/instructions.md` (UPDATE - replace old tool names with `RagIndexTranscript`)
+- `drive_agent/instructions.md` (ADD - document RAG indexing step with `RagIndexDocument`)
+- `linkedin_agent/instructions.md` (ADD - document RAG indexing step with `RagIndexLinkedin`)
+- `summarizer_agent/instructions.md` (ADD - document RAG indexing step with `RagIndexSummary`)
+- `strategy_agent/instructions.md` (UPDATE - document `RagHybridSearch` and optional `RagIndexStrategy`)
+- `tests/orchestrator_tools/test_orchestrate_rag_ingestion.py` (UPDATE - test new wrapper calls)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Migrate `OrchestrateRagIngestion` to use new wrapper tool**
+
+   File: `orchestrator_agent/tools/orchestrate_rag_ingestion.py`
+
+   - **Replace lines 119-123** (old tool list):
+     ```python
+     # OLD (lines 119-123):
+     operations = [
+         {"name": "zep", "tool": "UpsertFullTranscriptToZep"},
+         {"name": "opensearch", "tool": "IndexFullTranscriptToOpenSearch"},
+         {"name": "bigquery", "tool": "StreamFullTranscriptToBigQuery"}
+     ]
+     ```
+
+     **NEW (single unified wrapper):**
+     ```python
+     # NEW: Single wrapper that handles all sinks
+     operations = [
+         {"name": "rag_unified", "tool": "RagIndexTranscript", "agent": "transcriber_agent"}
+     ]
+     ```
+
+   - **Update `_call_rag_tool()` method** (lines 322-359):
+     - Change module path from `summarizer_agent` to use `agent` parameter from operations list
+     - Update tool instantiation to match `RagIndexTranscript` signature (uses `text` not `transcript_text`)
+     ```python
+     tool_instance = tool_class(
+         video_id=transcript_data["video_id"],
+         text=transcript_data["transcript_text"],  # Note: parameter is 'text' not 'transcript_text'
+         channel_id=transcript_data.get("channel_id"),
+         title=transcript_data.get("title"),
+         channel_handle=transcript_data.get("channel_handle"),
+         published_at=transcript_data.get("published_at"),
+         duration_sec=transcript_data.get("duration_sec")
+     )
+     ```
+
+   - **Update success status check** (line 290):
+     - Add "indexed" to success statuses (core library returns this)
+     ```python
+     if result_data.get("status") in ["stored", "indexed", "streamed", "success"]:
+     ```
+
+2. **Update Transcriber Agent instructions**
+
+   File: `transcriber_agent/instructions.md`
+
+   - **Replace lines 29-37** (old RAG section):
+     ```markdown
+     # OLD:
+     5. **Ingest transcript to Hybrid RAG systems** (automatic if enabled in settings.yaml)
+        - **When enabled** (`rag.auto_ingest_after_transcription: true`), automatically call RAG ingestion tools after successful SaveTranscriptRecord
+        - **Zep Semantic Search**: Use UpsertFullTranscriptToZep tool to store chunked transcript for semantic retrieval
+        - **OpenSearch Keyword Search** (optional): Use IndexFullTranscriptToOpenSearch tool if configured
+        - **BigQuery SQL Analytics** (optional): Use StreamFullTranscriptToBigQuery tool if configured
+     ```
+
+     **NEW:**
+     ```markdown
+     5. **Ingest transcript to Hybrid RAG systems** (automatic if enabled in settings.yaml)
+        - **When enabled** (`rag.auto_ingest_after_transcription: true`), automatically call RAG wrapper tool after successful SaveTranscriptRecord
+        - **RagIndexTranscript**: Unified wrapper that delegates to core library for parallel ingestion to all configured sinks:
+          * Zep (semantic search via embeddings)
+          * OpenSearch (keyword search via BM25) - if configured
+          * BigQuery (SQL analytics) - if configured
+        - **Orchestration**: OrchestratorAgent's `OrchestrateRagIngestion` tool handles the workflow automatically
+        - Core library handles content hashing for idempotency and parallel sink routing
+     ```
+
+3. **Add Drive Agent RAG instructions**
+
+   File: `drive_agent/instructions.md`
+
+   - **Add new step after text extraction** (after current step for `ExtractTextFromDocument`):
+     ```markdown
+     X. **Index extracted documents to Hybrid RAG** (automatic if enabled)
+        - **When enabled** (`rag.features.auto_index_after_save: true`), call `RagIndexDocument` after successful text extraction
+        - **RagIndexDocument**: Stores document text with metadata (file_id, file_name, mime_type, folder_path, etc.)
+        - **Non-blocking**: Failures don't block document processing unless `rag.features.rag_required: true`
+        - Core library handles content hashing and parallel ingestion to configured sinks
+     ```
+
+4. **Add LinkedIn Agent RAG instructions**
+
+   File: `linkedin_agent/instructions.md`
+
+   - **Add new step after normalization**:
+     ```markdown
+     X. **Index LinkedIn content to Hybrid RAG** (automatic if enabled)
+        - **When enabled** (`rag.features.auto_index_after_save: true`), call `RagIndexLinkedin` after normalizing posts/comments
+        - **RagIndexLinkedin**: Stores post/comment text with author, engagement metrics, permalink, tags
+        - **Non-blocking**: Failures don't block LinkedIn ingestion workflow
+        - Use for both posts and comments; tool handles content type detection
+     ```
+
+5. **Add Summarizer Agent RAG instructions**
+
+   File: `summarizer_agent/instructions.md`
+
+   - **Add new step after summary storage**:
+     ```markdown
+     X. **Index summary to Hybrid RAG** (automatic if enabled)
+        - **When enabled** (`rag.features.auto_index_after_save: true`), call `RagIndexSummary` after `SaveSummaryRecord`
+        - **RagIndexSummary**: Stores summary bullets and concepts with video metadata
+        - **Non-blocking**: Failures don't block summary workflow
+        - Supports optional Firestore reference via `firestore_doc_ref` parameter
+     ```
+
+6. **Update Strategy Agent instructions for RAG usage**
+
+   File: `strategy_agent/instructions.md`
+
+   - **Add retrieval and optional indexing sections**:
+     ```markdown
+     ## RAG Integration (Hybrid Search and Optional Indexing)
+
+     **Retrieval (always available when RAG configured):**
+     - **RagHybridSearch**: Use for corpus retrieval, content discovery, similar document finding
+     - Combines semantic search (Zep embeddings) + keyword search (OpenSearch BM25)
+     - Returns ranked results with metadata and relevance scores
+
+     **Indexing (optional, controlled by feature flag):**
+     - **RagIndexStrategy**: ONLY call when `rag.features.persist_strategies: true` in settings.yaml
+     - Stores strategy briefs, playbooks, and analysis artifacts for future retrieval
+     - Default is false (strategies are ephemeral, not persisted)
+     ```
+
+7. **Update or create orchestration tests**
+
+   File: `tests/orchestrator_tools/test_orchestrate_rag_ingestion.py`
+
+   - Test that `OrchestrateRagIngestion` calls `RagIndexTranscript` (not old tools)
+   - Mock `RagIndexTranscript` and verify it receives correct parameters
+   - Test config flag `rag.auto_ingest_after_transcription` controls execution
+   - Test non-blocking failure behavior (workflow completes even if RAG fails)
+   - Test `rag.features.rag_required` flag makes RAG failures blocking
+
+# 7) Types & Interfaces
+
+**RagIndexTranscript Tool Signature:**
+```python
+class RagIndexTranscript(BaseTool):
+    video_id: str
+    text: str  # Full transcript text
+    channel_id: str
+    title: Optional[str] = None
+    channel_handle: Optional[str] = None
+    published_at: Optional[str] = None
+    duration_sec: Optional[int] = None
+    firestore_doc_ref: Optional[str] = None  # e.g., "transcripts/{video_id}"
+```
+
+**OrchestrateRagIngestion Response (updated):**
+```json
+{
+  "video_id": "abc123",
+  "timestamp": "2025-10-14T12:00:00Z",
+  "operations": {
+    "rag_unified": {
+      "status": "success",
+      "message": "Indexed to 3 sinks (zep, opensearch, bigquery)",
+      "details": {
+        "chunk_count": 15,
+        "sinks": {
+          "zep": {"status": "success", "thread_id": "transcript_abc123"},
+          "opensearch": {"status": "success", "index_name": "autopiloot_transcripts"},
+          "bigquery": {"status": "success", "rows_inserted": 15}
+        }
+      }
+    }
+  },
+  "overall_status": "success",
+  "message": "All RAG operations completed (1 success, 0 skipped)",
+  "success_count": 1,
+  "failed_count": 0,
+  "skipped_count": 0
+}
+```
+
+# 8) Acceptance Criteria
+
+- ✅ **OrchestrateRagIngestion calls RagIndexTranscript** (not 3 separate deprecated tools)
+- ✅ **Agent instructions updated** to reference new wrapper tools (5 agent instruction files)
+- ✅ **Config flags work correctly**: `rag.auto_ingest_after_transcription`, `rag.features.auto_index_after_save`, `rag.features.rag_required`, `rag.features.persist_strategies`
+- ✅ **Non-blocking failures**: RAG failures don't block workflows unless `rag.features.rag_required: true`
+- ✅ **Tests pass**: Orchestration tests verify new wrapper calls with proper mocking
+- ✅ **Coverage ≥ 80%**: For updated orchestration modules
+- ✅ **Backward compatible**: Old deprecated tools still work (can be removed in future task)
+
+# 9) Testing Strategy
+
+- **Mock RagIndexTranscript** tool in orchestration tests (not old tools)
+- **Assert tool invocation** with expected parameters (video_id, text, channel_id, metadata)
+- **Test config flag behavior**:
+  - When `rag.auto_ingest_after_transcription: false`, orchestration returns "skipped"
+  - When `rag.features.rag_required: false`, RAG failures don't block workflow
+  - When `rag.features.rag_required: true`, RAG failures cause orchestration to fail
+- **Test status propagation**: Verify core library status ("indexed", "success") is recognized
+- **Integration tests**: Run with real tool instances (mocking only external services like Zep API)
+
+# 10) Notes / Links
+
+- **Deprecated tools can remain temporarily**: `UpsertFullTranscriptToZep`, `IndexFullTranscriptToOpenSearch`, `StreamFullTranscriptToBigQuery` are shims that delegate to core library, so they still work but are no longer called by orchestrations
+- **Future cleanup task**: Create TASK-0097 to remove deprecated shim tools once migration is validated in production
+- **Core library handles everything**: New wrappers are thin layers that call `core.rag.ingest_transcript`, `core.rag.ingest_document`, etc.
+- **Idempotency guaranteed**: Core library uses content hashing (SHA-256) to prevent duplicate ingestion across all sinks
+- **Performance**: Single wrapper call is more efficient than 3 separate tool calls (parallel sink routing in core library)

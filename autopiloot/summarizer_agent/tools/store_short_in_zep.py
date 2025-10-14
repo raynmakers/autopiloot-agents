@@ -12,6 +12,7 @@ Zep v3 Architecture:
 import os
 import sys
 import json
+import hashlib
 from typing import List, Optional, Dict
 from datetime import datetime, timezone
 from pydantic import Field
@@ -124,9 +125,30 @@ class StoreShortInZep(BaseTool):
                     "video_id": self.video_id
                 }, indent=2)
 
-            # Step 4: Add summary content as messages
+            # Step 4: Format content and check for duplicates
             content = self._format_content()
-            message_result = self._add_messages(zep_client, zep_base_url, thread_id, content)
+
+            # Check Firestore for duplicate content (ZERO Zep API calls)
+            dedup_check = self._check_firestore_for_duplicate(content)
+
+            if dedup_check["is_duplicate"]:
+                print(f"   ⚪ Content unchanged, skipping Zep storage (hash: {dedup_check['stored_hash']})")
+                return json.dumps({
+                    "thread_id": dedup_check["zep_thread_id"],
+                    "status": "skipped",
+                    "action": "duplicate_content",
+                    "content_hash": dedup_check["stored_hash"],
+                    "message": f"Content unchanged (hash {dedup_check['stored_hash']}), skipped Zep API call"
+                }, indent=2)
+
+            # Content is new/changed - proceed with Zep storage
+            message_result = self._add_messages(
+                zep_client,
+                zep_base_url,
+                thread_id,
+                content,
+                dedup_check["new_hash"]
+            )
             if not message_result.get("success"):
                 return json.dumps({
                     "error": "zep_message_addition_failed",
@@ -137,6 +159,7 @@ class StoreShortInZep(BaseTool):
 
             print(f"   ✅ Summary stored successfully!")
             print(f"   Message UUIDs: {message_result.get('message_uuids', [])}")
+            print(f"   Content Hash: {dedup_check['new_hash']}")
 
             return json.dumps({
                 "thread_id": thread_id,
@@ -145,7 +168,9 @@ class StoreShortInZep(BaseTool):
                 "stored_bullets": len(self.bullets),
                 "stored_concepts": len(self.key_concepts),
                 "channel_handle": self.channel_handle,
+                "content_hash": dedup_check["new_hash"],
                 "status": "stored",
+                "action": "created",  # or "updated" if thread existed
                 "message": f"Summary stored in Zep v3 group '{group}', thread '{thread_id}'"
             }, indent=2)
 
@@ -343,7 +368,66 @@ class StoreShortInZep(BaseTool):
                 "error": str(e)
             }
 
-    def _add_messages(self, client, base_url: str, thread_id: str, content: str) -> dict:
+    def _check_firestore_for_duplicate(self, content: str) -> dict:
+        """
+        Check Firestore for existing summary with same content hash.
+        This enables zero-cost deduplication without Zep API calls.
+
+        Args:
+            content: Formatted summary content to hash
+
+        Returns:
+            dict: {"is_duplicate": bool, "stored_hash": str, "new_hash": str, "zep_thread_id": str}
+        """
+        try:
+            from google.cloud import firestore
+
+            # Compute content hash (same algorithm as save_summary_record.py)
+            content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+
+            # Query Firestore summaries/{video_id}
+            project_id = os.getenv("GCP_PROJECT_ID")
+            if not project_id:
+                # No GCP project configured - skip dedup check (fail open)
+                print("   ⚠️ No GCP_PROJECT_ID configured, skipping dedup check")
+                return {
+                    "is_duplicate": False,
+                    "new_hash": content_hash
+                }
+
+            db = firestore.Client(project=project_id)
+            summary_ref = db.collection('summaries').document(self.video_id)
+            summary_doc = summary_ref.get()
+
+            if summary_doc.exists:
+                stored_hash = summary_doc.get('summary_digest')
+                stored_zep_thread = summary_doc.get('zep_thread_id')
+
+                if stored_hash == content_hash and stored_zep_thread:
+                    # Same content already in Zep - skip
+                    return {
+                        "is_duplicate": True,
+                        "stored_hash": stored_hash,
+                        "new_hash": content_hash,
+                        "zep_thread_id": stored_zep_thread
+                    }
+
+            return {
+                "is_duplicate": False,
+                "new_hash": content_hash
+            }
+
+        except Exception as e:
+            # Firestore error - fail open (proceed with Zep storage)
+            print(f"   ⚠️ Firestore dedup check failed: {str(e)}, proceeding with Zep storage")
+            content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+            return {
+                "is_duplicate": False,
+                "new_hash": content_hash,
+                "error": str(e)
+            }
+
+    def _add_messages(self, client, base_url: str, thread_id: str, content: str, content_hash: str) -> dict:
         """
         Add summary content as messages to the thread.
 
@@ -352,6 +436,7 @@ class StoreShortInZep(BaseTool):
             base_url: Zep base URL
             thread_id: Thread ID
             content: Formatted summary content
+            content_hash: SHA-256 hash of content for audit trail
 
         Returns:
             dict: {"success": bool, "message_uuids": List[str], "error": str}
@@ -367,6 +452,7 @@ class StoreShortInZep(BaseTool):
                             "bullets_count": len(self.bullets),
                             "concepts_count": len(self.key_concepts),
                             "video_id": self.video_id,
+                            "content_hash": content_hash,  # NEW: for audit trail and deduplication
                             "stored_at": datetime.now(timezone.utc).isoformat()
                         }
                     }

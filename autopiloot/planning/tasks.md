@@ -3,8 +3,8 @@
 Legend: [x] done, [ ] planned
 
 **Status**: 🎉 **ALL TASKS COMPLETED** 🎉
-**Total**: 90/90 tasks complete (all archived to planning/archive/)
-**Last Updated**: 2025-01-16
+**Total**: 99/99 tasks complete (all archived to planning/archive/)
+**Last Updated**: 2025-10-14
 
 ## Core Configuration & Infrastructure
 
@@ -115,6 +115,24 @@ Legend: [x] done, [ ] planned
 - [x] 89-modular-cli-scaffold.mdc — CLI scaffold to generate complete agent structures from templates
 - [x] 90-modular-tests-and-docs.mdc — Comprehensive testing and documentation for modular architecture
 
+## Hybrid RAG Infrastructure Tasks (72-series, 93-96)
+
+- [x] 72-store-full-transcripts-to-rag.mdc — Full transcript storage in Hybrid RAG (Zep + OpenSearch + BigQuery)
+- [x] 72-opensearch-config-and-env.mdc — Configured OpenSearch for Hybrid RAG keyword/BM25 retrieval
+- [x] 72-bigquery-config-and-env.mdc — Configured BigQuery for Hybrid RAG metadata storage and SQL analytics
+- [x] 93-core-hybrid-rag-library.mdc — Implemented shared Hybrid RAG core library (ingest, stores, retrieval)
+- [x] 94-agent-wrappers-for-hybrid-rag.mdc — Added mandatory per-agent Hybrid RAG wrappers (tools)
+- [x] 95-orchestration-wire-up-rag.mdc — Updated orchestrations to call mandatory Hybrid RAG wrappers explicitly
+- [x] 96-optional-firestore-references.mdc — Implemented optional Firestore references for RAG artifacts
+
+## Data Integrity & Optimization Tasks (75)
+
+- [x] 75-prevent-zep-duplicates.mdc — Firestore-based zero-cost deduplication for Zep messages (prevents duplicate summaries)
+
+## RapidAPI Rate Limiting Tasks (74)
+
+- [x] 74-respect-rapidapi-rate-limits.mdc — Dual token bucket rate limiter for RapidAPI plugins (monthly + per-minute limits with burst support)
+
 ## Future Enhancement Tasks (91+)
 
 - [ ] 91-assemblyai-webhooks.mdc — Implement AssemblyAI webhooks for real-time transcription completion notifications
@@ -124,22 +142,26 @@ Legend: [x] done, [ ] planned
 
 ## Archive Information
 
-🏦 **All 90 tasks have been completed and archived to `planning/archive/`**
+🏦 **All 99 tasks have been completed and archived to `planning/archive/`**
 
 The Autopiloot Agency implementation is now complete with:
 
 - 🤖 **8 Production Agents**: Orchestrator (CEO), Scraper, Transcriber, Summarizer, Observability, LinkedIn, Strategy, Drive
-- 🔧 **86 Production Tools**: All implementing Agency Swarm v1.0.0 BaseTool with snake_case naming
-- 🧪 **160+ Test Files**: Comprehensive coverage including modular architecture tests (95%+ coverage)
+- 🔧 **86 Production Tools**: All implementing Agency Swarm v1.0.2 BaseTool with snake_case naming
+- 🧪 **180+ Test Files**: Comprehensive coverage including modular architecture tests (95%+ coverage)
 - 📈 **Enterprise Observability**: Monitoring, alerting, audit logging, LLM tracking, and PRD-compliant daily digest
 - 🔒 **Production Reliability**: DLQ, exponential backoff, quota management, Firebase Functions integration
 - 🏗️ **CI/CD Infrastructure**: GitHub Actions with snake_case filename enforcement, multi-Python testing, and security scanning
-- 📄 **Complete Documentation**: ADRs (23+ architectural decisions), folder structure, testing guides, operational procedures
+- 📄 **Complete Documentation**: ADRs (38+ architectural decisions), folder structure, testing guides, operational procedures
 - ⚙️ **Configuration Normalization**: Centralized environment variable access and Firebase Functions standardization
 - 🌅 **100% PRD Compliance**: All MVP requirements including daily digest at 07:00 Europe/Amsterdam
 - 📊 **LinkedIn Content Strategy**: Complete LinkedIn ingestion pipeline with Strategy Agent for content analysis and playbook generation
 - 🧠 **Advanced NLP**: TF-IDF analysis, semantic clustering, LLM classification, tone analysis, and trigger phrase mining
 - 📁 **Google Drive Integration**: Complete Drive content ingestion with text extraction, Zep GraphRAG indexing, and automated scheduling
 - 🏗️ **Modular Architecture**: Config-driven agent composition, dynamic communication flows, extensible scheduling, and CLI scaffold
+- 🔍 **Hybrid RAG Infrastructure**: Shared core library with OpenSearch (BM25 keyword), BigQuery (metadata analytics), and Zep (semantic) integration with optional Firestore references
+- 💎 **Zero-Cost Deduplication**: Firestore-based content hash checking prevents duplicate Zep messages (zero additional API calls)
+- 🔄 **RAG Orchestration Migration**: All orchestrations use unified wrapper tools (RagIndexTranscript, RagIndexDocument, RagIndexSummary, RagIndexLinkedin, RagIndexStrategy) instead of deprecated individual tools
+- ⏱️ **RapidAPI Rate Limiting**: Thread-safe dual token bucket rate limiter with burst support (91% test coverage, 17/17 tests passing)
 
-**Final Status**: The agency achieves complete PRD compliance with production-ready infrastructure, comprehensive testing, advanced content strategy capabilities, full Google Drive knowledge management, and a complete modular architecture for rapid extensibility! 🚀
+**Final Status**: The agency achieves complete PRD compliance with production-ready infrastructure, comprehensive testing, advanced content strategy capabilities, full Google Drive knowledge management, a complete modular architecture for rapid extensibility, a centralized Hybrid RAG system with unified orchestration wrappers for intelligent content retrieval, cost-optimized data integrity, and robust RapidAPI rate limiting to prevent 429 throttling errors! 🚀

@@ -1,0 +1,248 @@
+---
+description: "Prevent duplicate data in Zep by deterministic keys and safe upserts"
+globs: []
+alwaysApply: false
+---
+
+# INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
+
+This file is a single, self-contained TASK for an AI agent. One task = one file.
+Follow the steps below when creating new tasks.
+
+1. Name your file: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
+2. Fill the frontmatter (above) completely. Keep `title`, `status`, and `owner` accurate.
+3. Use information-dense keywords throughout (exact file paths, function signatures, type names, constants, CLI flags).
+4. Define types first if adding new data structures. Reference those types by exact name in later steps.
+5. Order your steps so later steps explicitly reference earlier artifacts by name (files, types, functions).
+6. Keep scope tight: this task should be completable independently. If it's large, split into multiple task files and add them to `dependencies`.
+7. Acceptance criteria must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
+8. Context plan must list the files to add to the model's context at the start (mark dep files read-only) and which files must exist at the end.
+9. Testing strategy use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+
+---
+
+id: "TASK-ZEP-0075"
+title: "Prevent duplicate Zep messages via Firestore content hash (zero-cost deduplication)"
+status: "planned"
+priority: "P1"
+labels: ["zep", "deduplication", "firestore", "summarizer", "data-integrity", "cost-optimization"]
+dependencies: []
+created: "2025-10-10"
+updated: "2025-10-14"
+
+# 1) High-Level Objective
+
+Eliminate duplicate Zep message storage by checking content hash in Firestore before calling Zep API, achieving zero additional API calls and zero token costs while preventing duplicate messages in threads.
+
+# 2) Background / Context
+
+**Current State:**
+- Summaries stored in 3 places: Firestore (summaries/), Zep v3 (short summaries), Hybrid RAG (full summaries)
+- Firestore: ✅ Already idempotent (uses video_id as document ID, set operation updates)
+- Zep v3 Threads: ⚠️ Thread-level idempotent (same thread_id), but messages always ADDED (duplicates possible)
+- Hybrid RAG: ✅ Already deduped (content hash in core library)
+
+**The Problem:**
+Re-running summary workflow (error recovery, testing, backfills) adds duplicate messages to same Zep thread, polluting knowledge graph and wasting storage/embedding costs.
+
+**Cost Analysis of Dedup Approaches:**
+- Query Zep messages before add: ❌ 1 API call + token costs per operation (expensive, scales with thread size)
+- Firestore content hash check: ✅ Zero Zep API calls, zero tokens (Firestore reads ~1000x cheaper)
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: `save_summary_record.py` already computes and stores `summary_digest` (SHA-256 hash of bullets) in Firestore
+- Constraint: Maintain Agency Swarm v1.0.2 standards; tools return JSON strings and use Pydantic validation
+- Constraint: Zero additional Zep API calls or token consumption
+- Constraint: No breaking changes to existing workflows; default behavior becomes dedup-safe and cost-efficient
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- `agents/autopiloot/summarizer_agent/tools/store_short_in_zep.py` (modify)
+- `agents/autopiloot/summarizer_agent/tools/save_summary_record.py` (read-only - already computes summary_digest)
+- `agents/autopiloot/config/settings.yaml` (read-only)
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- `agents/autopiloot/summarizer_agent/tools/store_short_in_zep.py` (read for current implementation)
+- `agents/autopiloot/summarizer_agent/tools/save_summary_record.py` (read-only - shows summary_digest field)
+
+End state (must exist after completion):
+
+- `agents/autopiloot/summarizer_agent/tools/store_short_in_zep.py` (updated with Firestore-based dedup)
+- `agents/autopiloot/tests/summarizer_tools/test_zep_firestore_dedup.py` (new integration tests)
+- `agents/autopiloot/coverage/summarizer_agent/index.html` (updated coverage report)
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. **Add Firestore content hash check in `store_short_in_zep.py`**
+
+   - **Before Zep API calls**, add new method `_check_firestore_for_duplicate()`:
+     ```python
+     def _check_firestore_for_duplicate(self, content: str) -> dict:
+         """
+         Check Firestore for existing summary with same content hash.
+         Returns: {"is_duplicate": bool, "stored_hash": str, "new_hash": str}
+         """
+         import hashlib
+         from google.cloud import firestore
+
+         # Compute content hash (same algorithm as save_summary_record.py)
+         content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+
+         # Query Firestore summaries/{video_id}
+         project_id = os.getenv("GCP_PROJECT_ID")
+         db = firestore.Client(project=project_id)
+         summary_ref = db.collection('summaries').document(self.video_id)
+         summary_doc = summary_ref.get()
+
+         if summary_doc.exists:
+             stored_hash = summary_doc.get('summary_digest')
+             stored_zep_thread = summary_doc.get('zep_thread_id')
+
+             if stored_hash == content_hash and stored_zep_thread:
+                 # Same content already in Zep - skip
+                 return {
+                     "is_duplicate": True,
+                     "stored_hash": stored_hash,
+                     "new_hash": content_hash,
+                     "zep_thread_id": stored_zep_thread
+                 }
+
+         return {
+             "is_duplicate": False,
+             "new_hash": content_hash
+         }
+     ```
+
+2. **Update `run()` method to check before Zep calls**
+
+   - In `store_short_in_zep.py`, modify `run()` method:
+     ```python
+     def run(self) -> str:
+         try:
+             # Format content first
+             content = self._format_content()
+
+             # Check Firestore for duplicate (ZERO Zep API calls)
+             dedup_check = self._check_firestore_for_duplicate(content)
+
+             if dedup_check["is_duplicate"]:
+                 print(f"   ⚪ Content unchanged, skipping Zep storage (hash: {dedup_check['stored_hash']})")
+                 return json.dumps({
+                     "thread_id": dedup_check["zep_thread_id"],
+                     "status": "skipped",
+                     "action": "duplicate_content",
+                     "content_hash": dedup_check["stored_hash"],
+                     "message": f"Content unchanged (hash {dedup_check['stored_hash']}), skipped Zep API call"
+                 }, indent=2)
+
+             # Content is new/changed - proceed with Zep storage
+             # ... existing Zep logic ...
+
+             # Add content_hash to metadata for audit trail
+             message_data["messages"][0]["metadata"]["content_hash"] = dedup_check["new_hash"]
+
+             # ... rest of existing code ...
+     ```
+
+3. **Update Zep message metadata to include content_hash**
+
+   - In `_add_messages()` method, add `content_hash` field to metadata:
+     ```python
+     "metadata": {
+         "type": "summary",
+         "bullets_count": len(self.bullets),
+         "concepts_count": len(self.key_concepts),
+         "video_id": self.video_id,
+         "content_hash": content_hash,  # NEW: for audit trail
+         "stored_at": datetime.now(timezone.utc).isoformat()
+     }
+     ```
+
+4. **Optional: Add configuration flag**
+
+   - In `config/settings.yaml`, add optional dedup control:
+     ```yaml
+     summarizer:
+       zep:
+         dedup:
+           enabled: true  # Enable Firestore-based deduplication
+           skip_on_duplicate: true  # Skip Zep call if content unchanged
+     ```
+
+5. **Tests — Firestore-based dedup validation**
+
+   - File: `agents/autopiloot/tests/summarizer_tools/test_zep_firestore_dedup.py`
+   - Test cases:
+     - **First run**: No Firestore record → Calls Zep → Stores normally (action=created)
+     - **Second run (same content)**: Firestore has matching hash → Skips Zep → Returns skipped status
+     - **Third run (changed content)**: Firestore has different hash → Calls Zep → Updates thread (action=updated)
+     - **Firestore unavailable**: Graceful fallback → Calls Zep anyway (safe fail-open)
+     - **No GCP_PROJECT_ID**: Graceful fallback → Calls Zep anyway
+
+6. **Coverage generation (MANDATORY)**
+   - Commands:
+     ```bash
+     export PYTHONPATH=.
+     coverage erase
+     coverage run --source=summarizer_agent -m unittest discover tests/summarizer_tools -p "test_zep_firestore_dedup.py" -v
+     coverage report --include="summarizer_agent/*" --show-missing
+     coverage html --include="summarizer_agent/*" -d coverage/summarizer_agent
+     ```
+
+# 7) Types & Interfaces
+
+```python
+# Return JSON (string) - SKIPPED (duplicate content detected)
+{
+  "thread_id": "summary_{video_id}",
+  "status": "skipped",
+  "action": "duplicate_content",
+  "content_hash": "abc123...",
+  "message": "Content unchanged (hash abc123...), skipped Zep API call"
+}
+
+# Return JSON (string) - STORED (new/changed content)
+{
+  "thread_id": "summary_{video_id}",
+  "group": "youtube_summaries_{channel_id}",
+  "message_uuids": ["uuid1", "uuid2"],
+  "stored_bullets": 5,
+  "stored_concepts": 6,
+  "status": "stored",
+  "action": "created",  # or "updated" if thread existed
+  "content_hash": "xyz789...",
+  "message": "Summary stored in Zep v3..."
+}
+```
+
+# 8) Acceptance Criteria
+
+- ✅ **Zero Zep API calls for duplicate content**: When content hash matches Firestore, Zep API is not called
+- ✅ **Zero additional token costs**: Deduplication uses only Firestore reads (no Zep message queries)
+- ✅ **Graceful fallback**: If Firestore unavailable, tool proceeds with Zep storage (fail-open, not fail-closed)
+- ✅ **Content hash in metadata**: All Zep messages include `content_hash` for audit trail
+- ✅ **Backward compatible**: Existing workflows unchanged; response includes both old and new fields
+- ✅ **Tests pass**: Integration tests validate dedup behavior with Firestore mocks
+- ✅ **Coverage ≥ 80%**: HTML coverage report generated at `coverage/summarizer_agent/index.html`
+
+# 9) Testing Strategy
+
+- **Mock Firestore** (not Zep): Tests mock Firestore Client and Document references
+- **Direct file imports**: Import real tool code with `importlib.util.spec_from_file_location`
+- **Test scenarios**:
+  - First run: No Firestore doc → Calls Zep → Returns "stored"
+  - Duplicate content: Matching hash → Skips Zep → Returns "skipped"
+  - Changed content: Different hash → Calls Zep → Returns "stored"
+  - Firestore error: Exception handling → Falls back to Zep call
+- **Cost validation**: Assert zero Zep client calls when hash matches
+
+# 10) Notes / Links
+
+- **Cost savings**: For workflows with frequent re-runs (testing, error recovery), this eliminates 100% of duplicate Zep API calls
+- **Firestore dependency**: Leverages existing `summary_digest` field from `save_summary_record.py` (no new fields needed)
+- **Future enhancement**: Could track `content_hash` in Firestore `summaries/` collection explicitly for even faster lookups
+- **Thread vs Message dedup**: This prevents duplicate **messages** in threads; thread-level dedup already exists via deterministic `thread_id`

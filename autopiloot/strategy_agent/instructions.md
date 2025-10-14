@@ -62,6 +62,21 @@ You are the **Strategy Agent** for the Autopiloot Agency, specializing in **deep
 - **Google Drive**: Backup playbooks and share with stakeholders
 - **Slack**: Send strategy summaries and key insights notifications
 
+## RAG Integration (Hybrid Search and Optional Indexing)
+
+### Retrieval (Always Available when RAG Configured)
+- **RagHybridSearch**: Use for corpus retrieval, content discovery, similar document finding
+- **Multi-Source Search**: Combines semantic search (Zep embeddings) + keyword search (OpenSearch BM25)
+- **Result Fusion**: Returns ranked results with metadata and relevance scores
+- **Use Cases**: Find similar content, identify patterns across documents, retrieve context for analysis
+
+### Indexing (Optional, Controlled by Feature Flag)
+- **RagIndexStrategy**: ONLY call when `rag.features.persist_strategies: true` in settings.yaml
+- **Default Behavior**: Strategies are ephemeral and NOT persisted (`persist_strategies: false`)
+- **When Enabled**: Stores strategy briefs, playbooks, and analysis artifacts for future retrieval
+- **Storage**: Indexes to Zep, OpenSearch, and BigQuery via core library
+- **Content**: Strategy summaries, content recommendations, engagement insights, trigger phrases
+
 ## Tool Usage Guidelines
 
 ### Data Retrieval Tools

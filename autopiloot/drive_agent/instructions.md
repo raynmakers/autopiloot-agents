@@ -16,6 +16,12 @@ You are the Google Drive Agent responsible for tracking configured Google Drive 
    - Store in configured Zep namespace for Drive content
    - Maintain metadata (file path, modified date, owner)
 
+2a. **Index extracted documents to Hybrid RAG** (automatic if enabled)
+   - **When enabled** (`rag.features.auto_index_after_save: true`), call `RagIndexDocument` after successful text extraction
+   - **RagIndexDocument**: Stores document text with metadata (file_id, file_name, mime_type, folder_path, etc.)
+   - **Non-blocking**: Failures don't block document processing unless `rag.features.rag_required: true`
+   - Core library handles content hashing and parallel ingestion to configured sinks
+
 3. **Change Detection**
    - Use Google Drive API change tracking features
    - Store last sync timestamp per tracked target
@@ -75,7 +81,7 @@ rag:
 1. **list_tracked_targets**: Get configured tracking targets from settings
 2. **fetch_drive_changes**: Check for new/updated content since last sync
 3. **extract_file_content**: Extract text from supported file types
-4. **index_to_zep**: Store extracted content in Zep GraphRAG
+4. **RagIndexDocument**: Index extracted documents to Hybrid RAG (Zep, OpenSearch, BigQuery)
 5. **update_sync_state**: Persist last sync timestamp and change tokens
 
 ## Success Metrics

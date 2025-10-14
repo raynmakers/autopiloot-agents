@@ -171,10 +171,20 @@ rapidapi:
         post_comment_replies: "/api/v1/post/comments/replies"
         post_reactions: "/api/v1/post/reactions"
         post_reposts: "/api/v1/post/reposts"
+      limits:
+        # RapidAPI enforces BOTH monthly and minutely rate limits
+        # Both must be respected to avoid 429 errors
+        monthly: 20000  # Maximum requests per calendar month
+        per_minute: 20  # Maximum requests per minute
+        burst: 5  # Allow short bursts above average rate
     # Add more plugins as needed:
     # example_plugin:
     #   host: "another-api.p.rapidapi.com"
     #   api_key_env: "RAPIDAPI_EXAMPLE_KEY"
+    #   limits:
+    #     monthly: 5000
+    #     per_minute: 20
+    #     burst: 3
 
 summarizer:
   zep:

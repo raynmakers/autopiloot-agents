@@ -1,11 +1,11 @@
 """
-Orchestrate RAG Ingestion tool for coordinating fan-out after transcript save.
-Implements TASK-RAG-0072O with retry logic, DLQ routing, and non-blocking failures.
+Orchestrate RAG Ingestion tool for coordinating unified RAG wrapper calls.
+Implements TASK-RAG-0095 with retry logic, DLQ routing, and non-blocking failures.
 
-Fan-out sequence:
-1. Zep upsert (semantic search)
-2. OpenSearch index (keyword search)
-3. BigQuery stream (SQL analytics)
+Uses RagIndexTranscript wrapper which delegates to core library for parallel ingestion:
+- Zep (semantic search via embeddings)
+- OpenSearch (keyword search via BM25)
+- BigQuery (SQL analytics with metadata)
 """
 
 import os
@@ -32,15 +32,16 @@ load_dotenv()
 
 class OrchestrateRagIngestion(BaseTool):
     """
-    Orchestrates RAG ingestion fan-out after transcript save with retry and DLQ.
+    Orchestrates RAG ingestion using unified wrapper tool with retry and DLQ.
 
-    Coordinates sequential ingestion to:
+    Calls RagIndexTranscript wrapper which delegates to core library for parallel ingestion to:
     - Zep (semantic search via vector embeddings)
     - OpenSearch (keyword search via BM25)
     - BigQuery (SQL analytics with metadata-only storage)
 
     Features:
-    - Idempotent operations via content hashing
+    - Single unified wrapper (replaces 3 separate deprecated tools)
+    - Idempotent operations via content hashing in core library
     - Retry logic with exponential backoff
     - DLQ routing for failed operations
     - Non-blocking failures with alerts
@@ -64,18 +65,17 @@ class OrchestrateRagIngestion(BaseTool):
 
     def run(self) -> str:
         """
-        Execute RAG fan-out with retry logic and failure handling.
+        Execute RAG ingestion using unified wrapper with retry logic and failure handling.
 
         Process:
         1. Validate transcript exists in Firestore
         2. Load transcript text and video metadata
-        3. Call Zep upsert with retry
-        4. Call OpenSearch index with retry
-        5. Call BigQuery stream with retry
-        6. Return aggregated status
+        3. Call RagIndexTranscript wrapper with retry
+        4. Wrapper delegates to core library for parallel sink ingestion
+        5. Return aggregated status
 
         Returns:
-            JSON string with per-system status and overall result
+            JSON string with unified operation status and overall result
 
         Raises:
             ValueError: If video or transcript doesn't exist
@@ -115,11 +115,10 @@ class OrchestrateRagIngestion(BaseTool):
                 "operations": {}
             }
 
-            # Operation sequence: Zep → OpenSearch → BigQuery
+            # Operation sequence: Single unified RAG wrapper
+            # Delegates to core library for parallel ingestion to all configured sinks
             operations = [
-                {"name": "zep", "tool": "UpsertFullTranscriptToZep"},
-                {"name": "opensearch", "tool": "IndexFullTranscriptToOpenSearch"},
-                {"name": "bigquery", "tool": "StreamFullTranscriptToBigQuery"}
+                {"name": "rag_unified", "tool": "RagIndexTranscript", "agent": "transcriber_agent"}
             ]
 
             # Execute each operation with retry
@@ -272,7 +271,11 @@ class OrchestrateRagIngestion(BaseTool):
                     time.sleep(delay)
 
                 # Execute RAG tool
-                result = self._call_rag_tool(tool_name, transcript_data)
+                result = self._call_rag_tool(
+                    tool_name=tool_name,
+                    transcript_data=transcript_data,
+                    agent_name=op.get("agent", "summarizer_agent")
+                )
                 result_data = json.loads(result)
 
                 # Check if operation was successful
@@ -319,7 +322,7 @@ class OrchestrateRagIngestion(BaseTool):
             "retry_count": self.max_retries + 1
         }
 
-    def _call_rag_tool(self, tool_name: str, transcript_data: Dict[str, Any]) -> str:
+    def _call_rag_tool(self, tool_name: str, transcript_data: Dict[str, Any], agent_name: str = "summarizer_agent") -> str:
         """Dynamically import and execute RAG tool."""
         # Import tool module
         tool_module_name = self._snake_case(tool_name)
@@ -327,7 +330,7 @@ class OrchestrateRagIngestion(BaseTool):
             os.path.dirname(__file__),
             '..',
             '..',
-            'summarizer_agent',
+            agent_name,
             'tools',
             f'{tool_module_name}.py'
         )
@@ -345,9 +348,10 @@ class OrchestrateRagIngestion(BaseTool):
         tool_class = getattr(module, tool_name)
 
         # Create tool instance with transcript data
+        # Note: RagIndexTranscript uses 'text' parameter, not 'transcript_text'
         tool_instance = tool_class(
             video_id=transcript_data["video_id"],
-            transcript_text=transcript_data["transcript_text"],
+            text=transcript_data["transcript_text"],
             channel_id=transcript_data.get("channel_id"),
             title=transcript_data.get("title"),
             channel_handle=transcript_data.get("channel_handle"),

@@ -34,13 +34,17 @@ You are **a content summarization specialist** responsible for converting video 
 
 **After generating and saving summaries (step 3)**, use this tool to make summaries searchable:
 
-4. **Index summary to Hybrid RAG** using RagIndexSummary tool
+4. **Index summary to Hybrid RAG** (automatic if enabled)
+   - **When enabled** (`rag.features.auto_index_after_save: true`), call `RagIndexSummary` after `SaveSummaryRecord`
+   - **RagIndexSummary**: Stores summary bullets and concepts with video metadata
+   - **Non-blocking**: Failures don't block summary workflow
    - **Multi-Sink Indexing**: Delegates to shared core library (`core.rag.ingest_document.ingest()`)
    - **Automatic Chunking**: Token-aware chunking (1000 tokens per chunk, 100 overlap)
    - **Content Hashing**: SHA-256 for deduplication and idempotency
    - **Parallel Ingestion**: Indexes to OpenSearch, BigQuery, and Zep simultaneously
    - **Unified Status**: Returns aggregated status (success/partial/error) across all sinks
    - **Feature-Flagged**: Respects `rag.features.rag_required` configuration (non-blocking by default)
+   - **Firestore References**: Supports optional `firestore_doc_ref` parameter for linking
    - **Use Case**: Make summaries searchable for content strategy analysis
 
 # Hybrid RAG Full Transcript Storage (DEPRECATED - DO NOT USE)
