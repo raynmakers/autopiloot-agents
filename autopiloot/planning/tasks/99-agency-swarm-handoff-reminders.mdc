@@ -6,8 +6,9 @@ alwaysApply: false
 
 id: "TASK-AGS-0099"
 title: "Implement Agency Swarm v1.1.0 Handoff Reminders"
-status: "planned"
+status: "completed"
 priority: "P2"
+completed: "2025-10-14"
 labels: ["agency-swarm", "communication", "policy", "upgrade"]
 dependencies: []
 created: "2025-10-14"

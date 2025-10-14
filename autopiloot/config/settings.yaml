@@ -53,6 +53,57 @@ agency:
     collection: "agency_threads"  # Firestore collection for storing conversation threads
     retention_days: 30  # Auto-delete threads older than 30 days
 
+# Handoff reminders for agent transitions (Agency Swarm v1.1.0+)
+# System messages injected during agent-to-agent transitions to reinforce policies and context
+handoff_reminders:
+  orchestrator_agent_to_scraper_agent: |
+    POLICY ENFORCEMENT:
+    - YouTube API quota: 10,000 units/day
+    - Max 10 videos per channel per day
+    - Max video duration: 70 minutes (4200 seconds)
+    - Graceful degradation on quota exhaustion
+
+  scraper_agent_to_transcriber_agent: |
+    VIDEO READY FOR TRANSCRIPTION:
+    - Video metadata available in context
+    - Check duration < 4200s before transcription
+    - Daily budget: $5 USD for transcription (check before proceeding)
+    - AssemblyAI quota enforced
+
+  transcriber_agent_to_summarizer_agent: |
+    TRANSCRIPT READY FOR SUMMARIZATION:
+    - Full transcript available with timestamps
+    - Generate business-focused summary per instructions
+    - Filter non-business content (entertainment, music, etc.)
+    - Store to Zep GraphRAG and Google Drive
+
+  orchestrator_agent_to_observability_agent: |
+    MONITORING REQUEST:
+    - Report on quotas, budgets, and system health
+    - Check for stuck jobs and DLQ entries
+    - Alert on threshold violations (80% budget, quota exhaustion)
+
+  orchestrator_agent_to_linkedin_agent: |
+    LINKEDIN INGESTION:
+    - Process configured profiles from settings.yaml
+    - Respect RapidAPI rate limits (monthly + per-minute)
+    - Deduplicate content before storage
+    - Store to Zep GraphRAG with proper grouping
+
+  linkedin_agent_to_strategy_agent: |
+    LINKEDIN DATA READY FOR ANALYSIS:
+    - LinkedIn corpus available in Zep
+    - Compute engagement signals and topic clusters
+    - Generate actionable content strategy
+    - Create content briefs and playbooks
+
+  orchestrator_agent_to_drive_agent: |
+    DRIVE CONTENT INGESTION:
+    - Track configured Drive targets from settings.yaml
+    - List changes since last checkpoint
+    - Extract text from supported formats (PDF, DOCX, etc.)
+    - Index to Zep GraphRAG with metadata
+
 # ID of the Google Sheet used for backfill links
 sheet: "1ikj9GU4_LG-q4i0ACsgrJ8BECX_YW-ujfr4kKWlJt8A"
 

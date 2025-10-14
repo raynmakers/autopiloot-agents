@@ -265,6 +265,53 @@ def validate_transcriber_output(output: str) -> str:
         raise ValueError(f"Transcriber output validation failed: {e}")
 
 
+def validate_handoff_reminder(reminder: str) -> str:
+    """
+    Validate handoff reminder is appropriate length and format.
+
+    Agency Swarm v1.1.0+ handoff reminders are system messages injected
+    during agent transitions to reinforce policies and context.
+
+    Args:
+        reminder: Handoff reminder text to validate
+
+    Returns:
+        str: The validated reminder text (stripped)
+
+    Raises:
+        ValueError: If reminder is invalid
+
+    Example:
+        >>> validate_handoff_reminder("Check budget before proceeding")
+        'Check budget before proceeding'
+        >>> validate_handoff_reminder("")  # Raises ValueError
+    """
+    if not reminder or not isinstance(reminder, str):
+        raise ValueError("Handoff reminder must be non-empty string")
+
+    # Strip whitespace
+    reminder = reminder.strip()
+
+    if len(reminder) == 0:
+        raise ValueError("Handoff reminder cannot be empty or whitespace only")
+
+    # Check length (reminders should be concise to avoid token overhead)
+    if len(reminder) > 500:
+        logger.warning(
+            f"Handoff reminder is long ({len(reminder)} chars). "
+            "Consider shortening to reduce token overhead."
+        )
+
+    # Check for overly prescriptive language
+    if reminder.lower().startswith("you must") or reminder.lower().startswith("you should"):
+        logger.warning(
+            "Handoff reminder uses directive language ('you must', 'you should'). "
+            "Consider rephrasing positively for better agent autonomy."
+        )
+
+    return reminder
+
+
 if __name__ == "__main__":
     # Test the guardrail functions
     print("Testing Output Guardrails")

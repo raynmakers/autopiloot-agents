@@ -146,7 +146,7 @@ Legend: [x] done, [ ] planned
 
 - [x] 97-agency-swarm-conversation-persistence.mdc — Implemented conversation persistence to enable stateful workflows across Firebase Function invocations (saves/loads threads from Firestore)
 - [x] 98-agency-swarm-output-guardrails.mdc — Added output guardrails to 4 critical agents (Orchestrator, Scraper, Transcriber, Summarizer) with automatic retry on validation failures (51 comprehensive tests)
-- [ ] 99-agency-swarm-handoff-reminders.mdc — Add handoff reminders to reinforce policy enforcement during agent transitions
+- [x] 99-agency-swarm-handoff-reminders.mdc — Added handoff reminders for 7 critical agent transitions to reinforce policy enforcement (quotas, budgets, workflow context) - 16 comprehensive tests
 
 ---
 

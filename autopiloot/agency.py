@@ -64,13 +64,15 @@ class AutopilootAgency(Agency):
 
     def _build_communication_flows(self):
         """
-        Build communication flows from configuration, filtering by enabled agents.
+        Build communication flows from configuration with handoff reminders.
 
         Returns flows that reflect the configured communication_flows for enabled agents only.
+        Includes handoff reminders (Agency Swarm v1.1.0+) where configured.
         """
         flows = []
         agents = self.loaded_agents
         config_flows = self.config.get('communication_flows', [])
+        handoff_reminders = self.config.get('handoff_reminders', {})
 
         if not config_flows:
             logger.warning("No communication_flows found in configuration, using empty flows")
@@ -94,14 +96,29 @@ class AutopilootAgency(Agency):
                 logger.debug(f"Skipping flow {source_name} -> {target_name}: target agent not enabled")
                 continue
 
-            # Add the flow with actual agent instances
+            # Get agent instances
             source_agent = agents[source_name]
             target_agent = agents[target_name]
-            flows.append([source_agent, target_agent])
 
-            logger.debug(f"Added flow: {source_name} -> {target_name}")
+            # Check for handoff reminder (Agency Swarm v1.1.0+ feature)
+            reminder_key = f"{source_name}_to_{target_name}"
+            reminder_text = handoff_reminders.get(reminder_key)
 
-        logger.info(f"Built {len(flows)} communication flows from configuration")
+            if reminder_text:
+                # Add flow with handoff reminder
+                flows.append([
+                    source_agent,
+                    target_agent,
+                    {"handoff_reminder": reminder_text}
+                ])
+                logger.debug(f"Added flow with reminder: {source_name} -> {target_name}")
+            else:
+                # Add flow without reminder
+                flows.append([source_agent, target_agent])
+                logger.debug(f"Added flow: {source_name} -> {target_name}")
+
+        flows_with_reminders = sum(1 for f in flows if len(f) == 3)
+        logger.info(f"Built {len(flows)} communication flows ({flows_with_reminders} with handoff reminders)")
         return flows
 
     def _save_threads_to_firestore(self, threads: dict) -> None:
