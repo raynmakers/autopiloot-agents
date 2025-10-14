@@ -1,0 +1,34 @@
+---
+description: "Add idempotency helpers for Firestore duplicate checks (jobs/transcripts)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0079"
+title: "Add idempotency helpers for duplicate checks"
+status: "planned"
+priority: "P2"
+labels: ["refactor", "idempotency", "firestore"]
+dependencies: ["TASK-0071"]
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Provide reusable helpers (e.g., `transcript_exists(video_id)`, `has_active_job(video_id)`) to avoid repeated query logic across tools.
+
+# 2) Background / Context
+
+Duplicate detection logic appears in multiple tools; centralize to `core/idempotency.py`.
+
+# 3) Steps
+
+1. Add functions in `core/idempotency.py` using `core.firestore.get_firestore_client()`.
+2. Update tools (`enqueue_transcription`, `save_transcript_record`, etc.) to call helpers.
+
+# 4) Acceptance Criteria
+
+- Helpers exist and are used by target tools; tests pass.
+
+# 5) Testing Strategy
+
+- Mock Firestore client and assert query parameters and outcomes.

@@ -1,0 +1,56 @@
+---
+description: "Standardize env/config access via env_loader and config/loader; remove direct os.getenv and sys.path hacks"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0075"
+title: "Standardize env/config loading"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "config", "env"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Ensure all tools/agents load environment and settings through `config/env_loader.py` and `config/loader.py`, removing direct `os.getenv` and path hacks.
+
+# 2) Background / Context
+
+Direct `os.getenv` and `sys.path` appends appear in some modules, bypassing standardized loaders.
+
+# 3) Assumptions & Constraints
+
+- Constraint: No per-tool `load_dotenv()` side effects; load once at entry points.
+
+# 4) Dependencies
+
+- files/agents/autopiloot/config/env_loader.py
+- files/agents/autopiloot/config/loader.py
+- files/agents/autopiloot/drive_agent/drive_agent.py
+
+# 5) Context Plan
+
+Beginning:
+
+- env_loader.py, loader.py
+
+End state:
+
+- All env uses via env_loader; config via loader; remove sys.path tweaks.
+
+# 6) Low-Level Steps
+
+1. Replace direct `os.getenv` calls with `get_required_env_var/get_optional_env_var`.
+2. Replace `sys.path.append` patterns with proper imports.
+3. Ensure agency entry loads env once.
+
+# 7) Acceptance Criteria
+
+- No direct `os.getenv` in tools (except inside env_loader).
+- No sys.path manipulation for config.
+
+# 8) Testing Strategy
+
+- Run existing tests; add a spot-check test asserting env_loader is used in a migrated tool.

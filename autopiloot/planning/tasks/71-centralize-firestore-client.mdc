@@ -1,0 +1,79 @@
+---
+description: "Centralize Firestore client creation and replace duplicate initializers across tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0071"
+title: "Centralize Firestore client and replace duplicates"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "core", "firestore", "reliability"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Provide a single, validated Firestore client factory used across all agents/tools to eliminate duplicated `_initialize_firestore()` code and ensure consistent env validation and error handling.
+
+# 2) Background / Context
+
+Multiple tools implement their own Firestore initialization with similar logic and validations. Centralizing reduces drift and improves reliability and testing.
+
+# 3) Assumptions & Constraints
+
+- ASSUMPTION: `google-cloud-firestore` is available in `requirements.txt`.
+- Constraint: Use `config/env_loader.py` getters for env validation.
+- Constraint: Keep API surface minimal and stable.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- files/agents/autopiloot/config/env_loader.py
+- files/agents/autopiloot/core/reliability.py
+
+# 5) Context Plan
+
+Beginning (add to model context):
+
+- agents/autopiloot/config/env_loader.py
+- agents/autopiloot/core/reliability.py
+
+End state (must exist after completion):
+
+- agents/autopiloot/core/firestore.py
+- Updated tools calling `core.firestore.get_firestore_client()`
+
+# 6) Low-Level Steps (Ordered, information-dense)
+
+1. Create `agents/autopiloot/core/firestore.py` with:
+   - `def get_firestore_client() -> "firestore.Client":` reads `GCP_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` via `env_loader`, validates path existence, returns a singleton client instance.
+   - Optional `get_collection(name: str)` convenience.
+2. Replace per-tool `_initialize_firestore()` usages with calls to `get_firestore_client()` in:
+   - `observability_agent/tools/*.py`, `orchestrator_agent/tools/*.py`, `scraper_agent/tools/*.py`, `transcriber_agent/tools/*.py`, `strategy_agent/tools/*.py` where present.
+3. Ensure error messages are standardized (raise `RuntimeError` with actionable message).
+4. Add unit tests or adapt existing tests to import the real module while mocking `firestore.Client` to maintain coverage.
+
+# 7) Types & Interfaces
+
+```python
+from google.cloud import firestore
+
+def get_firestore_client() -> firestore.Client: ...
+```
+
+# 8) Acceptance Criteria
+
+- All duplicated `_initialize_firestore()` removed in targeted tools.
+- A single `core/firestore.py` provides the client; tests pass.
+- Consistent env validation via `env_loader`; clear error on missing creds.
+- No behavior changes in tools; only import path/initialization changes.
+
+# 9) Testing Strategy
+
+- Direct-file import tests creating a mocked client to verify singleton behavior.
+- Run existing tool test suites to confirm no regressions.
+- Coverage includes new file; HTML report updated.
+
+# 10) Notes / Links
+
+- Prefer lazy init to avoid import-time failures.

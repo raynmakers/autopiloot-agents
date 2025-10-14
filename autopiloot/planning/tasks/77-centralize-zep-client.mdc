@@ -1,0 +1,38 @@
+---
+description: "Centralize Zep client initialization and reuse across RAG tools"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0077"
+title: "Centralize Zep client factory"
+status: "planned"
+priority: "P2"
+labels: ["refactor", "zep", "rag"]
+dependencies: ["TASK-0075"]
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Create `core/zep.py` with `get_zep_client(collection: Optional[str] = None)` using standardized env/config to avoid repeated init code.
+
+# 2) Background / Context
+
+Zep client setup appears in multiple summarizer/strategy/drive tools.
+
+# 3) Assumptions & Constraints
+
+- Constraint: Read `ZEP_API_KEY`, `ZEP_BASE_URL`, default `ZEP_COLLECTION` via env/config loaders.
+
+# 4) Steps
+
+1. Implement `core/zep.py` factory.
+2. Replace tool-specific init code with factory usage.
+
+# 5) Acceptance Criteria
+
+- Single Zep initialization path; tests remain green.
+
+# 6) Testing Strategy
+
+- Mock zep SDK and verify correct env handling; ensure error clarity when missing.

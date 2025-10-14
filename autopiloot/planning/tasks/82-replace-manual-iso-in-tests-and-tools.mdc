@@ -1,0 +1,26 @@
+---
+description: "Replace manual ISO timestamp code with core.time_utils helpers in tools and tests"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0082"
+title: "Replace manual ISO code with time_utils in tests/tools"
+status: "planned"
+priority: "P3"
+labels: ["refactor", "time", "tests"]
+dependencies: ["TASK-0073"]
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Ensure tests and tools call `to_iso8601_z`/`parse_iso8601_z` and not inline implementations.
+
+# 2) Steps
+
+1. Sweep for `isoformat(` and `+'Z'` patterns; replace with helpers.
+2. Adjust assertions to use `parse_iso8601_z`.
+
+# 3) Acceptance Criteria
+
+- No manual ISO patterns remain; tests pass.

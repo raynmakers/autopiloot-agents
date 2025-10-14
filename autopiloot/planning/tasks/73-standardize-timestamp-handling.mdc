@@ -1,0 +1,67 @@
+---
+description: "Standardize timestamp handling via core.time_utils and remove ad-hoc ISO parsing/formatting"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0073"
+title: "Standardize timestamp handling with core.time_utils"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "time", "consistency"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Ensure all tools/tests use `core.time_utils` helpers for now/ISO Z formatting/parsing and backoff-related timestamps.
+
+# 2) Background / Context
+
+There are multiple ad-hoc parsers/formatters for ISO strings and Z suffix handling in tools/tests.
+
+# 3) Assumptions & Constraints
+
+- Constraint: Keep public helpers stable: `now`, `to_iso8601_z`, `parse_iso8601_z`.
+
+# 4) Dependencies
+
+- files/agents/autopiloot/core/time_utils.py
+- files/agents/autopiloot/drive_agent/tools/list_drive_changes.py
+
+# 5) Context Plan
+
+Beginning:
+
+- core/time_utils.py
+
+End state:
+
+- Tools/tests call time_utils functions; remove ad-hoc implementations.
+
+# 6) Low-Level Steps
+
+1. Replace manual ISO parsing in `drive_agent/tools/list_drive_changes.py` with `parse_iso8601_z`.
+2. Sweep for `datetime.utcnow().isoformat` + `'Z'` and use `to_iso8601_z(now())` instead.
+3. Update tests asserting format to rely on `parse_iso8601_z`.
+
+# 7) Types & Interfaces
+
+```python
+def now() -> datetime
+def to_iso8601_z(dt: datetime) -> str
+def parse_iso8601_z(iso_string: str) -> datetime
+```
+
+# 8) Acceptance Criteria
+
+- No custom ISO parsers/formatters remain in repo.
+- Tests pass with unified helpers.
+
+# 9) Testing Strategy
+
+- Run existing tests; add one new minimal test covering `parse_iso8601_z` round-trip.
+
+# 10) Notes
+
+- Prefer timezone-aware UTC everywhere.

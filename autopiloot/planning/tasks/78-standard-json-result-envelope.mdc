@@ -1,0 +1,35 @@
+---
+description: "Introduce a standard JSON result envelope helper for tools to reduce repetitive scaffolding"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0078"
+title: "Introduce standard JSON result envelope"
+status: "planned"
+priority: "P2"
+labels: ["refactor", "dx", "consistency"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Provide a small helper to generate consistent JSON responses: `{ "ok": bool, "data": any, "error": {code, message} }`.
+
+# 2) Background / Context
+
+Each tool builds its own JSON; unify to prevent divergence and simplify tests.
+
+# 3) Steps
+
+1. Add `core/json_response.py` with `ok(data=None)`, `fail(message, code="ERROR")` returning JSON strings.
+2. Migrate a few representative tools to use it; leave others for follow-up.
+
+# 4) Acceptance Criteria
+
+- Helper exists and used by at least 3 tools across agents.
+- Tests updated accordingly.
+
+# 5) Testing Strategy
+
+- Unit tests for helper; adapt tool tests to accept new envelope while preserving assertions.

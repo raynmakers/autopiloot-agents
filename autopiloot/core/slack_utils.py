@@ -9,6 +9,14 @@ import re
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime, timezone
 
+# Import config utilities for environment variable access
+try:
+    from config.env_loader import get_optional_env_var
+except ImportError:
+    # Fallback for when config module isn't available
+    def get_optional_env_var(name: str, default: str = "", description: str = "") -> str:
+        return os.getenv(name, default)
+
 
 def normalize_channel_name(channel: str) -> str:
     """
@@ -52,26 +60,26 @@ def normalize_channel_name(channel: str) -> str:
 def get_channel_for_alert_type(alert_type: str, default_channel: str = "ops-autopiloot") -> str:
     """
     Get appropriate Slack channel for a specific alert type.
-    
+
     Args:
         alert_type: Type of alert (error, warning, info, critical)
         default_channel: Fallback channel name
-        
+
     Returns:
         Normalized channel name for the alert type
     """
-    # Environment-based channel mapping
+    # Environment-based channel mapping using centralized env loader
     channel_mapping = {
-        "error": os.getenv("SLACK_ERROR_CHANNEL", "alerts"),
-        "critical": os.getenv("SLACK_CRITICAL_CHANNEL", "alerts-critical"),
-        "warning": os.getenv("SLACK_WARNING_CHANNEL", "alerts"),
-        "info": os.getenv("SLACK_INFO_CHANNEL", default_channel),
-        "dlq": os.getenv("SLACK_DLQ_CHANNEL", "alerts-dlq"),
-        "budget": os.getenv("SLACK_BUDGET_CHANNEL", "ops-budget"),
-        "quota": os.getenv("SLACK_QUOTA_CHANNEL", "ops-quota"),
-        "daily": os.getenv("SLACK_DAILY_CHANNEL", default_channel),
+        "error": get_optional_env_var("SLACK_ERROR_CHANNEL", "alerts", "Slack channel for error alerts"),
+        "critical": get_optional_env_var("SLACK_CRITICAL_CHANNEL", "alerts-critical", "Slack channel for critical alerts"),
+        "warning": get_optional_env_var("SLACK_WARNING_CHANNEL", "alerts", "Slack channel for warning alerts"),
+        "info": get_optional_env_var("SLACK_INFO_CHANNEL", default_channel, "Slack channel for info messages"),
+        "dlq": get_optional_env_var("SLACK_DLQ_CHANNEL", "alerts-dlq", "Slack channel for DLQ alerts"),
+        "budget": get_optional_env_var("SLACK_BUDGET_CHANNEL", "ops-budget", "Slack channel for budget alerts"),
+        "quota": get_optional_env_var("SLACK_QUOTA_CHANNEL", "ops-quota", "Slack channel for quota alerts"),
+        "daily": get_optional_env_var("SLACK_DAILY_CHANNEL", default_channel, "Slack channel for daily digests"),
     }
-    
+
     channel = channel_mapping.get(alert_type.lower(), default_channel)
     return normalize_channel_name(channel)
 

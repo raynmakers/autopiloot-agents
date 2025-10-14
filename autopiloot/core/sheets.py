@@ -11,6 +11,14 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+# Import config utilities for environment variable access
+try:
+    from config.env_loader import get_optional_env_var
+except ImportError:
+    # Fallback for when config module isn't available
+    def get_optional_env_var(name: str, default: str = "", description: str = "") -> str:
+        return os.getenv(name, default)
+
 
 @dataclass
 class URLExtractionResult:
@@ -88,10 +96,14 @@ class URLExtractor:
 
 class GoogleSheetsClient:
     """Client for interacting with Google Sheets API."""
-    
+
     def __init__(self, credentials_path: Optional[str] = None):
         """Initialize with Google Sheets credentials."""
-        self.credentials_path = credentials_path or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        self.credentials_path = credentials_path or get_optional_env_var(
+            'GOOGLE_APPLICATION_CREDENTIALS',
+            '',
+            'Path to Google service account credentials JSON file'
+        )
         self._service = None
     
     def _get_service(self):

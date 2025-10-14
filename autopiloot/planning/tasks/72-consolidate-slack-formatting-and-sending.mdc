@@ -1,0 +1,74 @@
+---
+description: "Consolidate Slack formatting and sending through core.slack_utils and deprecate duplicates"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0072"
+title: "Consolidate Slack formatting/sending via core.slack_utils"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "slack", "observability"]
+dependencies: []
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Use a single Slack formatting/sending utility to remove duplicate block formatting and message sending logic across tools and Firebase functions.
+
+# 2) Background / Context
+
+Both `core/slack_utils.py` and `observability_agent/tools/format_slack_blocks.py` generate Slack blocks; sending is also duplicated.
+
+# 3) Assumptions & Constraints
+
+- Constraint: Keep a tool interface for agents, but delegate to `core.slack_utils`.
+- Constraint: Maintain existing block structure compatibility where possible.
+
+# 4) Dependencies (Other Tasks or Artifacts)
+
+- files/agents/autopiloot/core/slack_utils.py
+- files/agents/autopiloot/observability_agent/tools/format_slack_blocks.py
+- files/agents/autopiloot/observability_agent/tools/send_slack_message.py
+- files/agents/autopiloot/services/firebase/functions/core.py
+
+# 5) Context Plan
+
+Beginning:
+
+- agents/autopiloot/core/slack_utils.py
+- agents/autopiloot/observability_agent/tools/format_slack_blocks.py
+
+End state:
+
+- Tools call `core.slack_utils` for block building and sending.
+- Firebase functions use the same utility.
+
+# 6) Low-Level Steps
+
+1. Add `send_alert(title, message, alert_type, details=None, channel=None)` to `core/slack_utils.py`.
+2. Update `observability_agent/tools/format_slack_blocks.py` to delegate block construction to `core.slack_utils.format_alert_blocks`.
+3. Update `observability_agent/tools/send_slack_message.py` to call `core.slack_utils` sending.
+4. Update `services/firebase/functions/core.py` to remove custom formatting and call the util.
+
+# 7) Types & Interfaces
+
+```python
+def format_alert_blocks(title: str, message: str, alert_type: str = "info", details: Optional[Dict[str, Any]] = None, timestamp: Optional[datetime] = None) -> List[Dict[str, Any]]
+def send_alert(title: str, message: str, alert_type: str = "info", details: Optional[Dict[str, Any]] = None, channel: Optional[str] = None) -> bool
+```
+
+# 8) Acceptance Criteria
+
+- Single path to format and send Slack messages used everywhere.
+- No duplicated emoji/color/channel resolution; use util maps/helpers.
+- Observability tests still pass.
+
+# 9) Testing Strategy
+
+- Adapt existing observability tests; add unit tests for `send_alert` with mocks.
+- Verify Firebase function path uses util and succeeds in tests.
+
+# 10) Notes / Links
+
+- Ensure `get_channel_for_alert_type` is the only place channel is derived.

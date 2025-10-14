@@ -7,6 +7,14 @@ import os
 from datetime import datetime, timezone
 from typing import Optional, Union
 
+# Import config utilities for environment variable access
+try:
+    from config.env_loader import get_optional_env_var
+except ImportError:
+    # Fallback for when config module isn't available
+    def get_optional_env_var(name: str, default: str = "", description: str = "") -> str:
+        return os.getenv(name, default)
+
 # Optional pytz import for enhanced timezone support
 try:
     import pytz
@@ -300,21 +308,21 @@ def get_timestamp() -> str:
 def get_default_timezone() -> str:
     """
     Get default timezone from environment or configuration.
-    
+
     Returns:
         str: Default timezone name
     """
-    return os.getenv('DEFAULT_TIMEZONE', 'UTC')
+    return get_optional_env_var('DEFAULT_TIMEZONE', 'UTC', 'Default timezone for the application')
 
 
 def get_business_timezone() -> str:
     """
     Get business timezone from environment or configuration.
-    
+
     Returns:
         str: Business timezone name
     """
-    return os.getenv('BUSINESS_TIMEZONE', 'America/New_York')
+    return get_optional_env_var('BUSINESS_TIMEZONE', 'America/New_York', 'Business timezone for operations')
 
 
 # Backoff and retry utilities

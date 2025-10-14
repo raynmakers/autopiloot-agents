@@ -1,0 +1,26 @@
+---
+description: "Prefer config.loader accessors for settings across tools; remove inline defaults"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0084"
+title: "Use config.loader accessors across tools"
+status: "planned"
+priority: "P3"
+labels: ["refactor", "config", "consistency"]
+dependencies: ["TASK-0075"]
+created: "2025-10-14"
+
+# 1) High-Level Objective
+
+Ensure tools read settings via `config/loader.py` (e.g., `get_config_value`) rather than inline dict access or hardcoded defaults.
+
+# 2) Steps
+
+1. Identify inline config access sites (e.g., LLM defaults in agents).
+2. Replace with loader accessors; define defaults centrally.
+
+# 3) Acceptance Criteria
+
+- All config reads use loader; defaults live in settings.yaml or loader.
