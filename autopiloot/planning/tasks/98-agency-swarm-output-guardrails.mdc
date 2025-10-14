@@ -6,8 +6,9 @@ alwaysApply: false
 
 id: "TASK-AGS-0098"
 title: "Implement Agency Swarm v1.2.0 Output Guardrails"
-status: "planned"
+status: "completed"
 priority: "P2"
+completed: "2025-10-14"
 labels: ["agency-swarm", "reliability", "validation", "upgrade"]
 dependencies: []
 created: "2025-10-14"

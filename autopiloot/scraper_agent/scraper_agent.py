@@ -5,6 +5,7 @@ Handles YouTube content discovery and Google Sheets processing
 
 from agency_swarm import Agent, ModelSettings
 from config.loader import load_app_config
+from core.guardrails import validate_scraper_output
 
 # Load configuration
 config = load_app_config()
@@ -28,4 +29,5 @@ scraper_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
+    output_guardrails=validate_scraper_output,  # Agency Swarm v1.2.0 - validates videos_discovered count
 )

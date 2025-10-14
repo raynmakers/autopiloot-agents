@@ -5,6 +5,7 @@ Generates concise summaries from video transcripts with consistent quality contr
 
 from agency_swarm import Agent, ModelSettings
 from config.loader import load_app_config
+from core.guardrails import validate_summarizer_output
 
 # Load configuration
 config = load_app_config()
@@ -19,7 +20,7 @@ temperature = agent_config.get('temperature', default_config.get('temperature', 
 max_tokens = agent_config.get('max_output_tokens', default_config.get('max_output_tokens', 25000))
 
 summarizer_agent = Agent(
-    name="SummarizerAgent", 
+    name="SummarizerAgent",
     description="Generates concise summaries from transcribed videos. Creates brief business-focused summaries and stores them in multiple formats for retrieval.",
     instructions="./instructions.md",
     tools_folder="./tools",
@@ -28,4 +29,5 @@ summarizer_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
+    output_guardrails=validate_summarizer_output,  # Agency Swarm v1.2.0 - validates summary length and rejection reasons
 )

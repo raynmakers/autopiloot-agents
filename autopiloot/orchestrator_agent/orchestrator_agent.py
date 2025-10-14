@@ -12,6 +12,9 @@ from agency_swarm import Agent, ModelSettings
 config_dir = Path(__file__).parent.parent / "config"
 sys.path.append(str(config_dir))
 
+# Import output guardrail for Agency Swarm v1.2.0
+from core.guardrails import validate_orchestrator_output
+
 try:
     from loader import load_app_config
     config = load_app_config()
@@ -35,4 +38,5 @@ orchestrator_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
+    output_guardrails=validate_orchestrator_output,  # Agency Swarm v1.2.0 - validates JSON structure and required fields
 )
