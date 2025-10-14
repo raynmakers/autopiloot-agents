@@ -21,8 +21,9 @@ firebase-functions>=0.1.0
 # RAG and Memory
 zep-python>=2.0.0
 
-# Agency Swarm Framework
-agency-swarm>=1.0.2
+# Agency Swarm Framework (install from GitHub releases, NOT PyPI)
+# Always use the latest version from: https://github.com/VRSEN/agency-swarm/releases
+agency-swarm @ git+https://github.com/VRSEN/agency-swarm.git@v1.2.0
 
 # Additional dependencies for tools
 pathlib>=1.0.1
