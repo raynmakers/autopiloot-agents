@@ -43,15 +43,18 @@ You are **a content summarization specialist** responsible for converting video 
    - **Feature-Flagged**: Respects `rag.features.rag_required` configuration (non-blocking by default)
    - **Use Case**: Make summaries searchable for content strategy analysis
 
-# Hybrid RAG Full Transcript Storage (Optional Workflow - DEPRECATED)
+# Hybrid RAG Full Transcript Storage (DEPRECATED - DO NOT USE)
 
-**DEPRECATED**: The following tools are deprecated and kept for backward compatibility only.
-Transcript indexing should be done by transcriber_agent using `rag_index_transcript.py`.
+**⚠️ DEPRECATED AS OF 2025-10-14**: These tools are backward-compatibility shims only.
 
-The tools below delegate to the shared core library (`core.rag.ingest_transcript.ingest()`):
-- `UpsertFullTranscriptToZep` (deprecated - use transcriber_agent RAG wrapper)
-- `IndexFullTranscriptToOpenSearch` (deprecated - use transcriber_agent RAG wrapper)
-- `StreamFullTranscriptToBigQuery` (deprecated - use transcriber_agent RAG wrapper)
+**DO NOT USE** the following tools for new workflows:
+- `UpsertFullTranscriptToZep` - SHIM delegates to `core.rag.ingest_transcript`
+- `IndexFullTranscriptToOpenSearch` - SHIM delegates to `core.rag.ingest_transcript`
+- `StreamFullTranscriptToBigQuery` - SHIM delegates to `core.rag.ingest_transcript`
+
+**MIGRATION**: Transcript indexing is now handled by **transcriber_agent** using the `RagIndexTranscript` wrapper tool, which calls the shared core library for all sinks in one operation.
+
+**Why deprecated**: These tools contained duplicate RAG logic (chunking, hashing, API calls) that has been consolidated into the shared `core/rag/` library. They now delegate to that library but maintain backward-compatible interfaces for legacy callsites.
 
 # Hybrid RAG Retrieval
 
@@ -69,7 +72,7 @@ The tools below delegate to the shared core library (`core.rag.ingest_transcript
    - **Observability**: Automatic tracing with trace_id, latencies, coverage metrics
    - **Use Case**: Search transcripts, summaries, documents, LinkedIn posts for insights
 
-**Note**: `HybridRetrieval` tool is deprecated. Use `RagHybridSearch` instead.
+**⚠️ DEPRECATED**: The `HybridRetrieval` tool has been **removed** (deleted 2025-10-14). Use `RagHybridSearch` instead, which delegates to the shared `core.rag.hybrid_retrieve.search()` library.
 
 # Advanced RAG Tools (Optional - For Complex Workflows)
 
@@ -193,5 +196,6 @@ The following tools are available for advanced RAG workflows:
 - **MLOps**: Embedding model versions tracked, drift monitored, and CI tests enforce quality gates
 - **Fusion Algorithm**: Reciprocal Rank Fusion (RRF) merges results from multiple sources with configurable weights
 - **Result Quality**: Evidence alignment, conflict resolution, and policy enforcement ensure high-quality results
-- **Tool Migration**: Old transcript indexing tools (UpsertFullTranscriptToZep, IndexFullTranscriptToOpenSearch, StreamFullTranscriptToBigQuery) are deprecated - use transcriber_agent RAG wrapper instead
-- **Retrieval Migration**: HybridRetrieval tool is deprecated - use RagHybridSearch for all hybrid retrieval operations
+- **Tool Migration (2025-10-14)**: Old transcript indexing tools are now shims that delegate to `core/rag/` library - use transcriber_agent `RagIndexTranscript` wrapper instead
+- **Retrieval Migration (2025-10-14)**: `HybridRetrieval` tool removed - use `RagHybridSearch` for all hybrid retrieval operations
+- **Shim Behavior**: Deprecated shims print deprecation warnings and delegate to shared core library for backward compatibility
