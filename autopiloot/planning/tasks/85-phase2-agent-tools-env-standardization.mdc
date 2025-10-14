@@ -1,0 +1,412 @@
+---
+description: "Replace direct os.getenv calls in agent tools with centralized env_loader functions"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0085"
+title: "Phase 2: Standardize env access in agent tools"
+status: "planned"
+priority: "P1"
+labels: ["refactor", "config", "env", "agent-tools"]
+dependencies: ["TASK-0075"]
+created: "2025-10-14"
+parent_task: "TASK-0075"
+
+# 1) High-Level Objective
+
+Replace all direct `os.getenv` calls in agent tools with centralized `get_required_env_var()` or `get_optional_env_var()` from `config/env_loader.py`, ensuring consistent error handling and documentation.
+
+# 2) Background / Context
+
+Phase 1 of TASK-0075 fixed core utilities. Detection script identified 17 agent tool files still using direct `os.getenv` calls for API keys, credentials, and service URLs.
+
+**Current State**:
+- Detection report shows 35 total `os.getenv` usages
+- 17 in production agent tools (excluding tests and documentation)
+- Pattern is consistent across all files
+- Each needs import update + function replacement
+
+**Why This Matters**:
+- Inconsistent error messages when env vars missing
+- No validation or documentation for environment variables
+- Harder to audit which env vars are required vs optional
+- Direct `os.getenv` bypasses centralized error handling
+
+# 3) Assumptions & Constraints
+
+- **Constraint**: Must maintain backwards compatibility
+- **Constraint**: No breaking changes to tool interfaces
+- **Assumption**: All tools already use sys.path to import config modules
+- **Assumption**: Tests will pass without modification (env vars set in test fixtures)
+
+# 4) Dependencies
+
+**Files**:
+- files/agents/autopiloot/config/env_loader.py (read - source of truth)
+- files/agents/autopiloot/planning/tasks/75-detection-report.txt (read - list of files)
+
+**Prerequisite Tasks**:
+- TASK-0075 Phase 1 (completed)
+
+**Blocked By**: None
+
+# 5) Context Plan
+
+Beginning context:
+- planning/tasks/75-detection-report.txt (list of affected files)
+- config/env_loader.py (functions to use)
+- Example: core/slack_utils.py (pattern from Phase 1)
+
+End state context:
+- All 17 agent tool files updated
+- Detection report shows only intentional os.getenv (fallbacks, tests)
+- No import errors or test failures
+
+# 6) Low-Level Steps
+
+## Step 1: Review Pattern from Phase 1
+
+Read `core/slack_utils.py` lines 10-18 to understand the standard pattern:
+
+```python
+# Import config utilities for environment variable access
+try:
+    from config.env_loader import get_optional_env_var, get_required_env_var
+except ImportError:
+    # Fallback for when config module isn't available
+    def get_optional_env_var(name: str, default: str = "", description: str = "") -> str:
+        return os.getenv(name, default)
+    def get_required_env_var(name: str, description: str = "") -> str:
+        value = os.getenv(name)
+        if not value:
+            raise EnvironmentError(f"Required environment variable {name} is not set")
+        return value
+```
+
+## Step 2: Fix Transcriber Agent Tools (3 files)
+
+### File: transcriber_agent/tools/poll_transcription_job.py
+**Line 89**: `api_key = os.getenv("ASSEMBLYAI_API_KEY")`
+**Fix**:
+```python
+# Add import at top (after existing imports)
+from config.env_loader import get_required_env_var
+
+# Replace line 89
+api_key = get_required_env_var("ASSEMBLYAI_API_KEY", "AssemblyAI API key for transcription polling")
+```
+
+### File: transcriber_agent/tools/submit_assemblyai_job.py
+**Line 144**: `api_key = os.getenv("ASSEMBLYAI_API_KEY")`
+**Line 170**: `webhook_secret = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var, get_optional_env_var
+
+# Replace line 144
+api_key = get_required_env_var("ASSEMBLYAI_API_KEY", "AssemblyAI API key for job submission")
+
+# Replace line 170
+webhook_secret = get_optional_env_var("ASSEMBLYAI_WEBHOOK_SECRET", "", "AssemblyAI webhook secret for callbacks")
+```
+
+### File: transcriber_agent/tools/save_transcript_record.py
+**Line 202**: `api_key = os.getenv("ASSEMBLYAI_API_KEY")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace line 202
+api_key = get_required_env_var("ASSEMBLYAI_API_KEY", "AssemblyAI API key for transcript retrieval")
+```
+
+## Step 3: Fix Summarizer Agent Tools (3 files)
+
+### File: summarizer_agent/tools/generate_short_summary.py
+**Line 49**: `openai_api_key = os.getenv("OPENAI_API_KEY")`
+**Line 50**: `project_id = os.getenv("GCP_PROJECT_ID")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace lines 49-50
+openai_api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for summary generation")
+project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for Firestore access")
+```
+
+### File: summarizer_agent/tools/store_short_in_zep.py
+**Line 86**: `zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")`
+**Line 389**: `project_id = os.getenv("GCP_PROJECT_ID")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var, get_optional_env_var
+
+# Replace line 86
+zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL")
+
+# Replace line 389
+project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for Firestore deduplication")
+```
+
+### File: summarizer_agent/tools/save_summary_record.py
+**Line 111**: `project_id = os.getenv("GCP_PROJECT_ID")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace line 111
+project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for summary storage")
+```
+
+## Step 4: Fix Strategy Agent Tools (5 files)
+
+### File: strategy_agent/tools/generate_content_briefs.py
+**Line 320**: `api_key = os.getenv("OPENAI_API_KEY")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace line 320
+api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for content brief generation")
+```
+
+### File: strategy_agent/tools/analyze_tone_of_voice.py
+**Line 603**: `api_key = os.getenv("OPENAI_API_KEY")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace line 603
+api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for tone analysis")
+```
+
+### File: strategy_agent/tools/synthesize_strategy_playbook.py
+**Line 672**: `api_key = os.getenv("OPENAI_API_KEY")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var
+
+# Replace line 672
+api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for strategy playbook synthesis")
+```
+
+### File: strategy_agent/tools/fetch_corpus_from_zep.py
+**Line 96**: `zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_optional_env_var
+
+# Replace line 96
+zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL for corpus retrieval")
+```
+
+### File: strategy_agent/tools/save_strategy_artifacts.py
+**Line 276**: `service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")`
+**Line 300**: `service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")`
+**Line 323**: `zep_api_key = os.getenv("ZEP_API_KEY")`
+**Line 324**: `zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_required_env_var, get_optional_env_var
+
+# Replace line 276
+service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Drive storage")
+
+# Replace line 300 (same as 276)
+service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Drive storage")
+
+# Replace line 323
+zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for strategy artifact storage")
+
+# Replace line 324
+zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL")
+```
+
+## Step 5: Fix Drive Agent Tools (1 file)
+
+### File: drive_agent/tools/upsert_drive_docs_to_zep.py
+**Line 261**: `zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")`
+**Fix**:
+```python
+# Add import
+from config.env_loader import get_optional_env_var
+
+# Replace line 261
+zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL for document indexing")
+```
+
+## Step 6: Fix Scraper Agent Tools (1 file)
+
+### File: scraper_agent/tools/list_recent_uploads.py
+**Line 331**: `service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")`
+**Fix**:
+```python
+# Add import at top (check if already imported from env_loader)
+from config.env_loader import get_optional_env_var
+
+# Replace line 331
+service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials for YouTube API")
+```
+
+## Step 7: Verify Changes
+
+1. Run detection script:
+   ```bash
+   python3 scripts/detect_env_config_patterns.py
+   ```
+
+2. Verify output shows reduction in os.getenv usage:
+   - Before: 35 occurrences (17 in agent tools)
+   - After: 18 occurrences (only tests and intentional fallbacks)
+
+3. Run tests for affected agents:
+   ```bash
+   python -m unittest discover tests/transcriber_tools -v
+   python -m unittest discover tests/summarizer_tools -v
+   python -m unittest discover tests/strategy_tools -v
+   python -m unittest discover tests/drive_tools -v
+   python -m unittest discover tests/scraper_tools -v
+   ```
+
+## Step 8: Update Documentation
+
+1. Update `planning/tasks/75-progress-notes.md`:
+   - Mark Phase 2 as complete
+   - Add completion date
+   - Update file counts
+
+2. Update `planning/tasks/75-standardize-env-and-config-loading.mdc`:
+   - Update progress field
+   - Note Phase 2 completion
+
+3. Re-run detection script to update report:
+   ```bash
+   python3 scripts/detect_env_config_patterns.py
+   ```
+
+# 7) Acceptance Criteria
+
+- ✅ All 17 agent tool files updated with centralized env_loader imports
+- ✅ No direct `os.getenv` calls in production agent tools (excluding intentional fallbacks)
+- ✅ All environment variable accesses include descriptive documentation strings
+- ✅ Detection script shows <20 total os.getenv usages (tests + fallbacks only)
+- ✅ All existing tests pass without modification
+- ✅ No import errors when running tools
+- ✅ Documentation updated with completion status
+
+# 8) Testing Strategy
+
+**Pre-Testing**:
+- Verify current test suite passes: `python -m unittest discover tests -v`
+- Note any existing failures (unrelated to this work)
+
+**Unit Testing**:
+- Each tool file has `if __name__ == "__main__"` test block
+- Run individual tool tests after modification
+- Verify error messages are descriptive when env vars missing
+
+**Integration Testing**:
+- Run agent-specific test suites
+- Verify Firestore connections work (GCP_PROJECT_ID)
+- Verify API client initialization (OPENAI_API_KEY, ASSEMBLYAI_API_KEY)
+- Verify Zep client initialization (ZEP_API_KEY, ZEP_BASE_URL)
+
+**Regression Testing**:
+- Run full test suite after all changes
+- Verify no new test failures introduced
+- Check Firebase Functions deployment (no import errors)
+
+**Validation Testing**:
+- Run detection script before and after
+- Verify reduction in os.getenv count
+- Spot-check 3-5 files manually to confirm pattern applied correctly
+
+# 9) Risks & Mitigations
+
+**Risk**: Import errors if env_loader not in sys.path
+**Mitigation**: All tools already use sys.path.append for config imports (Phase 3 will address this)
+
+**Risk**: Tests fail due to missing env vars in test environment
+**Mitigation**: Tests already mock or set required env vars; no changes needed
+
+**Risk**: Different error messages break error-handling code
+**Mitigation**: New error messages are more descriptive; review error handling in calling code
+
+**Risk**: Optional vs required misidentified
+**Mitigation**:
+- API keys are always required (OPENAI_API_KEY, ASSEMBLYAI_API_KEY, ZEP_API_KEY)
+- Service URLs with defaults are optional (ZEP_BASE_URL)
+- Credentials paths with fallbacks are optional (GOOGLE_APPLICATION_CREDENTIALS)
+
+# 10) Estimated Effort
+
+**By File Type**:
+- Transcriber tools: 30 minutes (3 files, straightforward pattern)
+- Summarizer tools: 30 minutes (3 files, mix of required/optional)
+- Strategy tools: 45 minutes (5 files, most complex with multiple vars)
+- Drive tools: 10 minutes (1 file, simple)
+- Scraper tools: 10 minutes (1 file, simple)
+
+**Total Implementation**: 2 hours
+**Testing & Validation**: 30 minutes
+**Documentation**: 15 minutes
+
+**Grand Total**: ~3 hours
+
+# 11) Success Metrics
+
+- 100% of production agent tools use centralized env_loader (17/17 files)
+- Detection script shows ≤18 remaining os.getenv usages (all intentional)
+- Zero test failures introduced by changes
+- Zero import errors in production deployment
+- All environment variables documented with descriptive strings
+
+# 12) Follow-up Tasks
+
+After Phase 2 completion:
+- TASK-0086: Phase 3 - Remove sys.path manipulation (220 occurrences)
+- Consider: Automated linting rule to prevent new os.getenv usage
+- Consider: Pre-commit hook running detection script
+
+# 13) File Checklist
+
+**Transcriber Agent** (3/3):
+- [ ] transcriber_agent/tools/poll_transcription_job.py
+- [ ] transcriber_agent/tools/submit_assemblyai_job.py
+- [ ] transcriber_agent/tools/save_transcript_record.py
+
+**Summarizer Agent** (3/3):
+- [ ] summarizer_agent/tools/generate_short_summary.py
+- [ ] summarizer_agent/tools/store_short_in_zep.py
+- [ ] summarizer_agent/tools/save_summary_record.py
+
+**Strategy Agent** (5/5):
+- [ ] strategy_agent/tools/generate_content_briefs.py
+- [ ] strategy_agent/tools/analyze_tone_of_voice.py
+- [ ] strategy_agent/tools/synthesize_strategy_playbook.py
+- [ ] strategy_agent/tools/fetch_corpus_from_zep.py
+- [ ] strategy_agent/tools/save_strategy_artifacts.py
+
+**Drive Agent** (1/1):
+- [ ] drive_agent/tools/upsert_drive_docs_to_zep.py
+
+**Scraper Agent** (1/1):
+- [ ] scraper_agent/tools/list_recent_uploads.py
+
+**Verification** (3/3):
+- [ ] Run detection script (verify reduction to ≤18 occurrences)
+- [ ] Run full test suite (verify no new failures)
+- [ ] Update documentation (progress notes, task status)
+
+**Total**: 13 agent tool files + 3 verification steps = 16 checklist items

@@ -1,0 +1,625 @@
+---
+description: "Remove sys.path manipulation patterns throughout codebase by fixing package structure and using PYTHONPATH"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0086"
+title: "Phase 3: Remove sys.path manipulation patterns"
+status: "planned"
+priority: "P2"
+labels: ["refactor", "architecture", "imports", "tech-debt"]
+dependencies: ["TASK-0075", "TASK-0085"]
+created: "2025-10-14"
+parent_task: "TASK-0075"
+
+# 1) High-Level Objective
+
+Eliminate all 220 `sys.path.append` and `sys.path.insert` patterns by fixing package structure, using proper PYTHONPATH configuration, and implementing relative imports where appropriate.
+
+# 2) Background / Context
+
+Detection script (TASK-0075) identified 220 sys.path manipulation patterns:
+- **123 in agent tools** - For importing config/core modules from nested directories
+- **68 in test files** - For importing modules under test
+- **29 in other files** - Miscellaneous imports
+
+**Current Pattern (agent tools)**:
+```python
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+
+from env_loader import get_required_env_var
+from loader import load_app_config
+```
+
+**Root Causes**:
+1. Agent tools in deeply nested directories (`{agent}/tools/tool_name.py`)
+2. No proper package `__init__.py` files
+3. Tests need to import modules from parent directories
+4. Circular import issues between core and config modules
+5. PYTHONPATH not consistently set across execution contexts
+
+**Why This Matters**:
+- sys.path manipulation is fragile and non-portable
+- Makes IDE navigation and autocomplete unreliable
+- Violates Python packaging best practices
+- Harder to package for distribution
+- Test discovery can be inconsistent
+
+# 3) Assumptions & Constraints
+
+- **Constraint**: Must maintain backwards compatibility during migration
+- **Constraint**: Firebase Functions deployment must continue to work
+- **Constraint**: All existing tests must pass without major rewrites
+- **Assumption**: PYTHONPATH=. can be enforced in all execution contexts
+- **Assumption**: Package structure changes won't break Agency Swarm discovery
+
+# 4) Dependencies
+
+**Files**:
+- files/agents/autopiloot/planning/tasks/75-detection-report.txt (list of files)
+- files/agents/autopiloot/scripts/detect_env_config_patterns.py (detection tool)
+
+**Prerequisite Tasks**:
+- TASK-0075 Phase 1 (completed)
+- TASK-0085 Phase 2 (must complete first)
+
+**Blocked By**: None (can start after Phase 2)
+
+# 5) Context Plan
+
+Beginning context:
+- planning/tasks/75-detection-report.txt (220 affected files)
+- Example: scraper_agent/tools/save_video_metadata.py (typical pattern)
+- docs/CLAUDE.md (current PYTHONPATH documentation)
+
+End state context:
+- All agent tool files without sys.path manipulation
+- Updated __init__.py files for proper package structure
+- Test configuration with proper PYTHONPATH
+- Updated documentation
+
+# 6) Low-Level Steps
+
+## Step 1: Analysis & Strategy Selection
+
+**Option A: PYTHONPATH-Only Approach** (Recommended)
+- Pros: Minimal code changes, simple, documented in CLAUDE.md
+- Cons: Requires PYTHONPATH=. in all contexts
+- Approach: Remove sys.path lines, ensure PYTHONPATH set everywhere
+
+**Option B: Package Structure Improvements**
+- Pros: Proper Python packaging, better IDE support
+- Cons: Major refactoring, potential circular import issues
+- Approach: Add __init__.py files, use relative imports
+
+**Option C: Hybrid Approach** (Most Pragmatic)
+- Combine both: Use PYTHONPATH for execution, improve package structure for development
+- Phase 1: Document PYTHONPATH requirement
+- Phase 2: Remove sys.path from tools (rely on PYTHONPATH)
+- Phase 3: Add proper __init__.py files for IDE support
+
+**Recommendation**: Start with Option C - Hybrid Approach
+
+## Step 2: Document PYTHONPATH Requirement
+
+Update execution documentation to enforce PYTHONPATH=.:
+
+### File: docs/CLAUDE.md
+
+Update "Common Development Commands" section:
+
+```markdown
+# CRITICAL: PYTHONPATH Configuration
+
+All Python commands must be run with PYTHONPATH=. to ensure proper module imports:
+
+```bash
+# CORRECT - Set PYTHONPATH
+export PYTHONPATH=.
+python scraper_agent/tools/save_video_metadata.py
+
+# CORRECT - Inline PYTHONPATH
+PYTHONPATH=. python -m unittest discover tests -v
+
+# INCORRECT - Will fail with ImportError
+python scraper_agent/tools/save_video_metadata.py
+```
+
+This is required because agent tools are in nested directories and need to import
+from config/ and core/ directories.
+```
+
+### File: README.md (if exists)
+
+Add PYTHONPATH note to setup instructions.
+
+### File: .env.template
+
+Add comment:
+```bash
+# Python Path Configuration
+# Always run commands with PYTHONPATH=. from the autopiloot/ directory
+```
+
+## Step 3: Create Package Structure
+
+Add `__init__.py` files to make directories proper Python packages:
+
+### Root Level
+```python
+# autopiloot/__init__.py
+"""
+Autopiloot Agency - Multi-agent system for YouTube content processing.
+"""
+__version__ = "1.0.0"
+```
+
+### Agent Directories
+```python
+# {agent_name}/__init__.py
+"""
+{Agent Name} Agent for Autopiloot Agency.
+"""
+```
+
+### Tools Directories
+```python
+# {agent_name}/tools/__init__.py
+"""
+Tools for {Agent Name} Agent.
+"""
+```
+
+### Core and Config
+```python
+# core/__init__.py
+"""
+Core utilities shared across all agents.
+"""
+
+# config/__init__.py
+"""
+Configuration loading and environment variable management.
+"""
+```
+
+## Step 4: Create Migration Script
+
+Create script to remove sys.path patterns automatically:
+
+### File: scripts/remove_syspath_patterns.py
+
+```python
+#!/usr/bin/env python3
+"""
+Remove sys.path manipulation patterns from Python files.
+
+Usage:
+    python scripts/remove_syspath_patterns.py --dry-run    # Preview changes
+    python scripts/remove_syspath_patterns.py --apply      # Apply changes
+"""
+
+import re
+import sys
+from pathlib import Path
+from typing import List, Tuple
+
+def remove_syspath_from_file(file_path: Path, dry_run: bool = True) -> Tuple[bool, int]:
+    """
+    Remove sys.path manipulation from a Python file.
+
+    Returns:
+        (modified, lines_removed) - Whether file was modified and how many lines removed
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    new_lines = []
+    lines_removed = 0
+    in_syspath_block = False
+
+    for line in lines:
+        # Detect sys.path manipulation patterns
+        if 'sys.path.append' in line or 'sys.path.insert' in line:
+            if not line.strip().startswith('#'):
+                lines_removed += 1
+                in_syspath_block = True
+                continue  # Skip this line
+
+        # Skip blank lines immediately after sys.path block
+        if in_syspath_block and line.strip() == '':
+            continue
+
+        in_syspath_block = False
+        new_lines.append(line)
+
+    if lines_removed > 0:
+        if not dry_run:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+        return True, lines_removed
+
+    return False, 0
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dry-run', action='store_true', default=True)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+
+    dry_run = not args.apply
+
+    root = Path(__file__).parent.parent
+
+    # Find all Python files with sys.path patterns
+    total_modified = 0
+    total_lines_removed = 0
+
+    for py_file in root.rglob("*.py"):
+        if any(part in py_file.parts for part in ["venv", ".venv", "__pycache__"]):
+            continue
+
+        modified, lines_removed = remove_syspath_from_file(py_file, dry_run)
+
+        if modified:
+            total_modified += 1
+            total_lines_removed += lines_removed
+            rel_path = py_file.relative_to(root)
+            print(f"{'[DRY RUN] ' if dry_run else ''}Modified: {rel_path} (-{lines_removed} lines)")
+
+    print(f"\nTotal: {total_modified} files, {total_lines_removed} lines removed")
+
+    if dry_run:
+        print("\nThis was a dry run. Use --apply to make changes.")
+
+if __name__ == "__main__":
+    main()
+```
+
+## Step 5: Update Test Configuration
+
+### File: pytest.ini (create if doesn't exist)
+
+```ini
+[pytest]
+# Set PYTHONPATH automatically for pytest
+pythonpath = .
+
+# Test discovery patterns
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+
+# Output options
+addopts = -v --tb=short
+
+# Test paths
+testpaths = tests
+```
+
+### File: .github/workflows/tests.yml (if exists)
+
+Ensure PYTHONPATH is set in CI:
+
+```yaml
+- name: Run tests
+  env:
+    PYTHONPATH: .
+  run: |
+    python -m unittest discover tests -v
+```
+
+## Step 6: Execute Migration (Agent Tools)
+
+1. **Backup**: Create git branch for safety
+   ```bash
+   git checkout -b refactor/remove-syspath-phase3
+   ```
+
+2. **Dry Run**: Preview changes
+   ```bash
+   python scripts/remove_syspath_patterns.py --dry-run
+   ```
+
+3. **Apply to Agent Tools First** (123 files):
+   ```bash
+   # Modify script to target only *_agent/tools/ directories
+   python scripts/remove_syspath_patterns.py --apply
+   ```
+
+4. **Test Immediately**:
+   ```bash
+   export PYTHONPATH=.
+   python -m unittest discover tests -v
+   ```
+
+5. **Fix Any Import Errors**:
+   - If errors occur, tool imports may need adjustment
+   - Check for circular imports
+   - Verify PYTHONPATH is set
+
+## Step 7: Execute Migration (Test Files)
+
+1. **Update Test Files** (68 files):
+   - Remove sys.path.insert patterns
+   - Rely on pytest.ini PYTHONPATH configuration
+
+2. **Verify Test Discovery**:
+   ```bash
+   pytest --collect-only  # Should find all tests
+   ```
+
+3. **Run Full Test Suite**:
+   ```bash
+   pytest tests/ -v
+   ```
+
+## Step 8: Execute Migration (Other Files)
+
+1. **Review Remaining Files** (29 files):
+   - core/ modules
+   - scripts/
+   - Miscellaneous utilities
+
+2. **Apply Changes Carefully**:
+   - Some may be legitimate (e.g., dynamic path manipulation)
+   - Review each before removal
+
+## Step 9: Update Firebase Functions
+
+### File: services/firebase/functions/core.py
+
+Ensure PYTHONPATH logic for Firebase environment:
+
+```python
+import sys
+import os
+
+# For Firebase Functions, add parent directory to path
+# This is one of the few legitimate uses of sys.path manipulation
+if 'FUNCTION_NAME' in os.environ:
+    # Running in Firebase Functions environment
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+```
+
+## Step 10: Verification & Testing
+
+1. **Run Detection Script**:
+   ```bash
+   python scripts/detect_env_config_patterns.py
+   ```
+   - Should show 0-5 sys.path occurrences (only Firebase Functions)
+
+2. **Run Full Test Suite**:
+   ```bash
+   export PYTHONPATH=.
+   python -m unittest discover tests -v
+   pytest tests/ -v
+   ```
+
+3. **Test Individual Tools**:
+   ```bash
+   export PYTHONPATH=.
+   python scraper_agent/tools/save_video_metadata.py
+   python transcriber_agent/tools/poll_transcription_job.py
+   ```
+
+4. **Test Firebase Functions Locally**:
+   ```bash
+   firebase emulators:start --only functions
+   ```
+
+5. **Deploy to Staging** (if available):
+   ```bash
+   firebase deploy --only functions:staging
+   ```
+
+## Step 11: Documentation Updates
+
+1. **Update CLAUDE.md**:
+   - Add PYTHONPATH requirement prominently
+   - Update all example commands to include PYTHONPATH
+   - Add troubleshooting section for ImportError
+
+2. **Update README.md**:
+   - Add PYTHONPATH to setup instructions
+   - Include in quick start guide
+
+3. **Update Task Documentation**:
+   - Mark Phase 3 complete in progress notes
+   - Update detection report
+   - Update parent task (TASK-0075)
+
+4. **Create ADR** (Architecture Decision Record):
+   - Document decision to use PYTHONPATH over complex package structure
+   - Explain tradeoffs and rationale
+   - Reference in .cursor/rules/ADR.mdc
+
+# 7) Acceptance Criteria
+
+- ✅ All agent tool files (123) have sys.path patterns removed
+- ✅ All test files (68) have sys.path patterns removed
+- ✅ Proper __init__.py files added to all package directories
+- ✅ pytest.ini configured with PYTHONPATH
+- ✅ Detection script shows ≤5 sys.path occurrences (only Firebase Functions)
+- ✅ All tests pass with PYTHONPATH=.
+- ✅ Individual tool test blocks work with PYTHONPATH=.
+- ✅ Firebase Functions deployment succeeds
+- ✅ Documentation updated with PYTHONPATH requirements
+- ✅ Migration script created and tested
+
+# 8) Testing Strategy
+
+**Pre-Migration Testing**:
+- Baseline test run: `PYTHONPATH=. python -m unittest discover tests -v`
+- Document any existing failures (unrelated to this work)
+- Verify PYTHONPATH=. is sufficient before removing sys.path
+
+**During Migration Testing**:
+- Test after each agent (e.g., after all scraper_agent changes)
+- Run agent-specific test suites
+- Test individual tool `__main__` blocks
+
+**Post-Migration Testing**:
+- Full test suite with unittest
+- Full test suite with pytest
+- Individual agent tests
+- Individual tool smoke tests
+- Firebase Functions emulator
+- Staging deployment (if available)
+
+**Regression Testing**:
+- Verify no import errors in production
+- Check Firebase Functions logs for errors
+- Monitor for ImportError or ModuleNotFoundError
+
+# 9) Risks & Mitigations
+
+**Risk**: PYTHONPATH not set in some execution context
+**Mitigation**:
+- Comprehensive documentation updates
+- Add warning in tool `__main__` blocks if imports fail
+- pytest.ini sets it automatically for tests
+
+**Risk**: Circular imports exposed after sys.path removal
+**Mitigation**:
+- Already unlikely since tools currently work with sys.path
+- If occurs, refactor circular dependency
+
+**Risk**: Firebase Functions break due to path changes
+**Mitigation**:
+- Keep sys.path manipulation in Firebase Functions core.py
+- Test locally with emulator before deploying
+- Deploy to staging first
+
+**Risk**: IDE autocomplete still broken
+**Mitigation**:
+- __init__.py files improve IDE support
+- Configure IDE to recognize project root
+- Add .idea/ or .vscode/ configuration files
+
+**Risk**: Agency Swarm tool discovery breaks
+**Mitigation**:
+- Agency Swarm uses `tools_folder="./tools"` relative paths
+- Should be unaffected by sys.path changes
+- Test agent initialization after changes
+
+# 10) Estimated Effort
+
+**Planning & Strategy**: 1 hour
+**Create Migration Script**: 1 hour
+**Package Structure (__init__.py files)**: 1 hour
+**Execute Migration (Agent Tools)**: 2 hours
+**Execute Migration (Test Files)**: 1 hour
+**Execute Migration (Other Files)**: 1 hour
+**Testing & Validation**: 2 hours
+**Documentation Updates**: 1 hour
+**Firebase Functions Testing**: 1 hour
+
+**Total**: 11 hours over 2-3 sessions
+
+# 11) Success Metrics
+
+- 220 → ≤5 sys.path manipulation patterns (98% reduction)
+- 100% test pass rate maintained
+- Zero import errors in production
+- Zero Firebase Functions deployment failures
+- IDE autocomplete works for 90%+ of imports
+- PYTHONPATH requirement documented in 3+ places
+
+# 12) Rollback Plan
+
+If issues arise:
+
+1. **Immediate Rollback**:
+   ```bash
+   git checkout main  # Abort branch
+   git branch -D refactor/remove-syspath-phase3
+   ```
+
+2. **Partial Rollback**:
+   - Revert specific files causing issues
+   - Keep successful portions of migration
+
+3. **Fallback Pattern**:
+   - If PYTHONPATH approach fails, revert to sys.path temporarily
+   - Consider Option B (package structure) instead
+
+# 13) Follow-up Tasks
+
+After Phase 3 completion:
+- Consider: Pre-commit hook to prevent new sys.path patterns
+- Consider: Linting rule enforcing PYTHONPATH usage
+- Consider: IDE configuration files (.idea/, .vscode/) for team
+- Consider: Packaging for PyPI distribution (future)
+
+# 14) Alternative Approaches Considered
+
+**Approach 1: Absolute Imports Everywhere**
+- Change: `from config.env_loader import X` → `from autopiloot.config.env_loader import X`
+- Pros: More explicit, better for packaging
+- Cons: Verbose, requires package installation, breaks current setup
+
+**Approach 2: Relative Imports**
+- Change: Use `from ...config.env_loader import X`
+- Pros: No sys.path needed, explicit relationships
+- Cons: Complex with deep nesting, breaks standalone tool execution
+
+**Approach 3: Symlinks**
+- Create: symlinks from each tools/ dir to config/ and core/
+- Pros: Works without sys.path or PYTHONPATH
+- Cons: Platform-specific, fragile, not recommended
+
+**Chosen Approach**: PYTHONPATH + Package Structure (Hybrid)
+- Balances simplicity with proper Python practices
+- Minimal code changes required
+- Works in all execution contexts
+- Improves IDE support without breaking existing workflow
+
+# 15) Checklist
+
+**Preparation** (3/3):
+- [ ] Create migration branch
+- [ ] Run baseline tests
+- [ ] Create migration script
+
+**Package Structure** (8/8):
+- [ ] Add autopiloot/__init__.py
+- [ ] Add {agent}/__init__.py (8 agents)
+- [ ] Add {agent}/tools/__init__.py (8 agents)
+- [ ] Add core/__init__.py
+- [ ] Add config/__init__.py
+- [ ] Add pytest.ini
+- [ ] Update .github/workflows (if exists)
+- [ ] Update Firebase Functions path logic
+
+**Migration** (3/3):
+- [ ] Agent tools (123 files)
+- [ ] Test files (68 files)
+- [ ] Other files (29 files, review individually)
+
+**Testing** (5/5):
+- [ ] Run detection script (verify reduction)
+- [ ] Full test suite (unittest)
+- [ ] Full test suite (pytest)
+- [ ] Individual tool smoke tests (3-5 samples)
+- [ ] Firebase Functions emulator
+
+**Documentation** (4/4):
+- [ ] Update CLAUDE.md with PYTHONPATH requirement
+- [ ] Update README.md (if exists)
+- [ ] Update progress notes
+- [ ] Create ADR for architectural decision
+
+**Deployment** (2/2):
+- [ ] Merge to main
+- [ ] Deploy Firebase Functions to production
+
+**Total**: 25 checklist items
