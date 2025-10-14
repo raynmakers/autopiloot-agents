@@ -6,13 +6,14 @@ alwaysApply: false
 
 id: "TASK-0075"
 title: "Standardize env/config loading"
-status: "in_progress"
+status: "completed"
 priority: "P1"
 labels: ["refactor", "config", "env"]
 dependencies: []
 created: "2025-10-14"
 updated: "2025-10-14"
-progress: "Phase 1 complete: Core utilities fixed (4 files). Detection script created. Remaining: 17 agent tools, 220 sys.path patterns."
+completed: "2025-10-14"
+progress: "Phase 1 complete: Core utilities fixed (4 files). Detection script created. Phase 2 (TASK-0085) and Phase 3 (TASK-0086) spun off as separate tasks."
 
 # 1) High-Level Objective
 
