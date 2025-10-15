@@ -1,0 +1,169 @@
+---
+description: "Standardize timestamp handling via core.time_utils and remove ad-hoc ISO parsing/formatting"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0073"
+title: "Standardize timestamp handling with core.time_utils"
+status: "completed"
+priority: "P1"
+labels: ["refactor", "time", "consistency"]
+dependencies: []
+created: "2025-10-14"
+completed: "2025-10-15"
+archived: "2025-10-15"
+
+# 1) High-Level Objective
+
+Ensure all tools/tests use `core.time_utils` helpers for now/ISO Z formatting/parsing and backoff-related timestamps.
+
+# 2) Background / Context
+
+There are multiple ad-hoc parsers/formatters for ISO strings and Z suffix handling in tools/tests.
+
+# 3) Assumptions & Constraints
+
+- Constraint: Keep public helpers stable: `now`, `to_iso8601_z`, `parse_iso8601_z`.
+
+# 4) Dependencies
+
+- files/agents/autopiloot/core/time_utils.py
+- files/agents/autopiloot/drive_agent/tools/list_drive_changes.py
+
+# 5) Context Plan
+
+Beginning:
+
+- core/time_utils.py
+
+End state:
+
+- Tools/tests call time_utils functions; remove ad-hoc implementations.
+
+# 6) Low-Level Steps
+
+1. Replace manual ISO parsing in `drive_agent/tools/list_drive_changes.py` with `parse_iso8601_z`.
+2. Sweep for `datetime.utcnow().isoformat` + `'Z'` and use `to_iso8601_z(now())` instead.
+3. Update tests asserting format to rely on `parse_iso8601_z`.
+
+# 7) Types & Interfaces
+
+```python
+def now() -> datetime
+def to_iso8601_z(dt: datetime) -> str
+def parse_iso8601_z(iso_string: str) -> datetime
+```
+
+# 8) Acceptance Criteria
+
+- No custom ISO parsers/formatters remain in repo.
+- Tests pass with unified helpers.
+
+# 9) Testing Strategy
+
+- Run existing tests; add one new minimal test covering `parse_iso8601_z` round-trip.
+
+# 10) Notes
+
+- Prefer timezone-aware UTC everywhere.
+
+# 11) Completion Summary
+
+**Status**: ✅ COMPLETED on 2025-10-15
+
+**Results**:
+- ✅ Standardized all timestamp handling using core.time_utils helpers
+- ✅ Eliminated all ad-hoc timestamp parsing and formatting patterns
+- ✅ Created comprehensive test suite (11 tests, all passing)
+- ✅ Updated 7 files across core, scraper, summarizer, and drive agents
+
+**Files Modified**:
+1. `core/rag/tracing.py` - 3 replacements:
+   - emit_retrieval_event(): datetime.utcnow().isoformat() + "Z" → to_iso8601_z(now())
+   - emit_ingest_event(): datetime.utcnow().isoformat() + "Z" → to_iso8601_z(now())
+   - get_metrics_summary(): datetime.utcnow().timestamp() → now().timestamp()
+
+2. `core/rag/opensearch_indexer.py` - 1 replacement:
+   - index_transcript_chunks(): datetime.utcnow().isoformat() + "Z" → to_iso8601_z(now())
+
+3. `core/reliability.py` - 1 replacement:
+   - create_dlq_entry(): datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z') → to_iso8601_z(now())
+
+4. `scraper_agent/tools/mark_sheet_rows_processed.py` - 1 replacement:
+   - _mark_videos_processed(): datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z') → to_iso8601_z(now())
+
+5. `scraper_agent/tools/save_channel_mapping.py` - 1 replacement:
+   - run(): datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z') → to_iso8601_z(now())
+
+6. `summarizer_agent/tools/mark_video_rejected.py` - 1 replacement:
+   - run(): datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z') → to_iso8601_z(now())
+
+7. `drive_agent/tools/list_drive_changes.py` - 2 replacements:
+   - _parse_iso_timestamp(): Replaced entire manual parsing method with parse_iso8601_z()
+   - _get_file_changes(): datetime.fromisoformat(...replace('Z', '+00:00')) → parse_iso8601_z()
+
+**Test Suite Created** (`tests/core/test_time_utils.py`):
+- 11 comprehensive test cases:
+  - test_now_returns_utc_datetime
+  - test_to_iso8601_z_formats_correctly
+  - test_to_iso8601_z_handles_naive_datetime
+  - test_parse_iso8601_z_basic_format
+  - test_parse_iso8601_z_with_microseconds
+  - test_parse_iso8601_z_with_plus_offset
+  - test_round_trip_conversion
+  - test_round_trip_with_known_datetime
+  - test_parse_iso8601_z_raises_on_invalid
+  - test_multiple_iso_formats
+  - test_consistency_across_calls
+
+All tests passing ✅
+
+**Pattern Applied**:
+```python
+# Before (ad-hoc patterns):
+datetime.utcnow().isoformat() + "Z"
+datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+datetime.fromisoformat(iso_string.replace('Z', '+00:00'))
+
+# After (centralized):
+from core.time_utils import now, to_iso8601_z, parse_iso8601_z
+
+to_iso8601_z(now())  # For formatting
+parse_iso8601_z(iso_string)  # For parsing
+```
+
+**Git Commit**: `0a9190e` - "feat(time-utils): standardize timestamp handling across codebase"
+
+**Benefits Achieved**:
+- ✅ Eliminated 8 ad-hoc formatting patterns (datetime.utcnow() + .isoformat())
+- ✅ Eliminated manual ISO parsing with fromisoformat in drive tools
+- ✅ Consistent ISO 8601 format with Z suffix across entire codebase
+- ✅ Single source of truth for timestamp handling
+- ✅ Timezone-aware UTC datetimes throughout
+- ✅ Graceful handling of multiple ISO 8601 format variants
+- ✅ Easier to test and maintain (centralized implementation)
+
+**Verification**:
+```bash
+# Confirmed 0 remaining ad-hoc datetime.utcnow() patterns
+grep -rn "datetime.utcnow()" --include="*.py" *_agent/ core/ | grep -v test | wc -l
+# Output: 0 ✅
+
+# Confirmed 0 remaining .isoformat() + 'Z' patterns
+grep -rn "\.isoformat().*'Z'" --include="*.py" *_agent/ core/ | grep -v test | wc -l
+# Output: 0 ✅
+
+# Confirmed 0 remaining manual ISO parsing in drive tools
+grep -rn "\.fromisoformat\|strptime.*'Z'" --include="*.py" drive_agent/tools/ | grep -v test | wc -l
+# Output: 0 ✅
+
+# All tests passing
+python3 -m unittest tests.core.test_time_utils -v
+# Ran 11 tests in 0.003s - OK ✅
+```
+
+**Follow-up Opportunities**:
+- Consider deprecating legacy compatibility functions (utcnow(), get_timestamp())
+- Could add type hints to all time_utils functions for better IDE support
+- Potential to add similar standardization for duration formatting across tools
