@@ -326,34 +326,48 @@ def get_business_timezone() -> str:
 
 
 # Backoff and retry utilities
+# NOTE: These functions now forward to core.reliability.RetryPolicy for unified backoff logic
 def calculate_exponential_backoff(
-    attempt: int, 
-    base_delay: int = 60, 
-    max_delay: int = 240, 
+    attempt: int,
+    base_delay: int = 60,
+    max_delay: int = 240,
     exponential_base: float = 2.0
 ) -> int:
     """
     Calculate exponential backoff delay for retry attempts.
-    
+
+    DEPRECATED: Use core.reliability.RetryPolicy instead for new code.
+    This function now forwards to RetryPolicy for unified backoff logic.
+
     Args:
         attempt: Attempt number (1-based)
         base_delay: Base delay in seconds
         max_delay: Maximum delay cap in seconds
         exponential_base: Exponential multiplier
-        
+
     Returns:
         Delay in seconds for this attempt
-        
+
     Example:
         calculate_exponential_backoff(1) -> 60
         calculate_exponential_backoff(2) -> 120
         calculate_exponential_backoff(3) -> 240 (capped)
     """
-    if attempt <= 0:
-        return 0
-    
-    delay = base_delay * (exponential_base ** (attempt - 1))
-    return min(int(delay), max_delay)
+    # Forward to RetryPolicy for unified implementation
+    try:
+        from core.reliability import RetryPolicy
+        policy = RetryPolicy(
+            base_delay_seconds=base_delay,
+            max_delay_seconds=max_delay,
+            exponential_base=exponential_base
+        )
+        return policy.get_delay(attempt)
+    except ImportError:
+        # Fallback implementation if reliability module not available
+        if attempt <= 0:
+            return 0
+        delay = base_delay * (exponential_base ** (attempt - 1))
+        return min(int(delay), max_delay)
 
 
 def calculate_jittered_backoff(
@@ -364,21 +378,28 @@ def calculate_jittered_backoff(
 ) -> int:
     """
     Calculate exponential backoff with jitter to avoid thundering herd.
-    
+
+    DEPRECATED: Use core.reliability.RetryPolicy instead for new code.
+    This function now forwards to RetryPolicy for unified backoff logic,
+    then applies jitter on top.
+
     Args:
         attempt: Attempt number (1-based)
         base_delay: Base delay in seconds
         max_delay: Maximum delay cap in seconds
         jitter_factor: Jitter factor (0.0 to 1.0)
-        
+
     Returns:
         Delay in seconds with jitter applied
     """
     import random
-    
+
+    # Use unified backoff calculation via RetryPolicy
     base_backoff = calculate_exponential_backoff(attempt, base_delay, max_delay)
+
+    # Apply jitter to avoid thundering herd
     jitter = base_backoff * jitter_factor * (random.random() - 0.5)
-    
+
     jittered_delay = base_backoff + jitter
     return max(1, min(int(jittered_delay), max_delay))
 
@@ -391,19 +412,23 @@ def get_next_retry_time(
 ) -> datetime:
     """
     Get the next retry timestamp using exponential backoff.
-    
+
+    DEPRECATED: Use core.reliability.RetryPolicy instead for new code.
+    This function now forwards to RetryPolicy for unified backoff logic.
+
     Args:
         attempt: Attempt number (1-based)
         base_time: Base time to calculate from (defaults to now)
         base_delay: Base delay in seconds
         max_delay: Maximum delay cap in seconds
-        
+
     Returns:
         Next retry timestamp in UTC
     """
     if base_time is None:
         base_time = now()
-    
+
+    # Use unified backoff calculation via RetryPolicy
     delay_seconds = calculate_exponential_backoff(attempt, base_delay, max_delay)
     return add_minutes(base_time, delay_seconds // 60)
 

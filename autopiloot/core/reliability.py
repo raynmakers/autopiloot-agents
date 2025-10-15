@@ -290,8 +290,25 @@ def should_retry_job(retry_count: int, max_retries: int = 3) -> bool:
 
 
 def calculate_backoff_delay(attempt: int, base_delay: int = 60) -> int:
-    """Calculate exponential backoff delay."""
-    return min(base_delay * (2 ** attempt), 480)
+    """
+    Calculate exponential backoff delay.
+
+    DEPRECATED: Use RetryPolicy.get_delay() instead for new code.
+    This function forwards to RetryPolicy for unified backoff logic.
+
+    Note: This function uses 0-based attempt counting for backward compatibility.
+    It converts to 1-based for RetryPolicy.get_delay().
+
+    Args:
+        attempt: Attempt number (0-based for backward compatibility)
+        base_delay: Base delay in seconds
+
+    Returns:
+        Delay in seconds with 480s max cap
+    """
+    policy = RetryPolicy(base_delay_seconds=base_delay, max_delay_seconds=480)
+    # Convert 0-based to 1-based for RetryPolicy
+    return policy.get_delay(attempt + 1)
 
 
 def create_quota_status(

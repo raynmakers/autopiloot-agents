@@ -10,13 +10,17 @@ Tests cover:
 
 import unittest
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, MagicMock
 import sys
 import os
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from core.time_utils import now, to_iso8601_z, parse_iso8601_z
+from core.time_utils import (
+    now, to_iso8601_z, parse_iso8601_z,
+    calculate_exponential_backoff, calculate_jittered_backoff, get_next_retry_time
+)
 
 
 class TestTimeUtils(unittest.TestCase):
@@ -165,6 +169,110 @@ class TestTimeUtils(unittest.TestCase):
         iso2 = to_iso8601_z(dt)
 
         self.assertEqual(iso1, iso2)
+
+
+class TestBackoffUnification(unittest.TestCase):
+    """Test suite for unified backoff functions forwarding to RetryPolicy."""
+
+    def test_calculate_exponential_backoff_forwards_to_retry_policy(self):
+        """Test calculate_exponential_backoff forwards to RetryPolicy.get_delay()."""
+        # Test with default parameters
+        delay_attempt_1 = calculate_exponential_backoff(1)
+        self.assertEqual(delay_attempt_1, 60)  # base_delay * (2 ** 0) = 60
+
+        delay_attempt_2 = calculate_exponential_backoff(2)
+        self.assertEqual(delay_attempt_2, 120)  # base_delay * (2 ** 1) = 120
+
+        delay_attempt_3 = calculate_exponential_backoff(3)
+        self.assertEqual(delay_attempt_3, 240)  # base_delay * (2 ** 2) = 240 (at max)
+
+        delay_attempt_4 = calculate_exponential_backoff(4)
+        self.assertEqual(delay_attempt_4, 240)  # Capped at max_delay
+
+    def test_calculate_exponential_backoff_custom_parameters(self):
+        """Test calculate_exponential_backoff with custom parameters."""
+        delay = calculate_exponential_backoff(
+            attempt=2,
+            base_delay=30,
+            max_delay=180,
+            exponential_base=3.0
+        )
+        # 30 * (3 ** 1) = 90
+        self.assertEqual(delay, 90)
+
+    def test_calculate_exponential_backoff_zero_attempt(self):
+        """Test calculate_exponential_backoff with attempt=0."""
+        delay = calculate_exponential_backoff(0)
+        self.assertEqual(delay, 0)
+
+    def test_calculate_jittered_backoff_adds_jitter(self):
+        """Test calculate_jittered_backoff adds random jitter to base delay."""
+        # Run multiple times to verify jitter variability
+        delays = []
+        for _ in range(10):
+            delay = calculate_jittered_backoff(attempt=2, base_delay=60, max_delay=240, jitter_factor=0.1)
+            delays.append(delay)
+
+        # All delays should be around 120 (base delay for attempt 2)
+        # With jitter_factor=0.1, range is approximately 120 +/- 6
+        for delay in delays:
+            self.assertGreaterEqual(delay, 1)  # Minimum is 1 second
+            self.assertLessEqual(delay, 240)  # Maximum is max_delay
+
+        # Check that we got some variability (not all the same)
+        unique_delays = set(delays)
+        self.assertGreater(len(unique_delays), 1, "Jitter should produce varying delays")
+
+    def test_calculate_jittered_backoff_respects_min_max(self):
+        """Test calculate_jittered_backoff respects min 1s and max_delay bounds."""
+        # Very small base delay with jitter could go below 1
+        delay = calculate_jittered_backoff(attempt=1, base_delay=2, max_delay=240, jitter_factor=0.5)
+        self.assertGreaterEqual(delay, 1)
+
+        # Very large attempt should be capped at max_delay
+        delay = calculate_jittered_backoff(attempt=10, base_delay=60, max_delay=240, jitter_factor=0.1)
+        self.assertLessEqual(delay, 240)
+
+    def test_get_next_retry_time_uses_unified_backoff(self):
+        """Test get_next_retry_time uses unified backoff calculation."""
+        base_time = datetime(2025, 10, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+        # Attempt 1: 60 seconds = 1 minute
+        next_time_1 = get_next_retry_time(attempt=1, base_time=base_time, base_delay=60, max_delay=240)
+        expected_1 = base_time + timedelta(minutes=1)
+        self.assertEqual(next_time_1, expected_1)
+
+        # Attempt 2: 120 seconds = 2 minutes
+        next_time_2 = get_next_retry_time(attempt=2, base_time=base_time, base_delay=60, max_delay=240)
+        expected_2 = base_time + timedelta(minutes=2)
+        self.assertEqual(next_time_2, expected_2)
+
+        # Attempt 3: 240 seconds = 4 minutes
+        next_time_3 = get_next_retry_time(attempt=3, base_time=base_time, base_delay=60, max_delay=240)
+        expected_3 = base_time + timedelta(minutes=4)
+        self.assertEqual(next_time_3, expected_3)
+
+    def test_get_next_retry_time_defaults_to_now(self):
+        """Test get_next_retry_time defaults base_time to now() when not provided."""
+        before = now()
+        next_time = get_next_retry_time(attempt=1)
+        after = now()
+
+        # Should be approximately 1 minute from now (60 second delay)
+        expected_min = before + timedelta(minutes=1)
+        expected_max = after + timedelta(minutes=1)
+
+        self.assertGreaterEqual(next_time, expected_min - timedelta(seconds=1))
+        self.assertLessEqual(next_time, expected_max + timedelta(seconds=1))
+
+    def test_get_next_retry_time_timezone_aware(self):
+        """Test get_next_retry_time preserves timezone awareness."""
+        base_time = datetime(2025, 10, 15, 12, 0, 0, tzinfo=timezone.utc)
+        next_time = get_next_retry_time(attempt=1, base_time=base_time)
+
+        # Verify timezone is preserved
+        self.assertIsNotNone(next_time.tzinfo)
+        self.assertEqual(next_time.tzinfo, timezone.utc)
 
 
 if __name__ == "__main__":

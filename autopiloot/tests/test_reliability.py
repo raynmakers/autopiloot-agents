@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 # Add core directory to path for imports
-from reliability import (
+from core.reliability import (
     create_dlq_entry, should_retry_job, calculate_backoff_delay,
     create_quota_status, is_quota_exhausted, get_next_reset_time,
     create_checkpoint, should_pause_for_quota, get_resume_time,
