@@ -13,6 +13,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from collections import defaultdict
 
+# Import time utilities for standardized timestamp handling
+from time_utils import now, to_iso8601_z
+
 # Add config directory to path
 
 # In-memory metrics store (could be replaced with Firestore/Redis in production)
@@ -92,7 +95,7 @@ def emit_retrieval_event(
         # Store retrieval event
         event = {
             "trace_id": trace_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": to_iso8601_z(now()),
             "query": query,
             "filters": filters,
             "total_results": total_results,
@@ -172,7 +175,7 @@ def emit_ingest_event(
             "type": "ingest",
             "operation": operation,
             "video_id": video_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": to_iso8601_z(now()),
             "chunk_count": chunk_count,
             "sinks_used": sinks_used,
             "success_count": success_count,
@@ -291,7 +294,7 @@ def get_metrics_summary(time_window_minutes: int = 60) -> dict:
     """
     try:
         # Filter events within time window
-        cutoff_time = datetime.utcnow().timestamp() - (time_window_minutes * 60)
+        cutoff_time = now().timestamp() - (time_window_minutes * 60)
 
         retrieval_events = [
             e for e in _metrics_store["retrieval_events"]

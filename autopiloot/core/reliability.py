@@ -8,6 +8,9 @@ import os
 import json
 import time
 from datetime import datetime, timezone, timedelta
+
+# Import time utilities for standardized timestamp handling
+from core.time_utils import now, to_iso8601_z
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -277,7 +280,7 @@ def create_dlq_entry(
         "reason": reason,
         "retry_count": retry_count,
         "error_details": error_details or {},
-        "last_error_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        "last_error_at": to_iso8601_z(now())
     }
 
 

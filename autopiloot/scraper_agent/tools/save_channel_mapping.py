@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
+from firestore_client import get_firestore_client
+from core.time_utils import now, to_iso8601_z
 
 load_dotenv()
 
@@ -122,7 +124,7 @@ class SaveChannelMapping(BaseTool):
 
             # Get current document to check if it exists
             doc = doc_ref.get()
-            current_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            current_time = to_iso8601_z(now())
 
             if doc.exists:
                 # Update existing document

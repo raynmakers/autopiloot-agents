@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 from scraper_agent.tools.remove_sheet_row import RemoveSheetRow
+from firestore_client import get_firestore_client
+from core.time_utils import now, to_iso8601_z
 
 load_dotenv()
 
@@ -170,7 +172,7 @@ class MarkSheetRowsProcessed(BaseTool):
 
     def _mark_videos_processed(self, db, rows_info: List[Dict]) -> None:
         """Update Firestore to mark videos as processed."""
-        current_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        current_time = to_iso8601_z(now())
 
         for info in rows_info:
             try:

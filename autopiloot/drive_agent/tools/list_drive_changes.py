@@ -17,6 +17,7 @@ import fnmatch
 
 # Add config directory to path
 from env_loader import get_required_env_var
+from core.time_utils import parse_iso8601_z
 
 
 class ListDriveChanges(BaseTool):
@@ -92,18 +93,8 @@ class ListDriveChanges(BaseTool):
         return False
 
     def _parse_iso_timestamp(self, iso_string: str) -> datetime:
-        """Parse ISO 8601 timestamp string to datetime object."""
-        try:
-            # Handle various ISO formats
-            if iso_string.endswith('Z'):
-                return datetime.fromisoformat(iso_string.replace('Z', '+00:00'))
-            elif '+' in iso_string or iso_string.count('-') > 2:
-                return datetime.fromisoformat(iso_string)
-            else:
-                # Assume UTC if no timezone info
-                return datetime.fromisoformat(iso_string).replace(tzinfo=timezone.utc)
-        except ValueError as e:
-            raise ValueError(f"Invalid ISO timestamp format: {iso_string}. Error: {str(e)}")
+        """Parse ISO 8601 timestamp string to datetime object using centralized helper."""
+        return parse_iso8601_z(iso_string)
 
     def _get_file_changes(self, service, file_id: str) -> Dict[str, Any]:
         """Get changes for a specific file ID."""
@@ -129,7 +120,7 @@ class ListDriveChanges(BaseTool):
             if not modified_time_str:
                 return None
 
-            modified_time = datetime.fromisoformat(modified_time_str.replace('Z', '+00:00'))
+            modified_time = parse_iso8601_z(modified_time_str)
 
             # Check if file was modified since checkpoint
             if self.since_iso:
