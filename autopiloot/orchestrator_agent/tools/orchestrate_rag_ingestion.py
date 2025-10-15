@@ -24,6 +24,7 @@ from env_loader import get_required_env_var
 from firestore_client import get_firestore_client
 from loader import load_app_config
 from audit_logger import audit_logger
+from core.idempotency import FirestoreExistenceChecker
 
 load_dotenv()
 
@@ -190,20 +191,18 @@ class OrchestrateRagIngestion(BaseTool):
             })
 
     def _load_transcript_data(self, db) -> Dict[str, Any]:
-        """Load transcript text and video metadata from Firestore."""
+        """Load transcript text and video metadata from Firestore using centralized helpers."""
         try:
-            # Load transcript
-            transcript_ref = db.collection('transcripts').document(self.video_id)
-            transcript_doc = transcript_ref.get()
+            # Load transcript using centralized helper
+            transcript_data = FirestoreExistenceChecker.get_transcript_data(self.video_id, db)
 
-            if not transcript_doc.exists:
+            if not transcript_data:
                 return {
                     "error": "transcript_not_found",
                     "message": f"No transcript found for video {self.video_id}",
                     "video_id": self.video_id
                 }
 
-            transcript_data = transcript_doc.to_dict()
             transcript_text = transcript_data.get('transcript_text')
 
             if not transcript_text:
@@ -213,13 +212,11 @@ class OrchestrateRagIngestion(BaseTool):
                     "video_id": self.video_id
                 }
 
-            # Load video metadata
-            video_ref = db.collection('videos').document(self.video_id)
-            video_doc = video_ref.get()
+            # Load video metadata using centralized helper
+            video_data = FirestoreExistenceChecker.get_video_data(self.video_id, db)
 
             video_metadata = {}
-            if video_doc.exists:
-                video_data = video_doc.to_dict()
+            if video_data:
                 video_metadata = {
                     "title": video_data.get('title'),
                     "channel_id": video_data.get('channel_id'),
