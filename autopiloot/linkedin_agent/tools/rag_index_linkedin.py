@@ -14,8 +14,6 @@ from typing import Optional
 from pydantic import Field
 
 # Add parent directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from agency_swarm.tools import BaseTool
 from core.rag.ingest_document import ingest
 
@@ -143,7 +141,7 @@ class RagIndexLinkedin(BaseTool):
                 ])
 
             # Call core library
-            print(f"=å Indexing LinkedIn {self.content_type} {self.post_or_comment_id} to Hybrid RAG...")
+            print(f"=Ã¥ Indexing LinkedIn {self.content_type} {self.post_or_comment_id} to Hybrid RAG...")
             result = ingest(payload)
 
             # Rename document_id to linkedin_id for clarity
@@ -154,7 +152,7 @@ class RagIndexLinkedin(BaseTool):
             if result.get("status") == "success":
                 print(f"    Indexed {result.get('chunk_count', 0)} chunks successfully")
             elif result.get("status") == "partial":
-                print(f"     Partial indexing: {result.get('message')}")
+                print(f"   Â  Partial indexing: {result.get('message')}")
             else:
                 print(f"   L Indexing failed: {result.get('message')}")
 
@@ -221,7 +219,7 @@ if __name__ == "__main__":
     tool = RagIndexLinkedin(
         post_or_comment_id="linkedin_post_abc123",
         text="""
-        =€ Key lessons from scaling our SaaS to $10M ARR:
+        =Â€ Key lessons from scaling our SaaS to $10M ARR:
 
         1. Unit economics BEFORE growth
            - Know your CAC, LTV, payback period
@@ -298,14 +296,14 @@ if __name__ == "__main__":
         text="""
         After analyzing 500+ SaaS companies, here's what separates the winners from the rest:
 
-        =Ê UNIT ECONOMICS MASTERY
+        =ÃŠ UNIT ECONOMICS MASTERY
         Winners know their numbers cold:
         - CAC: $1,200 (industry avg: $2,000)
         - LTV: $6,000 (industry avg: $4,000)
         - LTV:CAC ratio: 5:1 (industry avg: 2:1)
         - Payback period: 6 months (industry avg: 14 months)
 
-        <¯ HIRING PHILOSOPHY
+        <Â¯ HIRING PHILOSOPHY
         A-players compound. B-players don't.
         - Rigorous interview process (5-7 rounds)
         - Practical assessments (real work samples)
@@ -313,7 +311,7 @@ if __name__ == "__main__":
         - Scorecards for every role
         - Higher compensation = lower total cost
 
-        ™ SYSTEMS THINKING
+        Â™ SYSTEMS THINKING
         Build systems before you need them:
         - Document every process
         - Create playbooks for key functions
@@ -321,7 +319,7 @@ if __name__ == "__main__":
         - Build dashboards for visibility
         - Track leading indicators, not lagging
 
-        =¡ KEY INSIGHT
+        =Â¡ KEY INSIGHT
         Most founders scale too early. They try to grow before they have the fundamentals right.
         Get your unit economics profitable, hire slowly but pay well, and build systems as you go.
 

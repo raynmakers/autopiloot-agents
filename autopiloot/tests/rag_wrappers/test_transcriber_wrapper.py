@@ -13,8 +13,6 @@ from unittest.mock import patch, MagicMock
 import importlib.util
 
 # Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestRagIndexTranscriptWrapper(unittest.TestCase):
     """Test suite for RagIndexTranscript tool wrapper."""

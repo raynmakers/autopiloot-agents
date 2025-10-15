@@ -11,8 +11,6 @@ from unittest.mock import patch, Mock, MagicMock
 from io import StringIO
 
 # Add the linkedin_agent tools directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'linkedin_agent', 'tools'))
-
 
 class TestGetUserCommentActivityDirectExecution(unittest.TestCase):
     """Test GetUserCommentActivity by direct execution with controlled environment."""

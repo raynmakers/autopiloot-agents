@@ -9,8 +9,6 @@ import os
 import sys
 from typing import Dict
 
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-
 from hashing import sha256_hex
 from zep_upsert import upsert_transcript as upsert_content
 

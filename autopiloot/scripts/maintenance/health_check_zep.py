@@ -25,8 +25,6 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class ZepHealthChecker:
     """Health check for Zep memory store."""

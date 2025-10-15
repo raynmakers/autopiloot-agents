@@ -18,9 +18,6 @@ from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import load_environment
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger

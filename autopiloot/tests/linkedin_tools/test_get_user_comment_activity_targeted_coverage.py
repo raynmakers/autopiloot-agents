@@ -11,8 +11,6 @@ from unittest.mock import patch, Mock, MagicMock
 import requests
 
 # Add the linkedin_agent tools directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'linkedin_agent', 'tools'))
-
 
 class TestGetUserCommentActivityTargetedCoverage(unittest.TestCase):
     """Targeted test suite to achieve high coverage of GetUserCommentActivity tool."""

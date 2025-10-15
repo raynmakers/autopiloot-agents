@@ -11,8 +11,6 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestExtractTextFromDocumentIntegration(unittest.TestCase):
     """Integration test cases for ExtractTextFromDocument tool."""

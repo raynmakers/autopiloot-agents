@@ -15,9 +15,6 @@ class TestFormatSlackBlocks100Coverage(unittest.TestCase):
     def test_exception_handling_lines_107_108(self):
         """Test exception handling in run method to cover lines 107-108."""
         # Add path setup
-        sys.path.insert(0, '.')
-        sys.path.insert(0, 'observability_agent/tools')
-
         # Mock only the essential external dependencies
         with patch.dict('sys.modules', {
             'agency_swarm': MagicMock(),
@@ -56,9 +53,6 @@ class TestFormatSlackBlocks100Coverage(unittest.TestCase):
     def test_successful_execution_with_all_fields(self):
         """Test successful execution with all possible fields to ensure full coverage."""
         # Add path setup
-        sys.path.insert(0, '.')
-        sys.path.insert(0, 'observability_agent/tools')
-
         # Mock dependencies
         with patch.dict('sys.modules', {
             'agency_swarm': MagicMock(),
@@ -104,9 +98,6 @@ class TestFormatSlackBlocks100Coverage(unittest.TestCase):
     def test_minimal_execution_with_defaults(self):
         """Test minimal execution path with default values."""
         # Add path setup
-        sys.path.insert(0, '.')
-        sys.path.insert(0, 'observability_agent/tools')
-
         # Mock dependencies
         with patch.dict('sys.modules', {
             'agency_swarm': MagicMock(),

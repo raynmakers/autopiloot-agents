@@ -11,8 +11,6 @@ from typing import List, Dict
 from datetime import datetime
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_optional_env_var
 
 

@@ -14,8 +14,6 @@ from agency_swarm.tools import BaseTool
 import base64
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import get_config_value
 
 # Optional imports for content extraction

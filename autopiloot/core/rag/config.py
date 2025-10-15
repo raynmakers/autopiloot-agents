@@ -10,8 +10,6 @@ import sys
 from typing import Any, Optional
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import get_config_value as _get_config_value
 
 

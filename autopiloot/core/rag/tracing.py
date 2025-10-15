@@ -14,8 +14,6 @@ from datetime import datetime
 from collections import defaultdict
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 
 # In-memory metrics store (could be replaced with Firestore/Redis in production)
 _metrics_store = {

@@ -17,8 +17,6 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
 # Add parent directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import get_config_value
 
 

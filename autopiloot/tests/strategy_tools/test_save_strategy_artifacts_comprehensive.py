@@ -9,8 +9,6 @@ import os
 from datetime import datetime, timezone
 
 # Set up path
-sys.path.insert(0, '.')
-
 
 class TestSaveStrategyArtifactsComprehensive(unittest.TestCase):
     """Additional comprehensive tests for missing coverage lines"""

@@ -15,9 +15,6 @@ from dotenv import load_dotenv
 from google.cloud import firestore
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var
 
 load_dotenv()

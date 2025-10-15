@@ -12,9 +12,6 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 # Add config and core directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from env_loader import get_optional_env_var
 
 

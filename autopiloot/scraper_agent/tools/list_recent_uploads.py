@@ -16,9 +16,6 @@ from google.oauth2 import service_account
 from googleapiclient.errors import HttpError
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var, get_optional_env_var
 from config.loader import get_config_value
 

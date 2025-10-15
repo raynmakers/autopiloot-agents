@@ -14,8 +14,6 @@ from typing import Optional, Dict, Any
 from pydantic import Field
 
 # Add parent directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from agency_swarm.tools import BaseTool
 from core.rag.hybrid_retrieve import search
 

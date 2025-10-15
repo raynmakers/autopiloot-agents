@@ -12,8 +12,6 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 
 def enforce_policy(results: List[dict], policy_context: Optional[Dict[str, Any]] = None) -> dict:
     """

@@ -11,7 +11,6 @@ import yaml
 from pathlib import Path
 
 # Add config directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
 from loader import load_app_config, ConfigValidationError, _validate_config
 
 

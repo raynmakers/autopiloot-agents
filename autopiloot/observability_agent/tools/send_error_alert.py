@@ -8,9 +8,6 @@ from google.cloud import firestore
 from agency_swarm.tools import BaseTool
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
@@ -23,8 +20,6 @@ except ImportError:
     import sys
     import os
     tools_path = os.path.dirname(__file__)
-    sys.path.insert(0, tools_path)
-    
     from format_slack_blocks import FormatSlackBlocks
     from send_slack_message import SendSlackMessage
 

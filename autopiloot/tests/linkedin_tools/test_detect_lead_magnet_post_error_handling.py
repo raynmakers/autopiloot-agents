@@ -12,8 +12,6 @@ import json
 import importlib.util
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDetectLeadMagnetPostErrorHandling(unittest.TestCase):
     """Error handling and edge case tests for lead magnet detection."""

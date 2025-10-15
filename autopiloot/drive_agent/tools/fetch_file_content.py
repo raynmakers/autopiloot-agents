@@ -17,8 +17,6 @@ import base64
 import mimetypes
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
 from loader import get_config_value
 

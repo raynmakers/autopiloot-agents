@@ -11,8 +11,6 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDriveAgentExecCoverage(unittest.TestCase):
     """Test class that uses exec to run drive_agent.py code directly."""

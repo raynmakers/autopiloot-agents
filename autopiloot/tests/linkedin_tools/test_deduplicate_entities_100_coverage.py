@@ -673,7 +673,6 @@ class TestDeduplicateEntities100Coverage(unittest.TestCase):
             # Run the tool's main block
             result = subprocess.run([
                 sys.executable, "-c",
-                "import sys; sys.path.append('.'); "
                 "from linkedin_agent.tools.deduplicate_entities import DeduplicateEntities; "
                 "import json; "
                 "test_entities = [{'id': 'post_123', 'text': 'Test', 'created_at': '2024-01-15T10:00:00Z', 'metrics': {'likes': 100}}]; "

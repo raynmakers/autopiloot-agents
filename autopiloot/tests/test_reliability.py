@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 # Add core directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'core'))
 from reliability import (
     create_dlq_entry, should_retry_job, calculate_backoff_delay,
     create_quota_status, is_quota_exhausted, get_next_reset_time,

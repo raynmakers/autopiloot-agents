@@ -14,10 +14,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from google.cloud import firestore
 
 load_dotenv()

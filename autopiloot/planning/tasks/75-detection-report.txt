@@ -2,7 +2,7 @@
 TASK-0075: Environment and Config Loading Pattern Detection
 ================================================================================
 
-1. Direct os.getenv Usage: 35 occurrences
+1. Direct os.getenv Usage: 19 occurrences
 --------------------------------------------------------------------------------
 
 core/
@@ -13,14 +13,6 @@ core/
   time_utils.py:16
     → return os.getenv(name, default)
 
-drive_agent/tools/
-  upsert_drive_docs_to_zep.py:261
-    → zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-
-scraper_agent/tools/
-  list_recent_uploads.py:331
-    → service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
 scripts/
   detect_env_config_patterns.py:6
     → 1. Direct os.getenv usage (excluding config/env_loader.py which is the source of truth)
@@ -28,102 +20,68 @@ scripts/
     → --fix-agent-tools    Automatically fix os.getenv in agent tools (dry run by default)
   detect_env_config_patterns.py:71
     → if "os.getenv" in line and not line.strip().startswith("#"):
-  detect_env_config_patterns.py:110
+  detect_env_config_patterns.py:109
     → report_lines.append(f"1. Direct os.getenv Usage: {len(os_getenv_matches)} occurrences")
-  detect_env_config_patterns.py:130
+  detect_env_config_patterns.py:129
     → report_lines.append("  ✓ No direct os.getenv usage found!")
-  detect_env_config_patterns.py:179
+  detect_env_config_patterns.py:176
     → report_lines.append(f"  - os.getenv usage: {total_os_getenv}")
-  detect_env_config_patterns.py:184
+  detect_env_config_patterns.py:181
     → report_lines.append("Priority 1: Fix os.getenv Usage")
-  detect_env_config_patterns.py:188
+  detect_env_config_patterns.py:185
     → report_lines.append("    Before: os.getenv('API_KEY')")
 
-strategy_agent/tools/
-  generate_content_briefs.py:320
-    → api_key = os.getenv("OPENAI_API_KEY")
-  save_strategy_artifacts.py:276
-    → service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-  save_strategy_artifacts.py:300
-    → service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-  save_strategy_artifacts.py:323
-    → zep_api_key = os.getenv("ZEP_API_KEY")
-  save_strategy_artifacts.py:324
-    → zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-  analyze_tone_of_voice.py:603
-    → api_key = os.getenv("OPENAI_API_KEY")
-  fetch_corpus_from_zep.py:96
-    → zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-  synthesize_strategy_playbook.py:672
-    → api_key = os.getenv("OPENAI_API_KEY")
-
-summarizer_agent/tools/
-  generate_short_summary.py:49
-    → openai_api_key = os.getenv("OPENAI_API_KEY")
-  generate_short_summary.py:50
-    → project_id = os.getenv("GCP_PROJECT_ID")
-  store_short_in_zep.py:86
-    → zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-  store_short_in_zep.py:389
-    → project_id = os.getenv("GCP_PROJECT_ID")
-  save_summary_record.py:111
-    → project_id = os.getenv("GCP_PROJECT_ID")
-
 tests/orchestrator_tools/
-  test_orchestrate_rag_ingestion.py:70
+  test_orchestrate_rag_ingestion.py:68
     → mock_env_loader.get_required_env_var = MagicMock(side_effect=lambda key, desc='': os.getenv(key))
 
 tests/strategy_tools/
-  test_synthesize_strategy_playbook_comprehensive.py:308
+  test_synthesize_strategy_playbook_comprehensive.py:306
     → with patch('os.getenv', return_value=None):  # No API key
-  test_synthesize_strategy_playbook_comprehensive.py:330
+  test_synthesize_strategy_playbook_comprehensive.py:328
     → @patch('os.getenv')
-  test_synthesize_strategy_playbook_comprehensive.py:360
+  test_synthesize_strategy_playbook_comprehensive.py:358
     → @patch('os.getenv')
 
 tests/summarizer_tools/
-  test_zep_firestore_dedup.py:50
+  test_zep_firestore_dedup.py:48
     → mock_env_loader.get_required_env_var = MagicMock(side_effect=lambda key, desc='': os.getenv(key))
 
 transcriber_agent/tools/
-  poll_transcription_job.py:89
+  save_transcript_record.py:199
     → api_key = os.getenv("ASSEMBLYAI_API_KEY")
-  save_transcript_record.py:202
+  submit_assemblyai_job.py:141
     → api_key = os.getenv("ASSEMBLYAI_API_KEY")
-  submit_assemblyai_job.py:144
-    → api_key = os.getenv("ASSEMBLYAI_API_KEY")
-  submit_assemblyai_job.py:170
+  submit_assemblyai_job.py:167
     → webhook_secret = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
 
 
-2. sys.path Manipulation: 220 occurrences
+2. sys.path Manipulation: 19 occurrences
 --------------------------------------------------------------------------------
 
-Agent Tools (123 files):
-  Pattern: sys.path.append for config/core imports
+Agent Tools (3 files):
   Recommendation: Use PYTHONPATH=. or package structure improvements
-  Example: transcriber_agent/tools/get_video_audio_url.py:44
+  Example: transcriber_agent/tools/save_transcript_record.py:199
 
-Test Files (68 files):
-  Pattern: sys.path.insert for importing modules under test
+Test Files (5 files):
   Recommendation: Use pytest with proper PYTHONPATH configuration
-  Example: tests/test_reliability.py:13
+  Example: tests/strategy_tools/test_synthesize_strategy_playbook_comprehensive.py:306
 
-Other Files (29 files):
-  core/rate_limiter.py:29
-  core/audit_logger.py:14
-  scripts/detect_env_config_patterns.py:83
-  scripts/detect_env_config_patterns.py:148
-  scripts/detect_env_config_patterns.py:154
+Other Files (11 files):
+  core/sheets.py:20
+  core/slack_utils.py:18
+  core/time_utils.py:16
+  scripts/detect_env_config_patterns.py:6
+  scripts/detect_env_config_patterns.py:14
 
 
 ================================================================================
 SUMMARY & RECOMMENDATIONS
 ================================================================================
 
-Total Issues: 255
-  - os.getenv usage: 35
-  - sys.path manipulation: 220
+Total Issues: 38
+  - os.getenv usage: 19
+  - sys.path manipulation: 19
 
 Priority 1: Fix os.getenv Usage
   Estimated effort: 1-2 hours

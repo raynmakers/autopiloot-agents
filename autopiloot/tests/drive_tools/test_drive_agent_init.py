@@ -10,8 +10,6 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDriveAgentInit(unittest.TestCase):
     """Test cases for drive_agent package initialization."""

@@ -11,8 +11,6 @@ from pydantic import Field
 from agency_swarm.tools import BaseTool
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import load_app_config, get_config_value
 
 

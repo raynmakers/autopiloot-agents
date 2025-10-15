@@ -20,9 +20,6 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
 from loader import load_app_config
 from audit_logger import audit_logger
@@ -404,7 +401,6 @@ class OrchestrateRagIngestion(BaseTool):
         """Route failed operation to DLQ and send alert."""
         try:
             # Import HandleDLQ tool
-            sys.path.append(os.path.join(os.path.dirname(__file__)))
             from handle_dlq import HandleDLQ
 
             # Create DLQ entry
@@ -439,7 +435,6 @@ class OrchestrateRagIngestion(BaseTool):
 
         try:
             # Send error alert
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
             from send_rag_error_alert import SendRagErrorAlert
 
             alerter = SendRagErrorAlert(

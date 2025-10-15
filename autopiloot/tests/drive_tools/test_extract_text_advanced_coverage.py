@@ -15,8 +15,6 @@ from unittest.mock import patch, MagicMock, mock_open
 import importlib.util
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestExtractTextAdvancedCoverage(unittest.TestCase):
     """Advanced coverage tests for ExtractTextFromDocument tool."""

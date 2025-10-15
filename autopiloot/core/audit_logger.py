@@ -11,8 +11,6 @@ from typing import Dict, Any, Optional
 from google.cloud import firestore
 
 # Add config directory to path for configuration imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-
 from env_loader import get_required_env_var
 
 

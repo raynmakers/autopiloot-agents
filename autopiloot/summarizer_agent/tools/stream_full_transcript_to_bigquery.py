@@ -24,8 +24,6 @@ from pydantic import Field
 from agency_swarm.tools import BaseTool
 
 # Add parent directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from core.rag.ingest_transcript import ingest
 
 

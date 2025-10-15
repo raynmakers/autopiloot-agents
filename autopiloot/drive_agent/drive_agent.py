@@ -10,8 +10,6 @@ from agency_swarm import Agent, ModelSettings
 
 # Add config directory to path for imports
 config_dir = Path(__file__).parent.parent / "config"
-sys.path.append(str(config_dir))
-
 try:
     from loader import load_app_config
     config = load_app_config()

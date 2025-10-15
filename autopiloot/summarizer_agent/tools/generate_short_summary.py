@@ -9,8 +9,6 @@ from google.cloud import firestore
 from agency_swarm.tools import BaseTool
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var
 
 

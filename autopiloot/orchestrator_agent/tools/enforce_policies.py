@@ -14,8 +14,6 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import (
     load_app_config,
     get_retry_max_attempts,

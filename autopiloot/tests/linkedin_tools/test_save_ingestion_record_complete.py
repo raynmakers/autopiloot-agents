@@ -11,8 +11,6 @@ from unittest.mock import Mock, MagicMock, patch, call
 from datetime import datetime, timezone
 
 # Add the path to import the tool directly
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
-
 
 class TestSaveIngestionRecordComplete(unittest.TestCase):
     """Complete test coverage for SaveIngestionRecord achieving 100% coverage."""

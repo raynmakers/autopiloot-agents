@@ -11,8 +11,6 @@ import importlib.util
 from unittest.mock import patch, MagicMock
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDriveAgentExceptionPath(unittest.TestCase):
     """Test to cover the exception path in drive_agent.py lines 22-26."""

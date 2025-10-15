@@ -10,8 +10,6 @@ from agency_swarm import Agent, ModelSettings
 
 # Add config directory to path for imports
 config_dir = Path(__file__).parent.parent / "config"
-sys.path.append(str(config_dir))
-
 # Import output guardrail for Agency Swarm v1.2.0
 from core.guardrails import validate_orchestrator_output
 

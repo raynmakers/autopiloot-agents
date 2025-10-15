@@ -9,7 +9,6 @@ import unittest
 from datetime import datetime
 
 # Add core directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'core'))
 from sheets import (
     extract_youtube_urls_from_text,
     parse_sheet_row,
