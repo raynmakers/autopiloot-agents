@@ -49,7 +49,7 @@ class EnqueueTranscription(BaseTool):
         """
         try:
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
             
             # Load configuration for business rules
             config = load_app_config()
@@ -161,30 +161,6 @@ class EnqueueTranscription(BaseTool):
                 "job_id": None
             })
     
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID", 
-                "Google Cloud Project ID for Firestore"
-            )
-            
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS", 
-                "Google service account credentials file path"
-            )
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
 
 if __name__ == "__main__":
     # Test the tool with both videos

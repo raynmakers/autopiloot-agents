@@ -85,30 +85,6 @@ class SubmitAssemblyAIJob(BaseTool):
             raise ValueError(f"Invalid webhook URL: {v}. Must start with http:// or https://")
         return v
 
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
     def run(self) -> str:
         """
         Submit transcription job to AssemblyAI with duration validation and cost estimation.
@@ -191,7 +167,7 @@ class SubmitAssemblyAIJob(BaseTool):
             # Update Firestore job record if job_id provided
             if self.job_id:
                 try:
-                    db = self._initialize_firestore()
+                    db = get_firestore_client()
                     job_ref = db.collection('jobs_transcription').document(self.job_id)
 
                     # Update job with AssemblyAI details

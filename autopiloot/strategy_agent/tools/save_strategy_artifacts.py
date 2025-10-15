@@ -14,6 +14,7 @@ from pydantic import Field
 
 # Add core and config directories to path
 from env_loader import get_required_env_var, get_optional_env_var, load_environment
+from firestore_client import get_firestore_client
 from loader import load_app_config, get_config_value
 
 
@@ -289,30 +290,6 @@ class SaveStrategyArtifacts(BaseTool):
             return MockDriveClient()
         except Exception as e:
             return MockDriveClient()
-
-    def _initialize_firestore_client(self):
-        """Initialize Firestore client."""
-        try:
-            # Check for service account credentials
-            service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Firestore")
-            if not service_account_path or not os.path.exists(service_account_path):
-                return MockFirestoreClient()
-
-            import firebase_admin
-            from firebase_admin import credentials, firestore
-
-            # Initialize Firebase if not already done
-            if not firebase_admin._apps:
-                cred = credentials.Certificate(service_account_path)
-                firebase_admin.initialize_app(cred)
-
-            db = firestore.client()
-            return FirestoreClient(db)
-
-        except ImportError:
-            return MockFirestoreClient()
-        except Exception as e:
-            return MockFirestoreClient()
 
     def _initialize_zep_client(self):
         """Initialize Zep client."""

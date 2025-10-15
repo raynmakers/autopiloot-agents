@@ -47,7 +47,7 @@ class MarkSheetRowsProcessed(BaseTool):
         """
         try:
             # Initialize Firestore
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Query for videos that are ready for cleanup
             videos_ref = db.collection('videos')
@@ -181,30 +181,6 @@ class MarkSheetRowsProcessed(BaseTool):
             except Exception as e:
                 # Log but don't fail the whole operation
                 print(f"Warning: Failed to mark video {info['video_id']} as processed: {str(e)}")
-
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
 
 
 if __name__ == "__main__":

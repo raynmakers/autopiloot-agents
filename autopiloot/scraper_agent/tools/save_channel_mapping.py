@@ -115,7 +115,7 @@ class SaveChannelMapping(BaseTool):
                     })
 
             # Step 3: Initialize Firestore
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Step 4: Upsert channel mapping
             doc_ref = db.collection('channels').document(self.channel_id)
@@ -222,29 +222,6 @@ class SaveChannelMapping(BaseTool):
             existing_handles.append(new_handle)
 
         return existing_handles
-
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required environment variables
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
 
 
 if __name__ == "__main__":

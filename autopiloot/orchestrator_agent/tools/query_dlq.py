@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 # Add core and config directories to path
 from env_loader import get_required_env_var
+from firestore_client import get_firestore_client
 from loader import load_app_config
 
 load_dotenv()
@@ -78,7 +79,7 @@ class QueryDLQ(BaseTool):
             self._validate_inputs()
             
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
             
             # Build query with filters
             query = db.collection('jobs_deadletter')
@@ -244,20 +245,6 @@ class QueryDLQ(BaseTool):
             "top_error_patterns": [{"error_type": error, "count": count} for error, count in top_errors]
         }
     
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            project_id = get_required_env_var("GCP_PROJECT_ID", "Google Cloud Project ID for Firestore")
-            credentials_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials file path")
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            return firestore.Client(project=project_id)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
 
 if __name__ == "__main__":
     # Test querying all DLQ entries

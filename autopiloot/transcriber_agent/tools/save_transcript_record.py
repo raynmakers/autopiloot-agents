@@ -75,30 +75,6 @@ class SaveTranscriptRecord(BaseTool):
 
         return v
 
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
     def run(self) -> str:
         """
         Store transcript data to Firestore transcripts collection.
@@ -126,7 +102,7 @@ class SaveTranscriptRecord(BaseTool):
 
         try:
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Generate transcript digest for verification
             transcript_digest = hashlib.sha256(self.transcript_text.encode('utf-8')).hexdigest()[:16]

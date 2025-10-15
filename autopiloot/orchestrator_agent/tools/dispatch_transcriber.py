@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 # Add core and config directories to path
 from env_loader import get_required_env_var
+from firestore_client import get_firestore_client
 from loader import load_app_config
 from audit_logger import audit_logger
 
@@ -72,7 +73,7 @@ class DispatchTranscriber(BaseTool):
                 })
             
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
             
             # Generate job ID with timestamp for idempotency
             current_time = datetime.now(timezone.utc)
@@ -217,20 +218,6 @@ class DispatchTranscriber(BaseTool):
             return "low"  # Batch jobs are typically lower priority
         return "low"
     
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            project_id = get_required_env_var("GCP_PROJECT_ID", "Google Cloud Project ID for Firestore")
-            credentials_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials file path")
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            return firestore.Client(project=project_id)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
 
 if __name__ == "__main__":
     # Test single video transcription dispatch
