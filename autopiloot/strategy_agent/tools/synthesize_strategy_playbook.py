@@ -669,10 +669,11 @@ class LLMPlaybookSynthesizer:
         """Initialize OpenAI client."""
         try:
             import openai
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
+            try:
+                api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for strategy playbook synthesis")
                 self.client = openai.OpenAI(api_key=api_key)
-            else:
+            except EnvironmentError:
+                # Fall back to mock client if API key not configured
                 self.client = MockLLMClient()
         except ImportError:
             self.client = MockLLMClient()

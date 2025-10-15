@@ -16,7 +16,7 @@ from pydantic import Field
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
 from loader import load_app_config, get_config_value
 
 
@@ -273,7 +273,7 @@ class SaveStrategyArtifacts(BaseTool):
         """Initialize Google Drive client."""
         try:
             # Check for service account credentials
-            service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Drive storage")
             if not service_account_path or not os.path.exists(service_account_path):
                 return MockDriveClient()
 
@@ -297,7 +297,7 @@ class SaveStrategyArtifacts(BaseTool):
         """Initialize Firestore client."""
         try:
             # Check for service account credentials
-            service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Firestore")
             if not service_account_path or not os.path.exists(service_account_path):
                 return MockFirestoreClient()
 
@@ -320,11 +320,12 @@ class SaveStrategyArtifacts(BaseTool):
     def _initialize_zep_client(self):
         """Initialize Zep client."""
         try:
-            zep_api_key = os.getenv("ZEP_API_KEY")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-
-            if not zep_api_key:
+            try:
+                zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for strategy artifact storage")
+            except EnvironmentError:
                 return MockZepClient()
+
+            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL")
 
             from zep_python import ZepClient
             return ZepClient(api_key=zep_api_key, base_url=zep_base_url)

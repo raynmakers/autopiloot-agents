@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 from typing import Dict, Any
@@ -6,6 +7,12 @@ from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
 from dotenv import load_dotenv
+
+# Add core and config directories to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+
+from config.env_loader import get_required_env_var
 
 load_dotenv()
 
@@ -86,14 +93,14 @@ class PollTranscriptionJob(BaseTool):
             - polling_attempts: Number of attempts made
         """
         # Initialize AssemblyAI with API key
-        api_key = os.getenv("ASSEMBLYAI_API_KEY")
-        if not api_key:
+        try:
+            api_key = get_required_env_var("ASSEMBLYAI_API_KEY", "AssemblyAI API key for transcription polling")
+            aai.settings.api_key = api_key
+        except EnvironmentError as e:
             return json.dumps({
                 "error": "configuration_error",
-                "message": "ASSEMBLYAI_API_KEY environment variable is required"
+                "message": str(e)
             })
-        
-        aai.settings.api_key = api_key
         
         try:
             start_time = time.time()

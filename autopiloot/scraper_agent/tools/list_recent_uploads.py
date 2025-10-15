@@ -19,7 +19,7 @@ from googleapiclient.errors import HttpError
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from config.env_loader import get_required_env_var
+from config.env_loader import get_required_env_var, get_optional_env_var
 from config.loader import get_config_value
 
 # Firebase Admin SDK for checkpoint persistence
@@ -328,7 +328,7 @@ class ListRecentUploads(BaseTool):
             
             # Try service account authentication first (if available)
             try:
-                service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials for YouTube API")
                 if service_account_path and os.path.exists(service_account_path):
                     credentials = service_account.Credentials.from_service_account_file(
                         service_account_path,

@@ -16,7 +16,7 @@ from pydantic import Field
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
 
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
 from loader import load_app_config, get_config_value
 
 
@@ -258,7 +258,7 @@ class UpsertDriveDocsToZep(BaseTool):
 
             # Get Zep configuration
             zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for GraphRAG")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
+            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL for document indexing")
 
             # Get Drive Zep namespace
             if self.namespace:

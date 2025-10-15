@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import hashlib
 from typing import List, Optional, Dict
@@ -6,6 +7,11 @@ from pydantic import Field, field_validator
 from google.cloud import firestore
 from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
+
+# Add config directory to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+
+from config.env_loader import get_required_env_var
 
 
 class SaveSummaryRecord(BaseTool):
@@ -108,11 +114,12 @@ class SaveSummaryRecord(BaseTool):
             - status: "stored" on success
         """
         # Validate required environment variables
-        project_id = os.getenv("GCP_PROJECT_ID")
-        if not project_id:
+        try:
+            project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for summary storage")
+        except EnvironmentError as e:
             return json.dumps({
                 "error": "configuration_error",
-                "message": "GCP_PROJECT_ID environment variable is required"
+                "message": str(e)
             })
 
         try:
