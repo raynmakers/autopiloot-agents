@@ -10,14 +10,12 @@ import io
 from typing import Dict, Any, Optional
 from pydantic import Field
 from agency_swarm.tools import BaseTool
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import base64
 import mimetypes
 
 # Add config directory to path
-from env_loader import get_required_env_var
+from core.drive import get_drive_service
 from loader import get_config_value
 
 # Optional imports for content extraction
@@ -61,22 +59,8 @@ class FetchFileContent(BaseTool):
     )
 
     def _get_drive_service(self):
-        """Initialize Google Drive API service."""
-        try:
-            # Get credentials path from environment
-            creds_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS")
-
-            # Create credentials from service account file
-            credentials = service_account.Credentials.from_service_account_file(
-                creds_path,
-                scopes=['https://www.googleapis.com/auth/drive.readonly']
-            )
-
-            # Build Drive service
-            service = build('drive', 'v3', credentials=credentials)
-            return service
-        except Exception as e:
-            raise Exception(f"Failed to initialize Drive service: {str(e)}")
+        """Initialize Google Drive API service using centralized factory."""
+        return get_drive_service(readonly=True)
 
     def _get_size_limit(self) -> int:
         """Get file size limit in bytes."""

@@ -276,15 +276,10 @@ class SaveStrategyArtifacts(BaseTool):
             if not service_account_path or not os.path.exists(service_account_path):
                 return MockDriveClient()
 
-            from google.oauth2 import service_account
-            from googleapiclient.discovery import build
+            from core.drive import get_drive_service
 
-            credentials = service_account.Credentials.from_service_account_file(
-                service_account_path,
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
-
-            service = build('drive', 'v3', credentials=credentials)
+            # Use centralized factory for full Drive access (not readonly)
+            service = get_drive_service(readonly=False)
             return DriveClient(service)
 
         except ImportError:
