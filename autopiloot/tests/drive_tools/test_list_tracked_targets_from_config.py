@@ -23,7 +23,8 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
             'agency_swarm': MagicMock(),
             'agency_swarm.tools': MagicMock(),
             'pydantic': MagicMock(),
-            'loader': MagicMock()
+            'loader': MagicMock(),
+            'core.json_response': MagicMock()
         }
 
         # Set up mocks
@@ -44,6 +45,14 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
             # Mock the loader imports
             module.load_app_config = MagicMock()
             module.get_config_value = MagicMock()
+
+            # Mock json_response functions to return actual JSON strings
+            module.ok = lambda data: json.dumps({"ok": True, "data": data, "error": None})
+            module.fail = lambda message, code="ERROR", details=None: json.dumps({
+                "ok": False,
+                "data": None,
+                "error": {"code": code, "message": message, "details": details} if details else {"code": code, "message": message}
+            })
 
             spec.loader.exec_module(module)
             return module
@@ -98,9 +107,14 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
         # Create tool instance with defaults
         tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
 
-        # Verify results
+        # Verify envelope structure
+        self.assertTrue(envelope["ok"])
+        self.assertIsNone(envelope["error"])
+
+        # Verify results in data field
+        result_data = envelope["data"]
         self.assertEqual(len(result_data["targets"]), 2)
         self.assertEqual(result_data["count"], 2)
         self.assertEqual(result_data["zep_namespace"], "test_drive_namespace")
@@ -115,7 +129,11 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig(include_defaults=False)
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        # Verify envelope structure
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         self.assertEqual(result_data["targets"], [])
         self.assertIn("No tracking targets configured", result_data["message"])
@@ -145,7 +163,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig(include_defaults=False)
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         self.assertNotIn("defaults", result_data)
         self.assertEqual(len(result_data["targets"]), 1)
@@ -175,7 +196,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig()
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         # Should only include valid targets
         self.assertEqual(len(result_data["targets"]), 2)
@@ -206,7 +230,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig()
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         self.assertEqual(result_data["targets"][0]["recursive"], True)
         self.assertEqual(result_data["targets"][1]["recursive"], False)
@@ -239,7 +266,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig()
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         target = result_data["targets"][0]
         self.assertEqual(target["include_patterns"], ["*.pdf", "*.doc*"])
@@ -252,11 +282,16 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig()
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
 
-        self.assertEqual(result_data["error"], "configuration_error")
-        self.assertIn("Config loading failed", result_data["message"])
-        self.assertEqual(result_data["details"]["type"], "Exception")
+        # Verify error envelope structure
+        self.assertFalse(envelope["ok"])
+        self.assertIsNone(envelope["data"])
+
+        error = envelope["error"]
+        self.assertEqual(error["code"], "CONFIGURATION_ERROR")
+        self.assertIn("Config loading failed", error["message"])
+        self.assertEqual(error["details"]["type"], "Exception")
 
     def test_default_values_extraction(self):
         """Test extraction of default values from configuration"""
@@ -280,7 +315,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         defaults = result_data["defaults"]
         self.assertEqual(defaults["sync_interval_minutes"], 45)
@@ -306,7 +344,10 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig()
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        self.assertTrue(envelope["ok"])
+        result_data = envelope["data"]
 
         # Should fall back to default namespace
         self.assertEqual(result_data["zep_namespace"], "autopiloot_drive_content")
@@ -359,7 +400,12 @@ class TestListTrackedTargetsFromConfig(unittest.TestCase):
 
         tool = self.module.ListTrackedTargetsFromConfig(include_defaults=True)
         result = tool.run()
-        result_data = json.loads(result)
+        envelope = json.loads(result)
+
+        # Verify envelope structure
+        self.assertTrue(envelope["ok"])
+        self.assertIsNone(envelope["error"])
+        result_data = envelope["data"]
 
         # Comprehensive assertions
         self.assertEqual(result_data["count"], 3)
