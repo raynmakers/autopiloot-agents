@@ -10,7 +10,7 @@ from typing import Optional
 # Add config directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config'))
 
-from env_loader import get_required_env_var, get_optional_env_var
+from config.env_loader import get_required_env_var, get_optional_env_var
 
 
 def get_zep_client(api_key: Optional[str] = None, base_url: Optional[str] = None):

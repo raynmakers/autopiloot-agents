@@ -14,7 +14,7 @@ from google.cloud import firestore
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
-from firestore_client import get_firestore_client
+from core.firestore_client import get_firestore_client
 from core.time_utils import now, to_iso8601_z
 
 

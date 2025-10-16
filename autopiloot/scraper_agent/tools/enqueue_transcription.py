@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 from config.loader import load_app_config
-from firestore_client import get_firestore_client
+from core.firestore_client import get_firestore_client
 from core.idempotency import FirestoreExistenceChecker
 
 

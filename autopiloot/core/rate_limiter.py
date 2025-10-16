@@ -26,7 +26,7 @@ import sys
 import os
 
 # Add config directory to path for imports
-from loader import load_app_config
+from config.loader import load_app_config
 
 
 class TokenBucket:

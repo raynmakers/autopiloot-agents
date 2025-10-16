@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config'))
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from env_loader import get_required_env_var
+from config.env_loader import get_required_env_var
 
 
 # Default scopes for Drive operations

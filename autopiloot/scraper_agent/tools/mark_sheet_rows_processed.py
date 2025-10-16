@@ -10,12 +10,13 @@ from typing import Dict, List
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 from scraper_agent.tools.remove_sheet_row import RemoveSheetRow
-from firestore_client import get_firestore_client
+from core.firestore_client import get_firestore_client
 from core.time_utils import now, to_iso8601_z
 
 
@@ -51,8 +52,8 @@ class MarkSheetRowsProcessed(BaseTool):
 
             # Query for videos that are ready for cleanup
             videos_ref = db.collection('videos')
-            query = videos_ref.where('source', '==', 'sheet') \
-                             .where('status', '==', 'summarized')
+            query = videos_ref.where(filter=FieldFilter('source', '==', 'sheet')) \
+                             .where(filter=FieldFilter('status', '==', 'summarized'))
 
             videos_to_process = []
             for doc in query.stream():

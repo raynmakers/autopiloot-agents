@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from google.cloud import firestore
 
 # Add config directory to path for configuration imports
-from env_loader import get_required_env_var
+from config.env_loader import get_required_env_var
 
 
 class AuditLogger:

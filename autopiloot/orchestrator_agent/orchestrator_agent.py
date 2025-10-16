@@ -34,5 +34,5 @@ orchestrator_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
-    output_guardrails=validate_orchestrator_output,  # Agency Swarm v1.2.0 - validates JSON structure and required fields
+    output_guardrails=[validate_orchestrator_output],  # Agency Swarm v1.2.0 - validates JSON structure and required fields
 )

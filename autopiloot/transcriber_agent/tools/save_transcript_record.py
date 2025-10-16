@@ -14,7 +14,8 @@ from agency_swarm.tools import BaseTool
 from google.cloud import firestore
 
 # Add core and config directories to path
-from config.env_loader import get_required_env_var
+from config.env_loader import get_required_env_var, get_optional_env_var
+from core.firestore_client import get_firestore_client
 
 
 
@@ -170,7 +171,7 @@ if __name__ == "__main__":
         import assemblyai as aai
 
         # Initialize AssemblyAI
-        api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        api_key = get_optional_env_var("ASSEMBLYAI_API_KEY", "", "AssemblyAI API key for transcript testing")
         if not api_key:
             print("❌ ASSEMBLYAI_API_KEY environment variable is required")
         else:

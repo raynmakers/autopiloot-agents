@@ -25,5 +25,5 @@ summarizer_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
-    output_guardrails=validate_summarizer_output,  # Agency Swarm v1.2.0 - validates summary length and rejection reasons
+    output_guardrails=[validate_summarizer_output],  # Agency Swarm v1.2.0 - validates summary length and rejection reasons
 )

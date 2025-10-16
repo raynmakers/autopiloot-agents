@@ -14,7 +14,8 @@ from agency_swarm.tools import BaseTool
 from google.cloud import firestore
 
 # Add core and config directories to path
-from config.env_loader import get_required_env_var
+from config.env_loader import get_required_env_var, get_optional_env_var
+from core.firestore_client import get_firestore_client
 
 
 # AssemblyAI pricing per hour (as of 2024)
@@ -112,7 +113,7 @@ class SubmitAssemblyAIJob(BaseTool):
             })
 
         # Initialize AssemblyAI with API key
-        api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        api_key = get_optional_env_var("ASSEMBLYAI_API_KEY", "", "AssemblyAI API key for transcription")
         if not api_key:
             return json.dumps({
                 "error": "configuration_error",
@@ -138,7 +139,7 @@ class SubmitAssemblyAIJob(BaseTool):
 
             # Add webhook configuration if provided
             if self.webhook_url:
-                webhook_secret = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
+                webhook_secret = get_optional_env_var("ASSEMBLYAI_WEBHOOK_SECRET", "", "AssemblyAI webhook secret for authentication")
                 config_params.update({
                     "webhook_url": self.webhook_url,
                     "webhook_auth_header_name": "X-AssemblyAI-Webhook-Secret" if webhook_secret else None,

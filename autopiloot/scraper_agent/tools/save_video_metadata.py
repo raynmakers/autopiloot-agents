@@ -13,10 +13,10 @@ from google.cloud import firestore
 from datetime import datetime, timezone
 
 # Add core and config directories to path
-from env_loader import get_required_env_var
-from loader import load_app_config
-from audit_logger import audit_logger
-from firestore_client import get_firestore_client
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
+from core.audit_logger import audit_logger
+from core.firestore_client import get_firestore_client
 from core.json_response import ok, fail
 
 

@@ -14,8 +14,8 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone
 
 # Add core and config directories to path
-from env_loader import get_required_env_var
-from loader import load_app_config
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
 
 
 

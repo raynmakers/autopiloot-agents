@@ -350,8 +350,8 @@ if __name__ == "__main__":
     #   2. Agent passes the channel_id to this tool
     # See scraper_agent/instructions.md for the complete workflow
 
-    from datetime import datetime
-from core.time_utils import parse_iso8601_z, timedelta
+    from datetime import datetime, timedelta
+    from core.time_utils import parse_iso8601_z
 
     # Sample channel_id for testing (Alex Hormozi)
     # In production, this comes from ResolveChannelHandles tool via the agent
