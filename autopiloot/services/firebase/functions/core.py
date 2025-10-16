@@ -31,7 +31,9 @@ DEFAULT_SLACK_CHANNEL = "ops-autopiloot"
 
 def _send_slack_alert_simple(message: str, context: Dict[str, Any] = None) -> bool:
     """
-    Send simple Slack alert (fallback implementation).
+    Send simple Slack alert using centralized utilities.
+
+    UPDATED: Now uses core.slack_utils.send_alert for consistent formatting.
 
     Args:
         message: Alert message text
@@ -41,49 +43,51 @@ def _send_slack_alert_simple(message: str, context: Dict[str, Any] = None) -> bo
         bool: True if successful, False otherwise
     """
     try:
-        # Use observability agent's Slack tools if available
-        from agents.autopiloot.observability_agent.tools.send_slack_message import SendSlackMessage
-        from agents.autopiloot.observability_agent.tools.format_slack_blocks import FormatSlackBlocks
+        # Use centralized Slack utility
+        from agents.autopiloot.core.slack_utils import send_alert
 
-        formatter = FormatSlackBlocks()
-        formatter.title = "Firebase Function Alert"
-        formatter.summary = message
-        if context:
-            formatter.fields = [{"label": k, "value": str(v)} for k, v in context.items()]
+        # Determine alert type from message content (heuristic)
+        alert_type = "info"
+        if "error" in message.lower() or "failed" in message.lower() or "🚨" in message:
+            alert_type = "error"
+        elif "warning" in message.lower() or "⚠️" in message:
+            alert_type = "warning"
+        elif "budget" in message.lower() or "💰" in message:
+            alert_type = "budget"
+        elif "success" in message.lower() or "✅" in message:
+            alert_type = "info"
 
-        blocks_result = formatter.run()
+        # Send using centralized utility
+        success = send_alert(
+            title="Firebase Function Alert",
+            message=message,
+            alert_type=alert_type,
+            details=context
+        )
 
-        sender = SendSlackMessage()
-        sender.channel = get_config_value("notifications.slack.channel", DEFAULT_SLACK_CHANNEL)
-        if isinstance(blocks_result, str):
-            import json
-            try:
-                blocks_data = json.loads(blocks_result)
-                sender.blocks = blocks_data.get("blocks", [])
-            except:
-                sender.text = message
+        if success:
+            logger.info(f"Sent Slack alert via core.slack_utils: {alert_type}")
         else:
-            sender.text = message
+            logger.warning("Failed to send Slack alert via core.slack_utils")
 
-        result = sender.run()
-        logger.info(f"Sent Slack alert via agent tools: {result}")
-        return True
+        return success
 
-    except ImportError:
-        logger.info("Observability agent not available, using direct Slack API")
-        return send_slack_alert(message, context)
     except Exception as e:
-        logger.warning(f"Agent Slack tools failed, falling back to direct API: {e}")
+        logger.warning(f"Centralized Slack utility failed, falling back to direct API: {e}")
         return send_slack_alert(message, context)
+
 
 def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
     """
-    Send alert message to Slack channel.
-    
+    Send alert message to Slack channel (legacy fallback).
+
+    DEPRECATED: Use core.slack_utils.send_alert instead.
+    This function is kept for backward compatibility only.
+
     Args:
         message: Alert message text
         context: Optional context data to include
-        
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -92,7 +96,7 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
     except Exception as e:
         logger.warning(f"SLACK_BOT_TOKEN not configured: {e}, skipping Slack alert")
         return False
-    
+
     try:
         slack_channel = get_config_value("notifications.slack.channel", DEFAULT_SLACK_CHANNEL)
         payload = {
@@ -108,7 +112,7 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
                 }
             ]
         }
-        
+
         if context:
             payload["blocks"].append({
                 "type": "section",
@@ -119,7 +123,7 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
                     }
                 ]
             })
-        
+
         response = requests.post(
             "https://slack.com/api/chat.postMessage",
             headers={
@@ -129,11 +133,11 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
             json=payload,
             timeout=30
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             if result.get("ok"):
-                logger.info(f"Slack alert sent successfully: {result.get('ts')}")
+                logger.info(f"Slack alert sent successfully (legacy): {result.get('ts')}")
                 return True
             else:
                 logger.error(f"Slack API error: {result.get('error')}")
@@ -141,9 +145,9 @@ def send_slack_alert(message: str, context: Dict[str, Any] = None) -> bool:
         else:
             logger.error(f"Slack HTTP error: {response.status_code}")
             return False
-            
+
     except Exception as e:
-        logger.error(f"Failed to send Slack alert: {e}")
+        logger.error(f"Failed to send Slack alert (legacy): {e}")
         return False
 
 def create_scraper_job(firestore_client, timezone_name: str = None) -> Dict[str, Any]:

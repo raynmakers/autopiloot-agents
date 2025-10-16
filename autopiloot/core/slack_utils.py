@@ -492,3 +492,98 @@ def create_dlq_alert(job_count: int, details: Dict[str, Any] = None) -> List[Dic
         alert_type="dlq",
         details=details
     )
+
+
+def send_alert(
+    title: str,
+    message: str,
+    alert_type: str = "info",
+    details: Optional[Dict[str, Any]] = None,
+    channel: Optional[str] = None,
+    timestamp: Optional[datetime] = None
+) -> bool:
+    """
+    Send formatted alert to Slack channel with consistent styling.
+
+    This is the single entry point for all Slack alerts in the system.
+    Handles block formatting, channel resolution, and message sending.
+
+    Args:
+        title: Alert title
+        message: Main alert message
+        alert_type: Type of alert (error, warning, info, critical, dlq, budget, quota, daily)
+        details: Additional details to include in alert
+        channel: Target channel (defaults to alert-type-specific channel)
+        timestamp: Alert timestamp (defaults to now)
+
+    Returns:
+        True if alert sent successfully, False otherwise
+
+    Example:
+        send_alert(
+            title="Budget Alert",
+            message="Daily transcription budget threshold reached",
+            alert_type="budget",
+            details={"daily_budget": "$5.00", "amount_spent": "$4.10"}
+        )
+    """
+    try:
+        # Import Slack SDK (lazy import to avoid dependency issues)
+        from slack_sdk import WebClient
+        from slack_sdk.errors import SlackApiError
+
+        # Get Slack bot token
+        slack_token = get_optional_env_var("SLACK_BOT_TOKEN", "", "Slack Bot Token for API access")
+        if not slack_token:
+            # Log warning but don't fail - useful for testing
+            import logging
+            logging.warning("SLACK_BOT_TOKEN not configured, skipping Slack alert")
+            return False
+
+        # Resolve channel - use provided or get default for alert type
+        if channel is None:
+            channel = get_channel_for_alert_type(alert_type)
+        else:
+            channel = normalize_channel_name(channel)
+
+        # Format alert blocks using centralized formatting
+        blocks = format_alert_blocks(
+            title=title,
+            message=message,
+            alert_type=alert_type,
+            details=details,
+            timestamp=timestamp
+        )
+
+        # Create fallback text for notifications
+        fallback_text = f"{title}: {message}"
+
+        # Initialize Slack client and send message
+        client = WebClient(token=slack_token)
+        response = client.chat_postMessage(
+            channel=f"#{channel}",
+            text=fallback_text,
+            blocks=blocks,
+            unfurl_links=False,
+            unfurl_media=False
+        )
+
+        if response["ok"]:
+            import logging
+            logging.info(f"Slack alert sent to #{channel}: {response.get('ts')}")
+            return True
+        else:
+            import logging
+            logging.error(f"Slack API error: {response.get('error')}")
+            return False
+
+    except ImportError as e:
+        # slack_sdk not available
+        import logging
+        logging.warning(f"slack_sdk not available: {e}")
+        return False
+    except Exception as e:
+        # Log error but don't raise - alerts should not break core functionality
+        import logging
+        logging.error(f"Failed to send Slack alert: {e}")
+        return False
