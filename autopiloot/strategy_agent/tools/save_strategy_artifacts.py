@@ -288,22 +288,9 @@ class SaveStrategyArtifacts(BaseTool):
             return MockDriveClient()
 
     def _initialize_zep_client(self):
-        """Initialize Zep client."""
-        try:
-            try:
-                zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for strategy artifact storage")
-            except EnvironmentError:
-                return MockZepClient()
-
-            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL")
-
-            from zep_python import ZepClient
-            return ZepClient(api_key=zep_api_key, base_url=zep_base_url)
-
-        except ImportError:
-            return MockZepClient()
-        except Exception as e:
-            return MockZepClient()
+        """Initialize Zep client using centralized factory."""
+        from core.zep import get_zep_client
+        return get_zep_client()
 
     def _save_to_drive(self, drive_client, artifacts: Dict[str, Any]) -> Dict[str, Any]:
         """Save artifacts to Google Drive."""
@@ -577,13 +564,6 @@ class MockFirestoreClient:
 
     def save_document(self, document_path: str, data: Dict[str, Any]) -> str:
         return f"mock_doc_{document_path.replace('/', '_')}"
-
-
-class MockZepClient:
-    """Mock Zep client for testing."""
-
-    def save_document(self, content: str, metadata: Dict[str, Any], group_id: str) -> str:
-        return f"mock_zep_doc_{uuid.uuid4().hex[:8]}"
 
 
 if __name__ == "__main__":
