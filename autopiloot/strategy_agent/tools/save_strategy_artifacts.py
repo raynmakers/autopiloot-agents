@@ -8,7 +8,8 @@ import sys
 import json
 import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import to_iso8601_z, now, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
@@ -255,7 +256,7 @@ class SaveStrategyArtifacts(BaseTool):
         # Add combined JSON artifact
         artifacts["combined_json"] = {
             "urn": self.urn,
-            "generated_at": timestamp.isoformat() + "Z",
+            "generated_at": to_iso8601_z(timestamp),
             "playbook": self.playbook_json,
             "content_briefs": self.briefs,
             "metadata": {
@@ -410,7 +411,7 @@ class SaveStrategyArtifacts(BaseTool):
                 "success": True,
                 "document_path": document_path,
                 "document_id": doc_id,
-                "timestamp": artifacts["timestamp"].isoformat() + "Z",
+                "timestamp": to_iso8601_z(artifacts["timestamp"]),
                 "collection": collection_path
             }
 
@@ -485,7 +486,7 @@ Content Briefs Summary:
             "urn": self.urn,
             "total_briefs": len(self.briefs),
             "playbook_sections": len(self.playbook_json.keys()) if self.playbook_json else 0,
-            "save_timestamp": artifacts["timestamp"].isoformat() + "Z",
+            "save_timestamp": to_iso8601_z(artifacts["timestamp"]),
             "file_sizes": {
                 "playbook_md": format_size(playbook_md_size),
                 "playbook_json": format_size(playbook_json_size),

@@ -14,6 +14,7 @@ from pydantic import Field
 # Add core and config directories to path
 from env_loader import get_required_env_var, load_environment
 from loader import load_app_config, get_config_value
+from core.time_utils import now, to_iso8601_z
 
 
 class SaveIngestionRecord(BaseTool):
@@ -211,10 +212,11 @@ class SaveIngestionRecord(BaseTool):
             str: ISO timestamp of estimated start time
         """
         if self.processing_duration_seconds:
-            start_time = datetime.now(timezone.utc).timestamp() - self.processing_duration_seconds
-            return datetime.fromtimestamp(start_time).isoformat() + "Z"
+            start_time = now().timestamp() - self.processing_duration_seconds
+            start_dt = datetime.fromtimestamp(start_time, tz=timezone.utc)
+            return to_iso8601_z(start_dt)
         else:
-            return datetime.now(timezone.utc).isoformat()
+            return to_iso8601_z(now())
 
     def _determine_run_status(self) -> str:
         """

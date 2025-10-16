@@ -7,6 +7,7 @@ import os
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
+from core.time_utils import parse_iso8601_z, to_iso8601_z, now
 from unittest.mock import MagicMock, patch
 
 # Add core directory to path for imports
@@ -38,7 +39,7 @@ class TestReliabilityUtilities(unittest.TestCase):
         self.assertTrue(entry["last_error_at"].endswith("Z"))
         
         # Verify timestamp is recent
-        error_time = datetime.fromisoformat(entry["last_error_at"].replace('Z', '+00:00'))
+        error_time = parse_iso8601_z(entry["last_error_at"])
         now = datetime.now(timezone.utc)
         self.assertLess((now - error_time).total_seconds(), 5)
     
@@ -162,7 +163,7 @@ class TestReliabilityUtilities(unittest.TestCase):
     def test_is_quota_exhausted_with_reset_time(self):
         """Test quota exhaustion with reset time consideration."""
         # Future reset time - still exhausted
-        future_reset = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat() + "Z"
+        future_reset = to_iso8601_z(datetime.now(timezone.utc) + timedelta(hours=1))
         future_quota = create_quota_status(
             service="youtube",
             requests_made=1000,
@@ -170,11 +171,11 @@ class TestReliabilityUtilities(unittest.TestCase):
             quota_exhausted=True,
             reset_time=future_reset
         )
-        
+
         self.assertTrue(is_quota_exhausted(future_quota))
-        
+
         # Past reset time - should be available
-        past_reset = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat() + "Z"
+        past_reset = to_iso8601_z(datetime.now(timezone.utc) - timedelta(hours=1))
         past_quota = create_quota_status(
             service="youtube",
             requests_made=1000,
@@ -182,7 +183,7 @@ class TestReliabilityUtilities(unittest.TestCase):
             quota_exhausted=True,
             reset_time=past_reset
         )
-        
+
         self.assertFalse(is_quota_exhausted(past_quota))
     
     def test_get_next_reset_time(self):
@@ -190,7 +191,7 @@ class TestReliabilityUtilities(unittest.TestCase):
         reset_time_str = get_next_reset_time("youtube")
         
         # Should be valid ISO8601 format
-        reset_time = datetime.fromisoformat(reset_time_str.replace('Z', '+00:00'))
+        reset_time = parse_iso8601_z(reset_time_str)
         
         # Should be in the future
         now = datetime.now(timezone.utc)
@@ -219,7 +220,7 @@ class TestReliabilityUtilities(unittest.TestCase):
         self.assertTrue(checkpoint["updated_at"].endswith("Z"))
         
         # Verify timestamp is recent
-        update_time = datetime.fromisoformat(checkpoint["updated_at"].replace('Z', '+00:00'))
+        update_time = parse_iso8601_z(checkpoint["updated_at"])
         now = datetime.now(timezone.utc)
         self.assertLess((now - update_time).total_seconds(), 5)
     
@@ -279,7 +280,7 @@ class TestReliabilityUtilities(unittest.TestCase):
         resume_time = get_resume_time(with_reset_quota)
         self.assertIsNotNone(resume_time)
         # Convert to UTC format for comparison
-        expected_time = datetime.fromisoformat(reset_time_str.replace('Z', '+00:00'))
+        expected_time = parse_iso8601_z(reset_time_str)
         self.assertEqual(resume_time, expected_time)
     
     def test_format_error_for_dlq(self):

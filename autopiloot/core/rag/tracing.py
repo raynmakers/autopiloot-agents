@@ -11,6 +11,7 @@ import uuid
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from core.time_utils import parse_iso8601_z
 from collections import defaultdict
 
 # Import time utilities for standardized timestamp handling
@@ -343,7 +344,7 @@ def get_metrics_summary(time_window_minutes: int = 60) -> dict:
 def _parse_timestamp(iso_timestamp: str) -> float:
     """Parse ISO 8601 timestamp to Unix timestamp."""
     try:
-        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+        dt = parse_iso8601_z(iso_timestamp)
         return dt.timestamp()
     except:
         return 0

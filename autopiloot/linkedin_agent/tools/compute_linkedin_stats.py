@@ -7,7 +7,8 @@ Works with data from get_user_posts, get_post_comments, and get_post_reactions t
 import json
 import statistics
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, to_iso8601_z, now, timezone
 from collections import Counter, defaultdict
 from agency_swarm.tools import BaseTool
 from pydantic import Field
@@ -172,8 +173,8 @@ class ComputeLinkedInStats(BaseTool):
                         "start": start_dt,
                         "end": end_dt,
                         "days_covered": (
-                            datetime.fromisoformat(end_dt.replace("Z", "+00:00")) -
-                            datetime.fromisoformat(start_dt.replace("Z", "+00:00"))
+                            parse_iso8601_z(end_dt) -
+                            parse_iso8601_z(start_dt)
                         ).days
                     }
                 except:
@@ -293,7 +294,7 @@ class ComputeLinkedInStats(BaseTool):
             posted_at = post.get("posted_at")
             if posted_at:
                 try:
-                    dt = datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
+                    dt = parse_iso8601_z(posted_at)
                     posting_hours.append(dt.hour)
                     posting_days.append(dt.strftime("%A"))
                 except:

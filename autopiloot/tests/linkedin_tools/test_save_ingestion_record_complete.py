@@ -8,7 +8,8 @@ import json
 import sys
 import os
 from unittest.mock import Mock, MagicMock, patch, call
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, timezone
 
 # Add the path to import the tool directly
 
@@ -322,7 +323,8 @@ class TestSaveIngestionRecordComplete(unittest.TestCase):
         # Parse to verify it's valid
         # The start time should be ~60 seconds ago
         from datetime import datetime
-        parsed = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+from core.time_utils import parse_iso8601_z
+        parsed = parse_iso8601_z(start_time)
         self.assertIsInstance(parsed, datetime)
 
     def test_calculate_start_time_no_duration_lines_219_220(self):
@@ -343,7 +345,8 @@ class TestSaveIngestionRecordComplete(unittest.TestCase):
 
         # Parse to verify
         from datetime import datetime
-        parsed = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+from core.time_utils import parse_iso8601_z
+        parsed = parse_iso8601_z(start_time)
         self.assertIsInstance(parsed, datetime)
 
     def test_determine_run_status_success_lines_229_230(self):
