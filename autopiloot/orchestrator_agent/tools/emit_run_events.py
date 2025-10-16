@@ -10,13 +10,11 @@ from typing import Optional, Dict, Any, List
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
 from loader import load_app_config
 from audit_logger import audit_logger
 
-load_dotenv()
 
 
 class EmitRunEvents(BaseTool):

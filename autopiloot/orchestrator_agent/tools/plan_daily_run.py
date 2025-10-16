@@ -10,7 +10,6 @@ from typing import Optional, List, Dict, Any
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add config directory to path
 from loader import (
@@ -21,7 +20,6 @@ from loader import (
     get_retry_max_attempts
 )
 
-load_dotenv()
 
 
 class PlanDailyRun(BaseTool):

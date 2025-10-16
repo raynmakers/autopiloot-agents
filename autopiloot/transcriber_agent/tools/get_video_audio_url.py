@@ -34,7 +34,6 @@ import yt_dlp
 import requests
 from agency_swarm.tools import BaseTool
 from pydantic import Field
-from dotenv import load_dotenv
 from typing import Optional
 from google.cloud import storage
 from datetime import timedelta
@@ -43,7 +42,6 @@ from datetime import timedelta
 import sys
 from config.env_loader import get_required_env_var
 
-load_dotenv()
 
 
 class GetVideoAudioUrl(BaseTool):

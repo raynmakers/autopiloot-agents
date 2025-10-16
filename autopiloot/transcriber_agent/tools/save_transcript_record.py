@@ -11,13 +11,11 @@ from typing import Dict, Any
 from pydantic import Field, field_validator
 from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from google.cloud import firestore
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 
-load_dotenv()
 
 
 class SaveTranscriptRecord(BaseTool):

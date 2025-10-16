@@ -12,7 +12,6 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
@@ -20,7 +19,6 @@ from config.loader import load_app_config
 from firestore_client import get_firestore_client
 from core.idempotency import FirestoreExistenceChecker
 
-load_dotenv()
 
 
 class EnqueueTranscription(BaseTool):

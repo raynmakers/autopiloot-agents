@@ -12,14 +12,12 @@ from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone, timedelta
 import pytz
-from dotenv import load_dotenv
 
 # Add core and config directories to path
 from env_loader import get_required_env_var
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
 
-load_dotenv()
 
 
 class GenerateDailyDigest(BaseTool):

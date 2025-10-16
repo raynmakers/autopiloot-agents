@@ -9,14 +9,12 @@ import json
 from typing import List, Dict, Any
 from pydantic import Field
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 # Add core and config directories to path
 from google.cloud import firestore
 
-load_dotenv()
 
 
 class BatchProcessTranscriptions(BaseTool):

@@ -11,7 +11,6 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
@@ -19,7 +18,6 @@ from scraper_agent.tools.remove_sheet_row import RemoveSheetRow
 from firestore_client import get_firestore_client
 from core.time_utils import now, to_iso8601_z
 
-load_dotenv()
 
 
 class MarkSheetRowsProcessed(BaseTool):

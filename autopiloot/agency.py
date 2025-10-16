@@ -9,6 +9,10 @@ import logging
 from agency_swarm import Agency
 from core.agent_registry import create_agent_registry
 from config.loader import load_app_config
+from config.env_loader import load_environment
+
+# Load environment variables once at agency initialization
+load_environment()
 
 logger = logging.getLogger(__name__)
 

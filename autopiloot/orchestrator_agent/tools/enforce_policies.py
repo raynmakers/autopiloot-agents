@@ -11,7 +11,6 @@ from typing import Optional, Dict, Any
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from datetime import datetime, timezone, timedelta
-from dotenv import load_dotenv
 
 # Add config directory to path
 from loader import (
@@ -22,7 +21,6 @@ from loader import (
     get_assemblyai_daily_limit
 )
 
-load_dotenv()
 
 
 class EnforcePolicies(BaseTool):

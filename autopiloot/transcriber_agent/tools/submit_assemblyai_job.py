@@ -11,13 +11,11 @@ from typing import Optional, Dict, Any
 from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from google.cloud import firestore
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 
-load_dotenv()
 
 # AssemblyAI pricing per hour (as of 2024)
 ASSEMBLYAI_COST_PER_HOUR = 0.65  # USD

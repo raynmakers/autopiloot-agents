@@ -8,13 +8,11 @@ import sys
 import json
 from pydantic import Field
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from google.cloud import storage
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 
-load_dotenv()
 
 
 class CleanupTranscriptionAudio(BaseTool):

@@ -6,12 +6,10 @@ from typing import Dict, Any
 from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 
 # Add core and config directories to path
 from config.env_loader import get_required_env_var
 
-load_dotenv()
 
 
 class PollTranscriptionJob(BaseTool):
