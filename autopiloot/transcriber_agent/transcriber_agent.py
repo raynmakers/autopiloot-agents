@@ -4,20 +4,16 @@ Handles video transcription using AssemblyAI with duration limits and quality co
 """
 
 from agency_swarm import Agent, ModelSettings
-from config.loader import load_app_config
+from config.loader import get_config_value
 from core.guardrails import validate_transcriber_output
 
-# Load configuration
-config = load_app_config()
-
-# Get agent-specific LLM configuration
-agent_config = config.get('llm', {}).get('agents', {}).get('transcriber_agent', {})
-default_config = config.get('llm', {}).get('default', {})
-
-# Use agent-specific config with fallback to default
-model = agent_config.get('model', default_config.get('model', 'gpt-3.5-turbo'))
-temperature = agent_config.get('temperature', default_config.get('temperature', 0.1))
-max_tokens = agent_config.get('max_output_tokens', default_config.get('max_output_tokens', 4000))
+# Get agent-specific LLM configuration with fallback to default
+model = get_config_value('llm.agents.transcriber_agent.model',
+                         default=get_config_value('llm.default.model', default='gpt-3.5-turbo'))
+temperature = get_config_value('llm.agents.transcriber_agent.temperature',
+                               default=get_config_value('llm.default.temperature', default=0.1))
+max_tokens = get_config_value('llm.agents.transcriber_agent.max_output_tokens',
+                              default=get_config_value('llm.default.max_output_tokens', default=4000))
 
 transcriber_agent = Agent(
     name="TranscriberAgent",
