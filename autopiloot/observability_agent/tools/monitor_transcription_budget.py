@@ -123,11 +123,11 @@ class MonitorTranscriptionBudget(BaseTool):
             # Import tools here to avoid circular dependencies
             from .format_slack_blocks import FormatSlackBlocks
             from .send_slack_message import SendSlackMessage
-            
-            # Load Slack channel configuration
-            config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", config, default="ops-autopiloot")
-            
+
+            # Use centralized channel resolution for budget alerts
+            from core.slack_utils import get_channel_for_alert_type
+            slack_channel = get_channel_for_alert_type("budget")
+
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):
                 slack_channel = f"#{slack_channel}"

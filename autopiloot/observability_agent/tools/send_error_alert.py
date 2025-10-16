@@ -68,10 +68,10 @@ class SendErrorAlert(BaseTool):
                     "throttle_remaining": "< 1 hour"
                 })
             
-            # Load configuration
-            config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", default="ops-autopiloot")
-            
+            # Use centralized channel resolution for error alerts
+            from core.slack_utils import get_channel_for_alert_type
+            slack_channel = get_channel_for_alert_type("error")
+
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):
                 slack_channel = f"#{slack_channel}"

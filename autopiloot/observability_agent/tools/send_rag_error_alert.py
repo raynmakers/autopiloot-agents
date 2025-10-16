@@ -89,9 +89,9 @@ class SendRagErrorAlert(BaseTool):
             from .format_slack_blocks import FormatSlackBlocks
             from .send_slack_message import SendSlackMessage
 
-            # Load Slack configuration
-            config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", config, default="ops-autopiloot")
+            # Use centralized channel resolution for error alerts
+            from core.slack_utils import get_channel_for_alert_type
+            slack_channel = get_channel_for_alert_type("error")
 
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):
