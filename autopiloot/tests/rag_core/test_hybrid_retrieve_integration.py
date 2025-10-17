@@ -10,8 +10,6 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Add core/rag to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from core.rag import hybrid_retrieve, retrieval_policy, tracing
 
 

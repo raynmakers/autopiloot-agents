@@ -18,9 +18,6 @@ from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import load_environment
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
@@ -92,9 +89,9 @@ class SendRagErrorAlert(BaseTool):
             from .format_slack_blocks import FormatSlackBlocks
             from .send_slack_message import SendSlackMessage
 
-            # Load Slack configuration
-            config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", config, default="ops-autopiloot")
+            # Use centralized channel resolution for error alerts
+            from core.slack_utils import get_channel_for_alert_type
+            slack_channel = get_channel_for_alert_type("error")
 
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):

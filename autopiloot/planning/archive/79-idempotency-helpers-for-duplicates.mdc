@@ -1,0 +1,141 @@
+---
+description: "Add idempotency helpers for Firestore duplicate checks (jobs/transcripts)"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0079"
+title: "Add idempotency helpers for duplicate checks"
+status: "completed"
+priority: "P2"
+labels: ["refactor", "idempotency", "firestore"]
+dependencies: ["TASK-0071"]
+created: "2025-10-14"
+completed: "2025-10-15"
+archived: "2025-10-15"
+
+# 1) High-Level Objective
+
+Provide reusable helpers (e.g., `transcript_exists(video_id)`, `has_active_job(video_id)`) to avoid repeated query logic across tools.
+
+# 2) Background / Context
+
+Duplicate detection logic appears in multiple tools; centralize to `core/idempotency.py`.
+
+# 3) Steps
+
+1. Add functions in `core/idempotency.py` using `core.firestore.get_firestore_client()`.
+2. Update tools (`enqueue_transcription`, `save_transcript_record`, etc.) to call helpers.
+
+# 4) Acceptance Criteria
+
+- Helpers exist and are used by target tools; tests pass.
+
+# 5) Testing Strategy
+
+- Mock Firestore client and assert query parameters and outcomes.
+
+# 6) Completion Summary
+
+**Status**: ✅ COMPLETED on 2025-10-15
+
+**Results**:
+- ✅ Added FirestoreExistenceChecker class to core/idempotency.py (208 lines)
+- ✅ Implemented 6 centralized helper methods for duplicate detection
+- ✅ Refactored 2 tools to use centralized helpers
+- ✅ Created comprehensive unit test suite (14 tests, all passing)
+- ✅ Eliminated 60+ lines of duplicate query logic
+
+**Files Created**:
+1. `core/idempotency.py` - Added FirestoreExistenceChecker class:
+   - `transcript_exists(video_id, db)`: Check if transcript exists
+   - `video_exists(video_id, db)`: Check if video document exists
+   - `summary_exists(video_id, db)`: Check if summary exists
+   - `has_active_transcription_job(video_id, db)`: Query active jobs with tuple return
+   - `get_video_data(video_id, db)`: Retrieve full video document data
+   - `get_transcript_data(video_id, db)`: Retrieve full transcript document data
+
+2. `tests/core/test_idempotency_helpers.py` - Unit test suite:
+   - 14 test cases covering all helper methods
+   - Tests for success cases (document exists)
+   - Tests for failure cases (document doesn't exist)
+   - Tests for exception handling (graceful degradation)
+   - All tests passing ✅
+
+**Tools Refactored** (2 total):
+1. `scraper_agent/tools/enqueue_transcription.py`:
+   - Replaced inline `.get().exists` patterns with helpers
+   - Removed FieldFilter import (no longer needed)
+   - Simplified duplicate detection from 20+ lines to 3 helper calls
+   - Before: `transcript_ref.get().exists` (3 different inline checks)
+   - After: `FirestoreExistenceChecker.transcript_exists(video_id, db)`
+
+2. `orchestrator_agent/tools/orchestrate_rag_ingestion.py`:
+   - Refactored `_load_transcript_data()` method
+   - Replaced Firestore queries with helpers
+   - Simplified data loading from 40+ lines to 15 lines
+   - Before: Manual `.collection().document().get()` calls
+   - After: `FirestoreExistenceChecker.get_transcript_data()` and `get_video_data()`
+
+**Pattern Applied**:
+```python
+# Before (duplicated across multiple tools):
+transcript_ref = db.collection('transcripts').document(video_id)
+if transcript_ref.get().exists:
+    # ... handle existing transcript
+
+video_ref = db.collection('videos').document(video_id)
+video_doc = video_ref.get()
+if not video_doc.exists:
+    return {"error": "Video not found"}
+video_data = video_doc.to_dict()
+
+# After (centralized):
+from core.idempotency import FirestoreExistenceChecker
+
+if FirestoreExistenceChecker.transcript_exists(video_id, db):
+    # ... handle existing transcript
+
+video_data = FirestoreExistenceChecker.get_video_data(video_id, db)
+if not video_data:
+    return {"error": "Video not found"}
+```
+
+**Git Commit**: `cdb5f91` - "feat(idempotency): add centralized Firestore existence checker helpers"
+
+**Benefits Achieved**:
+- ✅ Eliminated 60+ lines of duplicate query logic
+- ✅ Consistent error handling with graceful degradation
+- ✅ Single source of truth for Firestore existence checks
+- ✅ Easier to test and maintain (centralized mocking)
+- ✅ Optional db parameter allows reuse of existing client or lazy init
+- ✅ Reduced coupling between tools and Firestore query patterns
+
+**Verification**:
+```bash
+# Confirmed 0 remaining inline existence check patterns
+grep -rn "\.collection('transcripts').document.*\.get().exists" *_agent/tools/*.py | wc -l
+# Output: 0 ✅
+
+grep -rn "\.collection('videos').document.*\.get().exists" *_agent/tools/*.py | wc -l
+# Output: 0 ✅
+
+# Confirmed 7 usages of new centralized helper
+grep -rn "FirestoreExistenceChecker" *_agent/tools/*.py | wc -l
+# Output: 7 ✅
+
+# All tests passing
+python3 -m unittest tests.core.test_idempotency_helpers -v
+# Ran 14 tests in 0.005s - OK ✅
+```
+
+**Design Decisions**:
+1. **Optional db parameter**: Allows tools to pass existing Firestore client or let helper create one
+2. **Graceful degradation**: All helpers catch exceptions and return False/None instead of raising
+3. **Tuple return for jobs**: `has_active_transcription_job()` returns (bool, job_id) for job existence and identification
+4. **Data getters**: `get_video_data()` and `get_transcript_data()` return full document dict or None
+
+**Follow-up Opportunities**:
+- Consider adding helpers for summary_exists checks (currently no tools use this pattern)
+- Could extend with `has_active_summarization_job()` if needed
+- Potential to add similar helpers for other collections (e.g., costs_daily, alert_throttling)

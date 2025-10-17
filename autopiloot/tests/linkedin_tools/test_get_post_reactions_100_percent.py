@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 
 # Add the linkedin_agent tools directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'linkedin_agent', 'tools'))
-
 
 # Create minimal implementations instead of mocks
 class MockBaseTool:

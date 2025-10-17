@@ -12,8 +12,6 @@ import os
 from unittest.mock import patch, MagicMock
 import importlib.util
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestRagIndexDocumentWrapper(unittest.TestCase):
     """Test suite for RagIndexDocument tool wrapper."""

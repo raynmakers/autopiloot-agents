@@ -1,0 +1,64 @@
+---
+description: "Replace manual ISO timestamp code with core.time_utils helpers in tools and tests"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0082"
+title: "Replace manual ISO code with time_utils in tests/tools"
+status: "completed"
+priority: "P3"
+labels: ["refactor", "time", "tests"]
+dependencies: ["TASK-0073"]
+created: "2025-10-14"
+completed: "2025-10-16"
+
+# 1) High-Level Objective
+
+Ensure tests and tools call `to_iso8601_z`/`parse_iso8601_z` and not inline implementations.
+
+# 2) Steps
+
+1. Sweep for `isoformat(` and `+'Z'` patterns; replace with helpers.
+2. Adjust assertions to use `parse_iso8601_z`.
+
+# 3) Acceptance Criteria
+
+- No manual ISO patterns remain; tests pass.
+
+# Completion Summary
+
+**Completed:** 2025-10-16
+
+**Changes Made:**
+- Updated 10 files with 27 occurrences of manual ISO patterns
+- Replaced `.isoformat() + 'Z'` with `to_iso8601_z()` in 6 locations
+- Replaced `.fromisoformat(...replace('Z', '+00:00'))` with `parse_iso8601_z()` in 21 locations
+- Fixed imports in tests/test_reliability.py (timedelta, timezone from datetime module)
+
+**Files Modified:**
+1. `linkedin_agent/tools/save_ingestion_record.py` - 1 change in _calculate_start_time method
+2. `strategy_agent/tools/save_strategy_artifacts.py` - 3 changes (lines 259, 414, 489)
+3. `tests/test_reliability.py` - 2 changes + import fix
+4. `linkedin_agent/tools/compute_linkedin_stats.py` - 4 changes
+5. `core/rag/tracing.py` - 2 changes
+6. `scraper_agent/tools/list_recent_uploads.py` - 7 changes
+7. `tests/test_save_channel_mapping.py` - 2 changes
+8. `tests/linkedin_tools/test_save_ingestion_record_complete.py` - 3 changes
+9. `tests/linkedin_tools/test_save_ingestion_record_working.py` - 2 changes
+10. `tests/test_list_recent_uploads_100_coverage.py` - 8 changes
+
+**Implementation Approach:**
+1. Created Python script to batch-update parse_iso8601_z patterns (9 files automated)
+2. Manually updated .isoformat() + 'Z' patterns in remaining files
+3. Verified no manual ISO patterns remain in source code (only external dependencies)
+4. All tests import and run successfully (22 tests pass/skip as expected)
+
+**Benefits:**
+- Single source of truth for ISO 8601 timestamp handling
+- Consistent timestamp format across entire codebase
+- Eliminates duplicate timestamp parsing/formatting logic
+- Better testability and maintainability
+- Reduced line count by removing boilerplate
+
+**Commit:** `16510f3` - refactor: replace manual ISO timestamp code with time_utils helpers

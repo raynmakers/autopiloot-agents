@@ -8,7 +8,8 @@ import json
 import os
 import sys
 from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, timezone
 
 # Mock agency_swarm and pydantic before importing tool
 mock_base_tool = MagicMock()
@@ -387,7 +388,7 @@ class TestSaveChannelMapping(unittest.TestCase):
         # Verify ISO 8601 format with Z
         self.assertTrue(last_resolved.endswith('Z'))
         # Should be parseable as datetime
-        datetime.fromisoformat(last_resolved.replace('Z', '+00:00'))
+        parse_iso8601_z(last_resolved)
 
 
 if __name__ == '__main__':

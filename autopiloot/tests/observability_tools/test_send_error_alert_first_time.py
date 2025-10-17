@@ -16,9 +16,6 @@ class TestSendErrorAlertFirstTime(unittest.TestCase):
     def test_successful_error_alert_first_time(self):
         """Test successful error alert execution with minimal setup."""
         # Add path setup
-        sys.path.insert(0, '.')
-        sys.path.insert(0, 'observability_agent/tools')
-
         # Mock only the essential external dependencies
         with patch.dict('sys.modules', {
             'agency_swarm': MagicMock(),

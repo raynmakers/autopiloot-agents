@@ -10,8 +10,6 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDriveAgentLines22To26(unittest.TestCase):
     """Dedicated test class for covering lines 22-26 in drive_agent.py."""

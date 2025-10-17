@@ -13,8 +13,6 @@ from unittest.mock import patch, MagicMock, Mock
 import importlib.util
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestFetchFileContentIntegration(unittest.TestCase):
     """Integration tests for FetchFileContent tool run() method."""

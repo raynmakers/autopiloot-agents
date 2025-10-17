@@ -19,10 +19,7 @@ from pydantic import Field
 from agency_swarm.tools import BaseTool
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
 
 
 class StoreShortInZep(BaseTool):
@@ -83,7 +80,7 @@ class StoreShortInZep(BaseTool):
 
             # Get Zep configuration
             zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for GraphRAG")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
+            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL")
 
             # Define user ID, group, and thread ID
             user_id = f"youtube_{self.channel_id}"
@@ -386,8 +383,9 @@ class StoreShortInZep(BaseTool):
             content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
 
             # Query Firestore summaries/{video_id}
-            project_id = os.getenv("GCP_PROJECT_ID")
-            if not project_id:
+            try:
+                project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for Firestore deduplication")
+            except EnvironmentError:
                 # No GCP project configured - skip dedup check (fail open)
                 print("   ⚠️ No GCP_PROJECT_ID configured, skipping dedup check")
                 return {

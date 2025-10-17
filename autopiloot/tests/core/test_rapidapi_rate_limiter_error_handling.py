@@ -11,8 +11,6 @@ import os
 import importlib.util
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestRapidAPIRateLimiterErrorHandling(unittest.TestCase):
     """Error handling and edge case tests for rate limiter."""

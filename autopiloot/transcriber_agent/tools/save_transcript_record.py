@@ -11,16 +11,12 @@ from typing import Dict, Any
 from pydantic import Field, field_validator
 from datetime import datetime, timezone
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from google.cloud import firestore
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+from config.env_loader import get_required_env_var, get_optional_env_var
+from core.firestore_client import get_firestore_client
 
-from config.env_loader import get_required_env_var
-
-load_dotenv()
 
 
 class SaveTranscriptRecord(BaseTool):
@@ -78,30 +74,6 @@ class SaveTranscriptRecord(BaseTool):
 
         return v
 
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
     def run(self) -> str:
         """
         Store transcript data to Firestore transcripts collection.
@@ -129,7 +101,7 @@ class SaveTranscriptRecord(BaseTool):
 
         try:
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Generate transcript digest for verification
             transcript_digest = hashlib.sha256(self.transcript_text.encode('utf-8')).hexdigest()[:16]
@@ -199,7 +171,7 @@ if __name__ == "__main__":
         import assemblyai as aai
 
         # Initialize AssemblyAI
-        api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        api_key = get_optional_env_var("ASSEMBLYAI_API_KEY", "", "AssemblyAI API key for transcript testing")
         if not api_key:
             print("❌ ASSEMBLYAI_API_KEY environment variable is required")
         else:

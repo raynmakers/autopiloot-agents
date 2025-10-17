@@ -8,12 +8,10 @@ from google.cloud import firestore
 from agency_swarm.tools import BaseTool
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
 from loader import load_app_config, get_config_value
 from audit_logger import audit_logger
+from core.json_response import ok, fail
 # Import tools with fallback for direct execution
 try:
     from .format_slack_blocks import FormatSlackBlocks
@@ -23,8 +21,6 @@ except ImportError:
     import sys
     import os
     tools_path = os.path.dirname(__file__)
-    sys.path.insert(0, tools_path)
-    
     from format_slack_blocks import FormatSlackBlocks
     from send_slack_message import SendSlackMessage
 
@@ -66,17 +62,17 @@ class SendErrorAlert(BaseTool):
             
             # Check throttling before sending (1 alert per type per hour per TASK-AST-0040)
             if not self._should_send_alert(throttle_key):
-                return json.dumps({
+                return ok({
                     "status": "THROTTLED",
                     "message": f"Alert throttled: {throttle_key} already sent within last hour",
                     "alert_type": alert_type,
                     "throttle_remaining": "< 1 hour"
                 })
             
-            # Load configuration
-            config = load_app_config()
-            slack_channel = get_config_value("notifications.slack.channel", default="ops-autopiloot")
-            
+            # Use centralized channel resolution for error alerts
+            from core.slack_utils import get_channel_for_alert_type
+            slack_channel = get_channel_for_alert_type("error")
+
             # Ensure channel has # prefix
             if not slack_channel.startswith('#'):
                 slack_channel = f"#{slack_channel}"
@@ -119,8 +115,8 @@ class SendErrorAlert(BaseTool):
                         "channel": slack_channel
                     }
                 )
-                
-                return json.dumps({
+
+                return ok({
                     "status": "SENT",
                     "message": f"Error alert sent successfully for {alert_type}",
                     "alert_type": alert_type,
@@ -128,18 +124,20 @@ class SendErrorAlert(BaseTool):
                     "channel": slack_channel
                 })
             else:
-                return json.dumps({
-                    "status": "FAILED",
-                    "message": "Failed to send error alert to Slack",
-                    "alert_type": alert_type,
-                    "component": component
-                })
-                
+                return fail(
+                    message="Failed to send error alert to Slack",
+                    code="SLACK_SEND_FAILED",
+                    details={
+                        "alert_type": alert_type,
+                        "component": component
+                    }
+                )
+
         except Exception as e:
-            return json.dumps({
-                "error": f"Failed to send error alert: {str(e)}",
-                "status": "ERROR"
-            })
+            return fail(
+                message=f"Failed to send error alert: {str(e)}",
+                code="ALERT_ERROR"
+            )
     
     def _should_send_alert(self, alert_type: str) -> bool:
         """Check if alert should be sent based on throttling policy (1 per type per hour)."""

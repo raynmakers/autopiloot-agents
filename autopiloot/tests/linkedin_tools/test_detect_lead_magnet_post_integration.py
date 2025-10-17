@@ -13,8 +13,6 @@ import json
 import importlib.util
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestDetectLeadMagnetPostIntegration(unittest.TestCase):
     """Integration tests for lead magnet detection with real pattern matching."""

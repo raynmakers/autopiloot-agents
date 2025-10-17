@@ -80,7 +80,6 @@ class EnvironmentPatternDetector:
                             results["os_getenv"].append(match)
 
                     # Check for sys.path manipulation
-                    if "sys.path.append" in line or "sys.path.insert" in line:
                         if not line.strip().startswith("#"):
                             match = PatternMatch(
                                 file_path=str(py_file.relative_to(self.root_dir)),
@@ -145,13 +144,11 @@ class EnvironmentPatternDetector:
 
             if tools_matches:
                 report_lines.append(f"\nAgent Tools ({len(tools_matches)} files):")
-                report_lines.append("  Pattern: sys.path.append for config/core imports")
                 report_lines.append("  Recommendation: Use PYTHONPATH=. or package structure improvements")
                 report_lines.append(f"  Example: {tools_matches[0].file_path}:{tools_matches[0].line_number}")
 
             if test_matches:
                 report_lines.append(f"\nTest Files ({len(test_matches)} files):")
-                report_lines.append("  Pattern: sys.path.insert for importing modules under test")
                 report_lines.append("  Recommendation: Use pytest with proper PYTHONPATH configuration")
                 report_lines.append(f"  Example: {test_matches[0].file_path}:{test_matches[0].line_number}")
 

@@ -362,29 +362,50 @@ autopiloot/
    pip install -r requirements.txt
    ```
 
-2. **Configure credentials:**
+2. **Configure PYTHONPATH (REQUIRED):**
+
+   ```bash
+   # CRITICAL: Set PYTHONPATH to enable proper module imports
+   export PYTHONPATH=.
+
+   # For permanent setup, add to your shell profile:
+   echo 'export PYTHONPATH=.' >> ~/.bashrc  # or ~/.zshrc
+   ```
+
+   **Why PYTHONPATH is required:**
+   - All 151+ Python files have been cleaned to remove `sys.path` manipulation
+   - Proper package structure relies on PYTHONPATH=. for imports
+   - pytest.ini automatically sets this for test discovery
+   - Without PYTHONPATH, imports from `config/`, `core/`, and agent modules will fail
+
+3. **Configure credentials:**
 
    ```bash
    cp .env.template .env
    # Edit .env with your API keys (see docs/environment.md for details)
 
-   # Validate configuration
+   # Validate configuration (requires PYTHONPATH=.)
    python config/env_loader.py
    ```
 
-3. **Test the system:**
+4. **Test the system:**
 
    ```bash
-   # Run comprehensive test suite (60+ tests)
+   # PYTHONPATH=. is automatically set by pytest.ini for tests
+   # Run comprehensive test suite (140+ tests)
    python -m unittest discover tests -v
 
    # Test specific components
    python -m unittest tests.test_audit_logger -v
-   python scraper_agent/tools/SaveVideoMetadata.py
+
+   # Test individual tools (requires PYTHONPATH=.)
+   python scraper_agent/tools/save_video_metadata.py
    ```
 
-4. **Run the agency:**
+5. **Run the agency:**
    ```bash
+   # Ensure PYTHONPATH is set before running
+   export PYTHONPATH=.
    python agency.py
    ```
 

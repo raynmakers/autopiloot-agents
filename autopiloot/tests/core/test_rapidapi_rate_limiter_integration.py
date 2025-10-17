@@ -13,8 +13,6 @@ import os
 import importlib.util
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestRapidAPIRateLimiterIntegration(unittest.TestCase):
     """Integration tests for rate limiter with mocked time."""

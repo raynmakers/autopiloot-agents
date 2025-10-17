@@ -10,8 +10,6 @@ import sys
 from typing import Dict, List
 
 # Add module directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-
 from chunker import chunk_with_metadata
 from hashing import sha256_hex
 from opensearch_indexer import index_transcript_chunks

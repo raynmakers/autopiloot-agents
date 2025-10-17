@@ -9,8 +9,6 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestLinkedInAgentInit(unittest.TestCase):
     """Test suite for LinkedIn Agent initialization and module imports."""

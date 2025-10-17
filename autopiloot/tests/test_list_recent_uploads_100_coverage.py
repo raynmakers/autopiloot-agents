@@ -7,7 +7,8 @@ import unittest
 from unittest.mock import Mock, MagicMock, patch
 import json
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, timezone, timedelta
 
 
 # Mock external dependencies before imports
@@ -257,7 +258,7 @@ class TestListRecentUploads100Coverage(unittest.TestCase):
         }
 
         # Mock playlist response with new video
-        new_video_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) + timedelta(hours=1)).isoformat()
+        new_video_time = (parse_iso8601_z(self.since_utc) + timedelta(hours=1)).isoformat()
         mock_youtube.playlistItems().list().execute.return_value = {
             'items': [{
                 'snippet': {
@@ -494,7 +495,7 @@ class TestListRecentUploads100Coverage(unittest.TestCase):
 
         # Test checkpoint filtering - video before checkpoint
         checkpoint = self.until_utc
-        old_video_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) - timedelta(hours=1)).isoformat()
+        old_video_time = (parse_iso8601_z(self.since_utc) - timedelta(hours=1)).isoformat()
 
         mock_youtube.playlistItems().list().execute.return_value = {
             'items': [{
@@ -531,7 +532,7 @@ class TestListRecentUploads100Coverage(unittest.TestCase):
         )
 
         # Video published before since_utc should trigger early exit
-        very_old_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) - timedelta(days=2)).isoformat()
+        very_old_time = (parse_iso8601_z(self.since_utc) - timedelta(days=2)).isoformat()
 
         mock_youtube.playlistItems().list().execute.return_value = {
             'items': [{
@@ -700,9 +701,9 @@ class TestListRecentUploads100Coverage(unittest.TestCase):
             until_utc=self.until_utc
         )
 
-        mid_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) + timedelta(hours=12)).isoformat()
-        before_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) - timedelta(hours=1)).isoformat()
-        after_time = (datetime.fromisoformat(self.until_utc.replace('Z', '+00:00')) + timedelta(hours=1)).isoformat()
+        mid_time = (parse_iso8601_z(self.since_utc) + timedelta(hours=12)).isoformat()
+        before_time = (parse_iso8601_z(self.since_utc) - timedelta(hours=1)).isoformat()
+        after_time = (parse_iso8601_z(self.until_utc) + timedelta(hours=1)).isoformat()
 
         videos = [
             {'video_id': '1', 'published_at': mid_time, 'title': 'In range'},
@@ -735,7 +736,7 @@ class TestListRecentUploads100Coverage(unittest.TestCase):
         )
 
         # First page with token
-        mid_time = (datetime.fromisoformat(self.since_utc.replace('Z', '+00:00')) + timedelta(hours=6)).isoformat()
+        mid_time = (parse_iso8601_z(self.since_utc) + timedelta(hours=6)).isoformat()
         mock_youtube.playlistItems().list().execute.side_effect = [
             {
                 'items': [{'snippet': {'resourceId': {'videoId': 'v1'}, 'title': 'V1', 'publishedAt': mid_time, 'channelTitle': 'Test'}}],

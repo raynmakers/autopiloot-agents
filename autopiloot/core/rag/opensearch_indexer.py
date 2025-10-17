@@ -11,10 +11,8 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 # Add config and core directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from env_loader import get_optional_env_var
+from time_utils import now, to_iso8601_z
 
 
 def index_transcript_chunks(docs: List[dict]) -> dict:
@@ -159,7 +157,7 @@ def index_transcript_chunks(docs: List[dict]) -> dict:
                 "content_sha256": doc.get("content_sha256"),
                 "tokens": doc.get("tokens"),
                 "text": doc.get("text"),
-                "indexed_at": datetime.utcnow().isoformat() + "Z"
+                "indexed_at": to_iso8601_z(now())
             }
 
             # Index document

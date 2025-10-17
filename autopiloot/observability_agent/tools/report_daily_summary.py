@@ -11,17 +11,13 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone, timedelta
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
+from firestore_client import get_firestore_client
 from loader import load_app_config
 from audit_logger import audit_logger
 
-load_dotenv()
 
 
 class ReportDailySummary(BaseTool):
@@ -69,7 +65,7 @@ class ReportDailySummary(BaseTool):
                 target_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
             
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
             
             # Compile daily metrics
             video_metrics = self._compile_video_metrics(db, target_date)
@@ -568,20 +564,6 @@ class ReportDailySummary(BaseTool):
         else:
             return "critical"
     
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            project_id = get_required_env_var("GCP_PROJECT_ID", "Google Cloud Project ID for Firestore")
-            credentials_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials file path")
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            return firestore.Client(project=project_id)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
 
 if __name__ == "__main__":
     # Test daily summary generation

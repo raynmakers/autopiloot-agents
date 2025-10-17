@@ -14,8 +14,6 @@ from unittest.mock import patch, MagicMock, Mock
 from datetime import datetime, date, timezone, timedelta
 
 # Ensure project is in path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 
 class TestGenerateDailyDigestComprehensive(unittest.TestCase):
     """Comprehensive test suite for GenerateDailyDigest with maximum coverage."""

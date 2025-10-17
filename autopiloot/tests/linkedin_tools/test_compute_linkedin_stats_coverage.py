@@ -443,7 +443,6 @@ class TestComputeLinkedInStatsCoverage(unittest.TestCase):
             # Run the tool's main block
             result = subprocess.run([
                 sys.executable, "-c",
-                "import sys; sys.path.append('.'); "
                 "from linkedin_agent.tools.compute_linkedin_stats import ComputeLinkedInStats; "
                 "import json; "
                 "test_posts = [{'id': 'post_1', 'text': 'Test', 'created_at': '2024-01-15T10:00:00Z', 'author': {'name': 'Test'}, 'metrics': {'likes': 10}}]; "

@@ -12,16 +12,11 @@ from pydantic import Field
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
 
-from env_loader import get_required_env_var
-from loader import load_app_config
-
-load_dotenv()
 
 
 class RemoveSheetRow(BaseTool):

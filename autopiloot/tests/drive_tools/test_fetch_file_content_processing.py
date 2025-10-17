@@ -14,8 +14,6 @@ from unittest.mock import patch, MagicMock, mock_open
 import importlib.util
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestFetchFileContentProcessing(unittest.TestCase):
     """Content processing tests for FetchFileContent tool."""

@@ -6,12 +6,14 @@ alwaysApply: false
 
 id: "TASK-0085"
 title: "Phase 2: Standardize env access in agent tools"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["refactor", "config", "env", "agent-tools"]
 dependencies: ["TASK-0075"]
 created: "2025-10-14"
+completed: "2025-10-15"
 parent_task: "TASK-0075"
+archived: "2025-10-15"
 
 # 1) High-Level Objective
 
@@ -410,3 +412,40 @@ After Phase 2 completion:
 - [ ] Update documentation (progress notes, task status)
 
 **Total**: 13 agent tool files + 3 verification steps = 16 checklist items
+
+# 14) Completion Summary
+
+**Status**: ✅ COMPLETED on 2025-10-15
+
+**Results**:
+- ✅ All 17 agent tool files successfully updated
+- ✅ Centralized environment variable access implemented across all production tools
+- ✅ Consistent error handling with descriptive messages
+- ✅ Detection script shows reduction from 35 to 19 os.getenv usages
+- ✅ All tests passing without modification
+- ✅ Git commit: 226357f "feat(config): standardize environment variable access in agent tools"
+
+**Files Updated**:
+- Transcriber Agent: 3 files (poll_transcription_job.py, submit_assemblyai_job.py, save_transcript_record.py)
+- Summarizer Agent: 3 files (generate_short_summary.py, store_short_in_zep.py, save_summary_record.py)
+- Strategy Agent: 5 files (generate_content_briefs.py, analyze_tone_of_voice.py, synthesize_strategy_playbook.py, fetch_corpus_from_zep.py, save_strategy_artifacts.py)
+- Drive Agent: 1 file (upsert_drive_docs_to_zep.py)
+- Scraper Agent: 1 file (list_recent_uploads.py)
+- LinkedIn Agent: 4 additional files updated beyond original scope
+
+**Pattern Applied**:
+```python
+# Before:
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("OPENAI_API_KEY not set")
+
+# After:
+from config.env_loader import get_required_env_var
+api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for summary generation")
+```
+
+**Follow-up Tasks**:
+- ✅ TASK-0086 Phase 3 completed: Removed 221 sys.path manipulation patterns
+- Documentation updated with PYTHONPATH requirements
+- Production-ready codebase with proper package structure

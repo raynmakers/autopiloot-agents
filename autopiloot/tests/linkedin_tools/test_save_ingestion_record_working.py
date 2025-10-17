@@ -8,7 +8,8 @@ import sys
 import json
 import importlib.util
 from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, timezone
 
 
 class TestSaveIngestionRecordWorking(unittest.TestCase):
@@ -294,7 +295,7 @@ class TestSaveIngestionRecordWorking(unittest.TestCase):
 
         # Should be approximately 1 minute ago (within 2 seconds tolerance)
         current_time = datetime.now(timezone.utc).timestamp()
-        parsed_start = datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp()
+        parsed_start = parse_iso8601_z(start_time).timestamp()
         time_diff = current_time - parsed_start
         self.assertAlmostEqual(time_diff, 60.0, delta=2.0)
 

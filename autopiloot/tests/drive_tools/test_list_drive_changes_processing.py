@@ -13,8 +13,6 @@ import importlib.util
 from datetime import datetime, timezone
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestListDriveChangesProcessing(unittest.TestCase):
     """Processing logic tests for ListDriveChanges tool."""

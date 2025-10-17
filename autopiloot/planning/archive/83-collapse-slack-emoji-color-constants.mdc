@@ -1,0 +1,97 @@
+---
+description: "Collapse duplicate Slack emoji/color maps into core.slack_utils"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0083"
+title: "Unify Slack emoji/color constants"
+status: "completed"
+priority: "P3"
+labels: ["refactor", "slack", "constants"]
+dependencies: ["TASK-0072"]
+created: "2025-10-14"
+completed: "2025-10-16"
+
+# 1) High-Level Objective
+
+Maintain emoji/color mappings in one place; remove copies in tools.
+
+# 2) Steps
+
+1. Move/ensure maps in `core/slack_utils`.
+2. Update tools to read from util; delete in-file maps.
+
+# 3) Acceptance Criteria
+
+- Single mapping source; formatting unchanged.
+
+# Completion Summary
+
+**Completed:** 2025-10-16
+
+**Status:** Already completed as part of TASK-0072
+
+**Verification Results:**
+
+This task was effectively completed during TASK-0072 implementation when all Slack formatting logic was consolidated into `core/slack_utils.py`. Comprehensive verification confirms:
+
+1. **Single Source of Truth Established** (core/slack_utils.py lines 111-136):
+   ```python
+   # Lines 111-120: Color mappings
+   color_mapping = {
+       "critical": "#FF0000",  # Red
+       "error": "#FF6B6B",     # Light red
+       "warning": "#FFD93D",   # Yellow
+       "info": "#6BCF7F",      # Green
+       "dlq": "#FF8C00",       # Orange
+       "budget": "#9B59B6",    # Purple
+       "quota": "#E74C3C",     # Dark red
+       "daily": "#3498DB"      # Blue
+   }
+
+   # Lines 125-134: Emoji mappings
+   emoji_mapping = {
+       "critical": "🚨",
+       "error": "❌",
+       "warning": "⚠️",
+       "info": "ℹ️",
+       "dlq": "🔄",
+       "budget": "💰",
+       "quota": "📊",
+       "daily": "📅"
+   }
+   ```
+
+2. **No Duplicate Mappings Found:**
+   - Grep search for `emoji_mapping = {`: Only found in core/slack_utils.py
+   - Grep search for `color_mapping = {`: Only found in core/slack_utils.py
+   - Grep search for all color hex codes: Only found in core/slack_utils.py
+   - All tools delegate to centralized `format_alert_blocks()` function
+
+3. **Tools Already Using Centralized Mappings:**
+   - observability_agent/tools/format_slack_blocks.py: Delegates to core.slack_utils.format_alert_blocks()
+   - observability_agent/tools/send_slack_message.py: Uses core.slack_utils.normalize_channel_name()
+   - All other alert tools use centralized functions
+
+4. **Functionality Unchanged:**
+   - All 8 alert types still map to correct emojis and colors
+   - Channel resolution works correctly
+   - Message formatting produces identical output
+   - No breaking changes to existing tools
+
+**Consolidation Achieved:**
+- ✅ Emoji mappings: Single source in core/slack_utils.py
+- ✅ Color mappings: Single source in core/slack_utils.py
+- ✅ No duplicate definitions anywhere in codebase
+- ✅ All tools use centralized utilities
+- ✅ Formatting consistency maintained across all alerts
+
+**Benefits:**
+- **Eliminated code duplication**: No duplicate emoji/color definitions
+- **Single point of maintenance**: Changes to mappings only need to happen once
+- **Consistent visual identity**: All alerts use same emoji/color scheme
+- **Easy customization**: Can modify all alert appearances by changing one file
+- **Type safety**: Centralized mappings catch typos in alert types
+
+**Note:** This task had zero remaining work since TASK-0072 already accomplished all consolidation objectives. The verification process confirmed complete consolidation with no duplicate mappings remaining in the codebase.

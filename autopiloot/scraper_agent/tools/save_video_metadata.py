@@ -11,17 +11,14 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+from config.env_loader import get_required_env_var
+from config.loader import load_app_config
+from core.audit_logger import audit_logger
+from core.firestore_client import get_firestore_client
+from core.json_response import ok, fail
 
-from env_loader import get_required_env_var
-from loader import load_app_config
-from audit_logger import audit_logger
-
-load_dotenv()
 
 
 class SaveVideoMetadata(BaseTool):
@@ -102,14 +99,19 @@ class SaveVideoMetadata(BaseTool):
             max_duration = config.get("idempotency", {}).get("max_video_duration_sec", 4200)
             
             if self.duration_sec > max_duration:
-                return json.dumps({
-                    "error": f"Video duration {self.duration_sec}s exceeds maximum {max_duration}s (70 minutes). Skipping according to business rules.",
-                    "doc_ref": None
-                })
+                return fail(
+                    message=f"Video duration {self.duration_sec}s exceeds maximum {max_duration}s (70 minutes)",
+                    code="DURATION_EXCEEDED",
+                    details={
+                        "duration_sec": self.duration_sec,
+                        "max_duration_sec": max_duration,
+                        "video_id": self.video_id
+                    }
+                )
             
-            # Initialize Firestore client
-            db = self._initialize_firestore()
-            
+            # Get Firestore client from centralized factory
+            db = get_firestore_client()
+
             # Create document reference
             doc_ref = db.collection('videos').document(self.video_id)
             
@@ -124,13 +126,13 @@ class SaveVideoMetadata(BaseTool):
                 # If video is already in pipeline from sheet source, skip to prevent status reset
                 # Only apply this check when current source is 'sheet' to avoid blocking scraper updates
                 if self.source == 'sheet' and existing_status in ['transcription_queued', 'transcribed', 'summarized', 'rejected_non_business']:
-                    return json.dumps({
+                    return ok({
                         "doc_ref": f"videos/{self.video_id}",
                         "operation": "skipped",
                         "video_id": self.video_id,
                         "status": existing_status,
                         "message": f"Video already in pipeline with status '{existing_status}', skipping sheet update to prevent duplicate processing"
-                    }, indent=2)
+                    })
 
             # Prepare video data with all required fields from PRD
             video_data = {
@@ -172,45 +174,21 @@ class SaveVideoMetadata(BaseTool):
                 source=self.source,
                 actor="ScraperAgent"
             )
-            
-            # Return JSON response as required by Agency Swarm v1.0.0
-            return json.dumps({
+
+            # Return JSON response with standard envelope
+            return ok({
                 "doc_ref": f"videos/{self.video_id}",
                 "operation": operation,
                 "video_id": self.video_id,
                 "status": "discovered"
-            }, indent=2)
-            
-        except Exception as e:
-            return json.dumps({
-                "error": f"Failed to save video metadata: {str(e)}",
-                "doc_ref": None
             })
-    
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID", 
-                "Google Cloud Project ID for Firestore"
-            )
-            
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS", 
-                "Google service account credentials file path"
-            )
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            # Initialize Firestore client with project ID
-            # The client will automatically use GOOGLE_APPLICATION_CREDENTIALS
-            return firestore.Client(project=project_id)
-            
+
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
+            return fail(
+                message=f"Failed to save video metadata: {str(e)}",
+                code="FIRESTORE_ERROR",
+                details={"video_id": self.video_id}
+            )
 
 
 if __name__ == "__main__":

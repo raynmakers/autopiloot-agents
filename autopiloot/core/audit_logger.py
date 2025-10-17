@@ -11,9 +11,7 @@ from typing import Dict, Any, Optional
 from google.cloud import firestore
 
 # Add config directory to path for configuration imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-
-from env_loader import get_required_env_var
+from config.env_loader import get_required_env_var
 
 
 class AuditLogger:
@@ -237,9 +235,11 @@ if __name__ == "__main__":
     print(f"Transcript creation audit log: {'✅ PASSED' if success2 else '❌ FAILED'}")
     
     # Test Slack alert logging
+    from core.slack_utils import get_channel_for_alert_type
+    test_channel = f"#{get_channel_for_alert_type('budget')}"
     success3 = audit_logger.log_slack_alert_sent(
         alert_type="budget_threshold",
-        channel="#ops-autopiloot",
+        channel=test_channel,
         message_ts="1234567890.123"
     )
     print(f"Slack alert audit log: {'✅ PASSED' if success3 else '❌ FAILED'}")

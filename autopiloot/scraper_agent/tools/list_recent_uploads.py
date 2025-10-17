@@ -8,7 +8,8 @@ import sys
 import re
 import json
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import parse_iso8601_z, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from googleapiclient.discovery import build
@@ -16,10 +17,7 @@ from google.oauth2 import service_account
 from googleapiclient.errors import HttpError
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
-from config.env_loader import get_required_env_var
+from config.env_loader import get_required_env_var, get_optional_env_var
 from config.loader import get_config_value
 
 # Firebase Admin SDK for checkpoint persistence
@@ -152,7 +150,7 @@ class ListRecentUploads(BaseTool):
         
         if checkpoint:
             try:
-                checkpoint_dt = datetime.fromisoformat(checkpoint.replace('Z', '+00:00'))
+                checkpoint_dt = parse_iso8601_z(checkpoint)
             except:
                 checkpoint_dt = None
         
@@ -171,14 +169,14 @@ class ListRecentUploads(BaseTool):
 
                 for item in response.get('items', []):
                     published_at = item['snippet']['publishedAt']
-                    published_dt = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
+                    published_dt = parse_iso8601_z(published_at)
                     
                     # Skip if before checkpoint
                     if checkpoint_dt and published_dt <= checkpoint_dt:
                         continue
                     
                     # Skip if outside time window (early exit optimization)
-                    since_dt = datetime.fromisoformat(self.since_utc.replace('Z', '+00:00'))
+                    since_dt = parse_iso8601_z(self.since_utc)
                     if published_dt < since_dt:
                         return videos  # Videos are ordered by date, so we can stop here
                     
@@ -246,12 +244,12 @@ class ListRecentUploads(BaseTool):
     
     def _filter_videos_by_timeframe(self, videos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter videos by the specified time window."""
-        since_dt = datetime.fromisoformat(self.since_utc.replace('Z', '+00:00'))
-        until_dt = datetime.fromisoformat(self.until_utc.replace('Z', '+00:00'))
+        since_dt = parse_iso8601_z(self.since_utc)
+        until_dt = parse_iso8601_z(self.until_utc)
         
         filtered = []
         for video in videos:
-            published_dt = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00'))
+            published_dt = parse_iso8601_z(video['published_at'])
             if since_dt <= published_dt <= until_dt:
                 filtered.append(video)
         
@@ -328,7 +326,7 @@ class ListRecentUploads(BaseTool):
             
             # Try service account authentication first (if available)
             try:
-                service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials for YouTube API")
                 if service_account_path and os.path.exists(service_account_path):
                     credentials = service_account.Credentials.from_service_account_file(
                         service_account_path,
@@ -353,6 +351,7 @@ if __name__ == "__main__":
     # See scraper_agent/instructions.md for the complete workflow
 
     from datetime import datetime, timedelta
+    from core.time_utils import parse_iso8601_z
 
     # Sample channel_id for testing (Alex Hormozi)
     # In production, this comes from ResolveChannelHandles tool via the agent

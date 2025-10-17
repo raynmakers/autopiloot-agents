@@ -10,13 +10,9 @@ import re
 from typing import Optional, List, Dict, Any
 from agency_swarm.tools import BaseTool
 from pydantic import Field
-from dotenv import load_dotenv
 import time
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var
 from config.loader import load_app_config
 
@@ -24,7 +20,6 @@ from config.loader import load_app_config
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 
-load_dotenv()
 
 
 class ReadSheetLinks(BaseTool):

@@ -18,8 +18,6 @@ from unittest.mock import Mock, MagicMock, patch
 import json
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestRagHybridSearchWrapper(unittest.TestCase):
     """Tests for RagHybridSearch wrapper (delegates to core library)"""

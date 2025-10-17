@@ -1,109 +1,84 @@
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from datetime import datetime
 from pydantic import Field
 from agency_swarm.tools import BaseTool
+
+# Import centralized Slack utilities
+from core.slack_utils import format_alert_blocks
 
 
 class FormatSlackBlocks(BaseTool):
     """
     Create formatted Slack block layouts for rich messaging.
+
+    UPDATED: This tool now delegates to core.slack_utils.format_alert_blocks
+    for consistent formatting across the entire system. Maintains backward
+    compatibility with the original interface while using the centralized utility.
+
     Generates structured JSON blocks for better visual presentation according to TASK-AST-0040 specifications.
     """
-    
+
     items: Dict[str, Any] = Field(
-        ..., 
+        ...,
         description="Dictionary containing data to format into Slack blocks with various fields and context"
     )
     alert_type: str = Field(
-        default="info", 
-        description="Type of alert: 'info', 'warning', 'error', 'budget', 'success'"
+        default="info",
+        description="Type of alert: 'info', 'warning', 'error', 'budget', 'success', 'critical', 'dlq', 'quota', 'daily'"
     )
-    
+
     def run(self) -> str:
         """
-        Generate Slack blocks JSON for rich message formatting per TASK-AST-0040 specifications.
-        
+        Generate Slack blocks JSON for rich message formatting.
+
+        Delegates to core.slack_utils.format_alert_blocks for consistent formatting.
+
         Returns:
             JSON string containing formatted Slack blocks structure
         """
         try:
-            # Determine alert styling based on type
-            alert_config = {
-                "info": {"emoji": "ℹ️", "color": "#36a64f", "title": "Information"},
-                "warning": {"emoji": "⚠️", "color": "#ffcc00", "title": "Warning"},
-                "error": {"emoji": "🚨", "color": "#ff0000", "title": "Error Alert"},
-                "budget": {"emoji": "💰", "color": "#ff6600", "title": "Budget Alert"},
-                "success": {"emoji": "✅", "color": "#36a64f", "title": "Success"}
-            }
-            
-            config = alert_config.get(self.alert_type, alert_config["info"])
-            
-            # Create header with emoji and title
-            title = self.items.get("title", config["title"])
-            blocks = [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"{config['emoji']} {title}"
-                    }
-                }
-            ]
-            
-            # Add main content section
-            if "message" in self.items:
-                blocks.append({
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": self.items["message"]
-                    }
-                })
-            
-            # Add fields section if provided
+            # Extract parameters from items dict
+            title = self.items.get("title", "Alert")
+            message = self.items.get("message", "")
+
+            # Convert fields dict to details dict for centralized formatter
+            details = None
             if "fields" in self.items and self.items["fields"]:
-                fields_block = {
-                    "type": "section",
-                    "fields": []
-                }
-                
-                for field_name, field_value in self.items["fields"].items():
-                    field_text = {
-                        "type": "mrkdwn",
-                        "text": f"*{field_name}:*\n{field_value}"
-                    }
-                    fields_block["fields"].append(field_text)
-                
-                blocks.append(fields_block)
-            
-            # Add divider
-            blocks.append({"type": "divider"})
-            
-            # Add context footer with timestamp
-            context_elements = []
-            
+                details = self.items["fields"]
+
+            # Parse timestamp if provided
+            timestamp = None
             if "timestamp" in self.items:
-                context_elements.append({
-                    "type": "mrkdwn",
-                    "text": f"🕒 {self.items['timestamp']}"
-                })
-            
+                timestamp_str = self.items["timestamp"]
+                try:
+                    # Try parsing ISO format
+                    from core.time_utils import parse_iso8601_z
+                    timestamp = parse_iso8601_z(timestamp_str)
+                except:
+                    # Fallback to current time
+                    from datetime import datetime, timezone
+                    timestamp = datetime.now(timezone.utc)
+
+            # Add component to details if provided
             if "component" in self.items:
-                context_elements.append({
-                    "type": "mrkdwn",
-                    "text": f"📍 {self.items['component']}"
-                })
-            
-            if context_elements:
-                blocks.append({
-                    "type": "context",
-                    "elements": context_elements
-                })
-            
-            # Return formatted blocks as JSON string
+                if details is None:
+                    details = {}
+                details["component"] = self.items["component"]
+
+            # Delegate to centralized formatting utility
+            blocks = format_alert_blocks(
+                title=title,
+                message=message,
+                alert_type=self.alert_type,
+                details=details,
+                timestamp=timestamp
+            )
+
+            # Return formatted blocks as JSON string (maintain backward compatibility)
             result = {"blocks": blocks}
             return json.dumps(result, indent=2)
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to format Slack blocks: {str(e)}")
 

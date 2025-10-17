@@ -9,7 +9,7 @@ from google.cloud import firestore
 from agency_swarm.tools import BaseTool
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+from config.env_loader import get_required_env_var
 
 
 class GenerateShortSummary(BaseTool):
@@ -46,18 +46,13 @@ class GenerateShortSummary(BaseTool):
             - prompt_id, prompt_version, token_usage, video_id, model, reasoning_effort
         """
         # Validate required environment variables
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        project_id = os.getenv("GCP_PROJECT_ID")
-
-        if not openai_api_key:
+        try:
+            openai_api_key = get_required_env_var("OPENAI_API_KEY", "OpenAI API key for summary generation")
+            project_id = get_required_env_var("GCP_PROJECT_ID", "GCP project ID for Firestore access")
+        except EnvironmentError as e:
             return json.dumps({
                 "error": "configuration_error",
-                "message": "OPENAI_API_KEY environment variable is required"
-            })
-        if not project_id:
-            return json.dumps({
-                "error": "configuration_error",
-                "message": "GCP_PROJECT_ID environment variable is required"
+                "message": str(e)
             })
 
         try:

@@ -10,17 +10,15 @@ from typing import Dict, List
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var
 from scraper_agent.tools.remove_sheet_row import RemoveSheetRow
+from core.firestore_client import get_firestore_client
+from core.time_utils import now, to_iso8601_z
 
-load_dotenv()
 
 
 class MarkSheetRowsProcessed(BaseTool):
@@ -50,12 +48,12 @@ class MarkSheetRowsProcessed(BaseTool):
         """
         try:
             # Initialize Firestore
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Query for videos that are ready for cleanup
             videos_ref = db.collection('videos')
-            query = videos_ref.where('source', '==', 'sheet') \
-                             .where('status', '==', 'summarized')
+            query = videos_ref.where(filter=FieldFilter('source', '==', 'sheet')) \
+                             .where(filter=FieldFilter('status', '==', 'summarized'))
 
             videos_to_process = []
             for doc in query.stream():
@@ -173,7 +171,7 @@ class MarkSheetRowsProcessed(BaseTool):
 
     def _mark_videos_processed(self, db, rows_info: List[Dict]) -> None:
         """Update Firestore to mark videos as processed."""
-        current_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        current_time = to_iso8601_z(now())
 
         for info in rows_info:
             try:
@@ -184,30 +182,6 @@ class MarkSheetRowsProcessed(BaseTool):
             except Exception as e:
                 # Log but don't fail the whole operation
                 print(f"Warning: Failed to mark video {info['video_id']} as processed: {str(e)}")
-
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
 
 
 if __name__ == "__main__":

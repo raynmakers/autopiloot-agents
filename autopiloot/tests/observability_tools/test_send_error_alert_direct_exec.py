@@ -108,9 +108,7 @@ class TestSendErrorAlertDirectExec(unittest.TestCase):
 
         # Remove problematic lines
         lines_to_remove = [
-            'sys.path.append(',
             'tools_path = os.path.dirname',
-            'sys.path.insert(',
         ]
 
         lines = modified_code.split('\n')

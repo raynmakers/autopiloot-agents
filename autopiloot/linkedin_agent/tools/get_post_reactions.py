@@ -18,10 +18,8 @@ from pydantic import Field
 from google.cloud import firestore
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var, load_environment
+from firestore_client import get_firestore_client
 from loader import get_config_value
 
 # Import SaveIngestionRecord for audit logging
@@ -294,27 +292,6 @@ class GetPostReactions(BaseTool):
 
         return profile_id
 
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
     def _store_profile_to_firestore(self, db, reactor: Dict) -> str:
         """
         Store reactor profile to Firestore with idempotent upsert.
@@ -386,7 +363,7 @@ class GetPostReactions(BaseTool):
             }
 
         try:
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             for reactor in reactors:
                 try:

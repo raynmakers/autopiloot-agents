@@ -18,8 +18,6 @@ import os
 import importlib.util
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestOrchestrateRagIngestion(unittest.TestCase):
     """Test OrchestrateRagIngestion tool with new RagIndexTranscript wrapper."""

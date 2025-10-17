@@ -216,8 +216,6 @@ except ImportError:
     import sys
     import os
     tools_path = os.path.dirname(__file__)
-    sys.path.insert(0, tools_path)
-
     # These imports would happen in the fallback
     # from format_slack_blocks import FormatSlackBlocks
     # from send_slack_message import SendSlackMessage

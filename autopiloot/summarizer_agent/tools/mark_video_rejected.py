@@ -12,10 +12,8 @@ from pydantic import Field
 from google.cloud import firestore
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
+from time_utils import now, to_iso8601_z
 from audit_logger import audit_logger
 
 
@@ -89,7 +87,7 @@ class MarkVideoRejected(BaseTool):
                 })
 
             # Update video status with rejection metadata
-            current_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            current_time = to_iso8601_z(now())
 
             video_ref.update({
                 'status': 'rejected_non_business',

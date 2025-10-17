@@ -12,10 +12,7 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
 from loader import load_app_config, get_config_value
 
 
@@ -93,7 +90,7 @@ class FetchCorpusFromZep(BaseTool):
 
             # Get Zep configuration
             zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for GraphRAG")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
+            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL for corpus retrieval")
 
             # Initialize Zep client
             zep_client = self._initialize_zep_client(zep_api_key, zep_base_url)
@@ -152,7 +149,7 @@ class FetchCorpusFromZep(BaseTool):
 
     def _initialize_zep_client(self, api_key: str, base_url: str):
         """
-        Initialize Zep client with API credentials.
+        Initialize Zep client using centralized factory.
 
         Args:
             api_key: Zep API key
@@ -161,12 +158,8 @@ class FetchCorpusFromZep(BaseTool):
         Returns:
             Zep client instance or mock client for testing
         """
-        try:
-            from zep_python import ZepClient
-            return ZepClient(api_key=api_key, base_url=base_url)
-        except ImportError:
-            # For testing without zep-python installed
-            return MockZepClient()
+        from core.zep import get_zep_client
+        return get_zep_client(api_key=api_key, base_url=base_url)
 
     def _validate_group_exists(self, zep_client, group_id: str) -> bool:
         """
@@ -421,57 +414,6 @@ class FetchCorpusFromZep(BaseTool):
         }
 
         return json.dumps(result)
-
-
-class MockZepClient:
-    """Mock Zep client for testing when zep-python is not available."""
-
-    def __init__(self):
-        self._is_mock = True
-        self.group = MockGroupClient()
-
-    def get_group_documents(self, group_id: str) -> List[Dict]:
-        """Return mock documents for testing."""
-        return [
-            {
-                "id": "urn:li:activity:mock1",
-                "content": "Sample LinkedIn post content for strategy analysis",
-                "metadata": {
-                    "id": "urn:li:activity:mock1",
-                    "type": "post",
-                    "created_at": "2024-01-15T10:00:00Z",
-                    "author_name": "Test Author",
-                    "author_headline": "Strategy Expert",
-                    "likes": 150,
-                    "comments": 20,
-                    "shares": 5,
-                    "engagement_rate": 0.1
-                }
-            },
-            {
-                "id": "urn:li:comment:mock1",
-                "content": "Insightful comment on the strategy post",
-                "metadata": {
-                    "id": "urn:li:comment:mock1",
-                    "type": "comment",
-                    "created_at": "2024-01-15T11:00:00Z",
-                    "author_name": "Comment Author",
-                    "likes": 30,
-                    "parent_post_id": "urn:li:activity:mock1"
-                }
-            }
-        ]
-
-
-class MockGroupClient:
-    """Mock Zep group client for testing."""
-
-    def get(self, group_id: str):
-        return {"id": group_id, "name": f"Mock group {group_id}"}
-
-    def get_documents(self, group_id: str, limit: int = 1000):
-        # Return mock documents
-        return MockZepClient().get_group_documents(group_id)
 
 
 if __name__ == "__main__":

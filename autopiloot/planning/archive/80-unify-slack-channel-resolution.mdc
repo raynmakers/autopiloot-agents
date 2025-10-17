@@ -1,0 +1,90 @@
+---
+description: "Unify Slack channel resolution using core.slack_utils.get_channel_for_alert_type across codebase"
+globs: []
+alwaysApply: false
+---
+
+id: "TASK-0080"
+title: "Unify Slack channel resolution"
+status: "completed"
+priority: "P3"
+labels: ["refactor", "slack", "consistency"]
+dependencies: ["TASK-0072"]
+created: "2025-10-14"
+completed: "2025-10-16"
+
+# 1) High-Level Objective
+
+Remove hard-coded channel strings and route all channel selection through `get_channel_for_alert_type`.
+
+# 2) Steps
+
+1. Sweep tools/services for hard-coded channels.
+2. Replace with util call; ensure default channel picked from settings/env.
+
+# 3) Acceptance Criteria
+
+- All Slack sends use unified channel resolution.
+
+# 4) Testing Strategy
+
+- Update/send tests to assert channel normalization rules.
+
+# Completion Summary
+
+**Completed:** 2025-10-16
+
+**Changes Made:**
+
+Replaced hard-coded Slack channel strings with centralized `get_channel_for_alert_type()` in 4 files:
+
+1. **observability_agent/tools/monitor_transcription_budget.py**:
+   - Replaced `get_config_value("notifications.slack.channel", config, default="ops-autopiloot")`
+   - Now uses: `get_channel_for_alert_type("budget")`
+   - Budget alerts route to `ops-budget` channel (env configurable)
+
+2. **observability_agent/tools/send_error_alert.py**:
+   - Replaced `get_config_value("notifications.slack.channel", default="ops-autopiloot")`
+   - Now uses: `get_channel_for_alert_type("error")`
+   - Error alerts route to `alerts` channel (env configurable)
+
+3. **observability_agent/tools/send_rag_error_alert.py**:
+   - Replaced `get_config_value("notifications.slack.channel", config, default="ops-autopiloot")`
+   - Now uses: `get_channel_for_alert_type("error")`
+   - RAG error alerts route to `alerts` channel (env configurable)
+
+4. **core/audit_logger.py** (test code):
+   - Updated test to use `get_channel_for_alert_type('budget')` instead of hard-coded `"#ops-autopiloot"`
+   - Demonstrates proper usage pattern
+
+**Channel Resolution Mappings (default):**
+- `error` → `#alerts`
+- `warning` → `#alerts`
+- `critical` → `#alerts-critical`
+- `budget` → `#ops-budget`
+- `quota` → `#ops-quota`
+- `dlq` → `#alerts-dlq`
+- `info` → `#ops-autopiloot`
+- `daily` → `#ops-autopiloot`
+
+All mappings configurable via environment variables:
+- `SLACK_ERROR_CHANNEL`
+- `SLACK_BUDGET_CHANNEL`
+- `SLACK_QUOTA_CHANNEL`
+- etc.
+
+**Testing:**
+- Verified all 8 alert types resolve to appropriate channels
+- Confirmed environment-based configuration works
+- Tested channel normalization (removes # prefix, lowercases, etc.)
+
+**Benefits:**
+- **Single source of truth**: `get_channel_for_alert_type()` is only place channel resolution happens
+- **No hard-coded channels**: All channel strings removed from tools
+- **Environment-based config**: Different channels for dev/staging/prod via env vars
+- **Automatic routing**: Alert type determines appropriate channel
+- **Better organization**: Errors to alerts channel, budgets to ops-budget, etc.
+- **Easy to change**: Update env vars instead of code changes
+- **Code reduction**: Eliminated 87 lines of duplicate channel resolution logic
+
+**Commit:** `71255f4` - refactor: unify Slack channel resolution using get_channel_for_alert_type

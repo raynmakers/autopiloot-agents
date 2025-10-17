@@ -6,11 +6,12 @@ alwaysApply: false
 
 id: "TASK-0072"
 title: "Consolidate Slack formatting/sending via core.slack_utils"
-status: "planned"
+status: "completed"
 priority: "P1"
 labels: ["refactor", "slack", "observability"]
 dependencies: []
 created: "2025-10-14"
+completed: "2025-10-16"
 
 # 1) High-Level Objective
 
@@ -72,3 +73,57 @@ def send_alert(title: str, message: str, alert_type: str = "info", details: Opti
 # 10) Notes / Links
 
 - Ensure `get_channel_for_alert_type` is the only place channel is derived.
+
+# Completion Summary
+
+**Completed:** 2025-10-16
+
+**Changes Made:**
+
+1. **core/slack_utils.py** - Added `send_alert()` function:
+   - Single entry point for all Slack alerts in the system
+   - Handles block formatting, channel resolution, and message sending
+   - Supports all alert types: error, warning, info, critical, dlq, budget, quota, daily
+   - Graceful fallback when slack_sdk not available
+   - Uses existing format_alert_blocks() and get_channel_for_alert_type()
+
+2. **observability_agent/tools/format_slack_blocks.py** - Refactored to delegate:
+   - Now calls core.slack_utils.format_alert_blocks() for consistent formatting
+   - Maintains backward compatibility with original tool interface
+   - Converts items dict format to centralized format
+   - Leverages centralized emoji/color mappings
+
+3. **observability_agent/tools/send_slack_message.py** - Updated for consistency:
+   - Uses core.slack_utils.normalize_channel_name() for channel normalization
+   - Maintains existing tool interface for agent compatibility
+   - Consistent channel handling with centralized utility
+
+4. **services/firebase/functions/core.py** - Consolidated Firebase alerts:
+   - Updated `_send_slack_alert_simple()` to use core.slack_utils.send_alert()
+   - Determines alert type heuristically from message content
+   - Marked `send_slack_alert()` as DEPRECATED (kept for backward compatibility)
+   - Maintains all existing function call signatures
+
+**Implementation Approach:**
+- Added send_alert() with comprehensive error handling and logging
+- Maintained backward compatibility throughout all changes
+- Leveraged existing centralized utilities (format_alert_blocks, get_channel_for_alert_type)
+- Updated tool classes to delegate while preserving original interfaces
+
+**Testing:**
+- Verified core.slack_utils functions work correctly
+- Tested channel normalization: `#ops-autopiloot` → `ops-autopiloot`
+- Tested channel resolution: `budget` → `ops-budget`
+- Tested block formatting: generates 4 blocks (header, section, context, etc.)
+- Tested send_alert callable (graceful failure without SLACK_BOT_TOKEN)
+
+**Benefits:**
+- Single source of truth for all Slack formatting and sending
+- Consistent emoji, color, and channel resolution everywhere
+- Eliminated duplicate block formatting logic (reduced ~100 lines of duplication)
+- Centralized channel normalization through get_channel_for_alert_type()
+- Better maintainability - changes in one place affect entire system
+- Improved testability with centralized logic
+- Graceful fallback when dependencies unavailable
+
+**Commit:** `af51b85` - refactor: consolidate Slack formatting and sending via core.slack_utils

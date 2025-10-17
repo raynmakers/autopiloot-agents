@@ -13,8 +13,6 @@ from pydantic import Field
 from agency_swarm.tools import BaseTool
 
 # Add core directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-
 
 class RagIndexTranscript(BaseTool):
     """

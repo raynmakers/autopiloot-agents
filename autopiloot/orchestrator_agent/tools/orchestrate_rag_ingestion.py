@@ -17,17 +17,14 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var
+from firestore_client import get_firestore_client
 from loader import load_app_config
 from audit_logger import audit_logger
+from core.idempotency import FirestoreExistenceChecker
 
-load_dotenv()
 
 
 class OrchestrateRagIngestion(BaseTool):
@@ -99,7 +96,7 @@ class OrchestrateRagIngestion(BaseTool):
             print(f"🚀 Orchestrating RAG ingestion for video: {self.video_id}")
 
             # Initialize Firestore
-            db = self._initialize_firestore()
+            db = get_firestore_client()
 
             # Load transcript and video metadata
             transcript_data = self._load_transcript_data(db)
@@ -192,20 +189,18 @@ class OrchestrateRagIngestion(BaseTool):
             })
 
     def _load_transcript_data(self, db) -> Dict[str, Any]:
-        """Load transcript text and video metadata from Firestore."""
+        """Load transcript text and video metadata from Firestore using centralized helpers."""
         try:
-            # Load transcript
-            transcript_ref = db.collection('transcripts').document(self.video_id)
-            transcript_doc = transcript_ref.get()
+            # Load transcript using centralized helper
+            transcript_data = FirestoreExistenceChecker.get_transcript_data(self.video_id, db)
 
-            if not transcript_doc.exists:
+            if not transcript_data:
                 return {
                     "error": "transcript_not_found",
                     "message": f"No transcript found for video {self.video_id}",
                     "video_id": self.video_id
                 }
 
-            transcript_data = transcript_doc.to_dict()
             transcript_text = transcript_data.get('transcript_text')
 
             if not transcript_text:
@@ -215,13 +210,11 @@ class OrchestrateRagIngestion(BaseTool):
                     "video_id": self.video_id
                 }
 
-            # Load video metadata
-            video_ref = db.collection('videos').document(self.video_id)
-            video_doc = video_ref.get()
+            # Load video metadata using centralized helper
+            video_data = FirestoreExistenceChecker.get_video_data(self.video_id, db)
 
             video_metadata = {}
-            if video_doc.exists:
-                video_data = video_doc.to_dict()
+            if video_data:
                 video_metadata = {
                     "title": video_data.get('title'),
                     "channel_id": video_data.get('channel_id'),
@@ -404,7 +397,6 @@ class OrchestrateRagIngestion(BaseTool):
         """Route failed operation to DLQ and send alert."""
         try:
             # Import HandleDLQ tool
-            sys.path.append(os.path.join(os.path.dirname(__file__)))
             from handle_dlq import HandleDLQ
 
             # Create DLQ entry
@@ -439,7 +431,6 @@ class OrchestrateRagIngestion(BaseTool):
 
         try:
             # Send error alert
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'observability_agent', 'tools'))
             from send_rag_error_alert import SendRagErrorAlert
 
             alerter = SendRagErrorAlert(
@@ -467,20 +458,6 @@ class OrchestrateRagIngestion(BaseTool):
         import re
         name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
-
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            project_id = get_required_env_var("GCP_PROJECT_ID", "Google Cloud Project ID for Firestore")
-            credentials_path = get_required_env_var("GOOGLE_APPLICATION_CREDENTIALS", "Google service account credentials file path")
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
 
 
 if __name__ == "__main__":

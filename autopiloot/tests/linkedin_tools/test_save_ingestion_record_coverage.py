@@ -409,7 +409,6 @@ class TestSaveIngestionRecordCoverage(unittest.TestCase):
             # Run the tool's main block
             result = subprocess.run([
                 sys.executable, "-c",
-                "import sys; sys.path.append('.'); "
                 "from linkedin_agent.tools.save_ingestion_record import SaveIngestionRecord; "
                 "import json; "
                 "test_stats = {'posts_processed': 5}; "

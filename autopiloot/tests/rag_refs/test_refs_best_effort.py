@@ -16,8 +16,6 @@ import unittest
 from unittest.mock import Mock, MagicMock, patch
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestUpsertRef(unittest.TestCase):
     """Tests for upsert_ref() function"""

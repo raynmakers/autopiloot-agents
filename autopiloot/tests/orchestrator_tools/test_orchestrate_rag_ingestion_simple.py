@@ -12,8 +12,6 @@ import sys
 import os
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestOrchestrateRagIngestionSimple(unittest.TestCase):
     """Simple test to verify RagIndexTranscript is used (not deprecated tools)."""

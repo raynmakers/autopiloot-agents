@@ -356,6 +356,216 @@ class StatusTransitionManager:
         return True
 
 
+class FirestoreExistenceChecker:
+    """
+    Centralized helpers for checking document existence in Firestore collections.
+
+    Eliminates duplicate .get().exists patterns across tools by providing
+    reusable query methods with consistent error handling.
+
+    Usage:
+        from core.idempotency import FirestoreExistenceChecker
+
+        if FirestoreExistenceChecker.transcript_exists("dQw4w9WgXcQ"):
+            print("Transcript already exists")
+
+        has_job, job_id = FirestoreExistenceChecker.has_active_transcription_job("dQw4w9WgXcQ")
+        if has_job:
+            print(f"Active transcription job: {job_id}")
+    """
+
+    @classmethod
+    def transcript_exists(cls, video_id: str, db=None) -> bool:
+        """
+        Check if a transcript exists for the given video ID.
+
+        Args:
+            video_id: YouTube video ID to check
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            bool: True if transcript exists, False otherwise
+
+        Example:
+            >>> if FirestoreExistenceChecker.transcript_exists("dQw4w9WgXcQ"):
+            >>>     print("Transcript already exists")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            transcript_ref = db.collection('transcripts').document(video_id)
+            return transcript_ref.get().exists
+        except Exception as e:
+            # Log error but return False to allow graceful degradation
+            print(f"Warning: Failed to check transcript existence for {video_id}: {e}")
+            return False
+
+    @classmethod
+    def video_exists(cls, video_id: str, db=None) -> bool:
+        """
+        Check if a video document exists in Firestore.
+
+        Args:
+            video_id: YouTube video ID to check
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            bool: True if video exists, False otherwise
+
+        Example:
+            >>> if FirestoreExistenceChecker.video_exists("dQw4w9WgXcQ"):
+            >>>     print("Video record exists")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            video_ref = db.collection('videos').document(video_id)
+            return video_ref.get().exists
+        except Exception as e:
+            print(f"Warning: Failed to check video existence for {video_id}: {e}")
+            return False
+
+    @classmethod
+    def summary_exists(cls, video_id: str, db=None) -> bool:
+        """
+        Check if a summary exists for the given video ID.
+
+        Args:
+            video_id: YouTube video ID to check
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            bool: True if summary exists, False otherwise
+
+        Example:
+            >>> if FirestoreExistenceChecker.summary_exists("dQw4w9WgXcQ"):
+            >>>     print("Summary already generated")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            summary_ref = db.collection('summaries').document(video_id)
+            return summary_ref.get().exists
+        except Exception as e:
+            print(f"Warning: Failed to check summary existence for {video_id}: {e}")
+            return False
+
+    @classmethod
+    def has_active_transcription_job(cls, video_id: str, db=None) -> tuple:
+        """
+        Check if an active transcription job exists for the video.
+
+        Searches for jobs with status in ['pending', 'processing', 'completed']
+        in the jobs_transcription collection.
+
+        Args:
+            video_id: YouTube video ID to check
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            tuple: (has_job: bool, job_id: Optional[str])
+                   Returns (True, job_id) if active job found, (False, None) otherwise
+
+        Example:
+            >>> has_job, job_id = FirestoreExistenceChecker.has_active_transcription_job("dQw4w9WgXcQ")
+            >>> if has_job:
+            >>>     print(f"Active job: {job_id}")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            from google.cloud.firestore_v1.base_query import FieldFilter
+
+            # Query for active jobs
+            existing_jobs = db.collection('jobs_transcription').where(
+                filter=FieldFilter('video_id', '==', video_id)
+            ).where(
+                filter=FieldFilter('status', 'in', ['pending', 'processing', 'completed'])
+            ).limit(1).get()
+
+            if len(existing_jobs) > 0:
+                return True, existing_jobs[0].id
+            return False, None
+
+        except Exception as e:
+            print(f"Warning: Failed to check transcription job for {video_id}: {e}")
+            return False, None
+
+    @classmethod
+    def get_video_data(cls, video_id: str, db=None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve video document data from Firestore.
+
+        Args:
+            video_id: YouTube video ID to retrieve
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            Optional[Dict]: Video data if exists, None otherwise
+
+        Example:
+            >>> video_data = FirestoreExistenceChecker.get_video_data("dQw4w9WgXcQ")
+            >>> if video_data:
+            >>>     print(f"Video title: {video_data.get('title')}")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            video_ref = db.collection('videos').document(video_id)
+            video_doc = video_ref.get()
+
+            if video_doc.exists:
+                return video_doc.to_dict()
+            return None
+
+        except Exception as e:
+            print(f"Warning: Failed to get video data for {video_id}: {e}")
+            return None
+
+    @classmethod
+    def get_transcript_data(cls, video_id: str, db=None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve transcript document data from Firestore.
+
+        Args:
+            video_id: YouTube video ID to retrieve
+            db: Firestore client (optional, will create if not provided)
+
+        Returns:
+            Optional[Dict]: Transcript data if exists, None otherwise
+
+        Example:
+            >>> transcript_data = FirestoreExistenceChecker.get_transcript_data("dQw4w9WgXcQ")
+            >>> if transcript_data:
+            >>>     print(f"Transcript length: {len(transcript_data.get('transcript_text', ''))}")
+        """
+        try:
+            if db is None:
+                from firestore_client import get_firestore_client
+                db = get_firestore_client()
+
+            transcript_ref = db.collection('transcripts').document(video_id)
+            transcript_doc = transcript_ref.get()
+
+            if transcript_doc.exists:
+                return transcript_doc.to_dict()
+            return None
+
+        except Exception as e:
+            print(f"Warning: Failed to get transcript data for {video_id}: {e}")
+            return None
+
+
 # Test block for standalone execution
 if __name__ == "__main__":
     print("Testing Idempotency module...")

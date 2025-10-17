@@ -9,8 +9,6 @@ import sys
 import os
 
 # Add core/rag to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from core.rag import chunker, hashing
 
 

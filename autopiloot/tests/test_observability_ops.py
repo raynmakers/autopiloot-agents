@@ -13,12 +13,8 @@ from datetime import datetime, timezone, timedelta
 
 # Add observability_agent tools directory to path
 obs_tools_dir = Path(__file__).parent.parent / "observability_agent" / "tools"
-sys.path.append(str(obs_tools_dir))
-
 # Add config directory to path
 config_dir = Path(__file__).parent.parent / "config"
-sys.path.append(str(config_dir))
-
 # Mock the tools since agency_swarm is not available
 try:
     from monitor_quota_state import MonitorQuotaState

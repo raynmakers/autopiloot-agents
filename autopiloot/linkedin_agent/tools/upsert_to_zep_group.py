@@ -13,9 +13,6 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from env_loader import get_required_env_var, get_optional_env_var, load_environment
 from loader import load_app_config, get_config_value
 
@@ -138,7 +135,7 @@ class UpsertToZepGroup(BaseTool):
 
     def _initialize_zep_client(self, api_key: str, base_url: str):
         """
-        Initialize Zep client with API credentials.
+        Initialize Zep client using centralized factory.
 
         Args:
             api_key: Zep API key
@@ -147,12 +144,8 @@ class UpsertToZepGroup(BaseTool):
         Returns:
             Zep client instance
         """
-        try:
-            from zep_python import ZepClient
-            return ZepClient(api_key=api_key, base_url=base_url)
-        except ImportError:
-            # For testing without zep-python installed
-            return MockZepClient()
+        from core.zep import get_zep_client
+        return get_zep_client(api_key=api_key, base_url=base_url)
 
     def _determine_group_name(self, group_prefix: str) -> str:
         """
@@ -390,28 +383,6 @@ class UpsertToZepGroup(BaseTool):
                 "errors": len(batch),
                 "error_details": [str(e)]
             }
-
-
-class MockZepClient:
-    """Mock Zep client for testing when zep-python is not available."""
-
-    def __init__(self):
-        self._is_mock = True
-        self.group = MockGroupClient()
-
-
-class MockGroupClient:
-    """Mock Zep group client for testing."""
-
-    def get(self, group_id: str):
-        # Simulate group not found to trigger creation
-        raise Exception("Group not found")
-
-    def add(self, group_id: str, name: str, description: str, metadata: Dict):
-        return {"id": group_id, "name": name}
-
-    def add_documents(self, group_id: str, documents: List):
-        return {"added": len(documents)}
 
 
 if __name__ == "__main__":

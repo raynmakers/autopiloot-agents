@@ -20,9 +20,6 @@ class TestMonitorTranscriptionBudgetComprehensive(unittest.TestCase):
         current_dir = os.path.dirname(__file__)
         core_path = os.path.join(current_dir, '..', '..', 'core')
         config_path = os.path.join(current_dir, '..', '..', 'config')
-        sys.path.insert(0, os.path.abspath(core_path))
-        sys.path.insert(0, os.path.abspath(config_path))
-
         # Set up comprehensive mocks that match the actual tool's imports
         self.patcher_firestore = patch('google.cloud.firestore')
         self.patcher_env_loader = patch('env_loader.get_required_env_var')

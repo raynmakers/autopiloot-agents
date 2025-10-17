@@ -11,9 +11,8 @@ from pydantic import Field
 from agency_swarm.tools import BaseTool
 
 # Add config directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from loader import load_app_config, get_config_value
+from core.json_response import ok, fail
 
 
 class ListTrackedTargetsFromConfig(BaseTool):
@@ -46,7 +45,7 @@ class ListTrackedTargetsFromConfig(BaseTool):
             targets = tracking_config.get("targets", [])
 
             if not targets:
-                return json.dumps({
+                return ok({
                     "targets": [],
                     "message": "No tracking targets configured in settings.yaml"
                 })
@@ -102,16 +101,14 @@ class ListTrackedTargetsFromConfig(BaseTool):
             if self.include_defaults:
                 result["defaults"] = default_settings
 
-            return json.dumps(result)
+            return ok(result)
 
         except Exception as e:
-            return json.dumps({
-                "error": "configuration_error",
-                "message": f"Failed to load tracking targets: {str(e)}",
-                "details": {
-                    "type": type(e).__name__
-                }
-            })
+            return fail(
+                message=f"Failed to load tracking targets: {str(e)}",
+                code="CONFIGURATION_ERROR",
+                details={"type": type(e).__name__}
+            )
 
 
 if __name__ == "__main__":

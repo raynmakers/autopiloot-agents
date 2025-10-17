@@ -8,15 +8,14 @@ import sys
 import json
 import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from core.time_utils import to_iso8601_z, now, timezone
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
+from firestore_client import get_firestore_client
 from loader import load_app_config, get_config_value
 
 
@@ -257,7 +256,7 @@ class SaveStrategyArtifacts(BaseTool):
         # Add combined JSON artifact
         artifacts["combined_json"] = {
             "urn": self.urn,
-            "generated_at": timestamp.isoformat() + "Z",
+            "generated_at": to_iso8601_z(timestamp),
             "playbook": self.playbook_json,
             "content_briefs": self.briefs,
             "metadata": {
@@ -273,19 +272,14 @@ class SaveStrategyArtifacts(BaseTool):
         """Initialize Google Drive client."""
         try:
             # Check for service account credentials
-            service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            service_account_path = get_optional_env_var("GOOGLE_APPLICATION_CREDENTIALS", "", "Google service account credentials path for Drive storage")
             if not service_account_path or not os.path.exists(service_account_path):
                 return MockDriveClient()
 
-            from google.oauth2 import service_account
-            from googleapiclient.discovery import build
+            from core.drive import get_drive_service
 
-            credentials = service_account.Credentials.from_service_account_file(
-                service_account_path,
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
-
-            service = build('drive', 'v3', credentials=credentials)
+            # Use centralized factory for full Drive access (not readonly)
+            service = get_drive_service(readonly=False)
             return DriveClient(service)
 
         except ImportError:
@@ -293,46 +287,10 @@ class SaveStrategyArtifacts(BaseTool):
         except Exception as e:
             return MockDriveClient()
 
-    def _initialize_firestore_client(self):
-        """Initialize Firestore client."""
-        try:
-            # Check for service account credentials
-            service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-            if not service_account_path or not os.path.exists(service_account_path):
-                return MockFirestoreClient()
-
-            import firebase_admin
-            from firebase_admin import credentials, firestore
-
-            # Initialize Firebase if not already done
-            if not firebase_admin._apps:
-                cred = credentials.Certificate(service_account_path)
-                firebase_admin.initialize_app(cred)
-
-            db = firestore.client()
-            return FirestoreClient(db)
-
-        except ImportError:
-            return MockFirestoreClient()
-        except Exception as e:
-            return MockFirestoreClient()
-
     def _initialize_zep_client(self):
-        """Initialize Zep client."""
-        try:
-            zep_api_key = os.getenv("ZEP_API_KEY")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
-
-            if not zep_api_key:
-                return MockZepClient()
-
-            from zep_python import ZepClient
-            return ZepClient(api_key=zep_api_key, base_url=zep_base_url)
-
-        except ImportError:
-            return MockZepClient()
-        except Exception as e:
-            return MockZepClient()
+        """Initialize Zep client using centralized factory."""
+        from core.zep import get_zep_client
+        return get_zep_client()
 
     def _save_to_drive(self, drive_client, artifacts: Dict[str, Any]) -> Dict[str, Any]:
         """Save artifacts to Google Drive."""
@@ -435,7 +393,7 @@ class SaveStrategyArtifacts(BaseTool):
                 "success": True,
                 "document_path": document_path,
                 "document_id": doc_id,
-                "timestamp": artifacts["timestamp"].isoformat() + "Z",
+                "timestamp": to_iso8601_z(artifacts["timestamp"]),
                 "collection": collection_path
             }
 
@@ -510,7 +468,7 @@ Content Briefs Summary:
             "urn": self.urn,
             "total_briefs": len(self.briefs),
             "playbook_sections": len(self.playbook_json.keys()) if self.playbook_json else 0,
-            "save_timestamp": artifacts["timestamp"].isoformat() + "Z",
+            "save_timestamp": to_iso8601_z(artifacts["timestamp"]),
             "file_sizes": {
                 "playbook_md": format_size(playbook_md_size),
                 "playbook_json": format_size(playbook_json_size),
@@ -606,13 +564,6 @@ class MockFirestoreClient:
 
     def save_document(self, document_path: str, data: Dict[str, Any]) -> str:
         return f"mock_doc_{document_path.replace('/', '_')}"
-
-
-class MockZepClient:
-    """Mock Zep client for testing."""
-
-    def save_document(self, content: str, metadata: Dict[str, Any], group_id: str) -> str:
-        return f"mock_zep_doc_{uuid.uuid4().hex[:8]}"
 
 
 if __name__ == "__main__":

@@ -4,20 +4,16 @@ Generates concise summaries from video transcripts with consistent quality contr
 """
 
 from agency_swarm import Agent, ModelSettings
-from config.loader import load_app_config
+from config.loader import get_config_value
 from core.guardrails import validate_summarizer_output
 
-# Load configuration
-config = load_app_config()
-
-# Get agent-specific LLM configuration
-agent_config = config.get('llm', {}).get('agents', {}).get('summarizer_agent', {})
-default_config = config.get('llm', {}).get('default', {})
-
-# Use agent-specific config with fallback to default
-model = agent_config.get('model', default_config.get('model', 'gpt-4.1'))
-temperature = agent_config.get('temperature', default_config.get('temperature', 0.3))
-max_tokens = agent_config.get('max_output_tokens', default_config.get('max_output_tokens', 25000))
+# Get agent-specific LLM configuration with fallback to default
+model = get_config_value('llm.agents.summarizer_agent.model',
+                         default=get_config_value('llm.default.model', default='gpt-4.1'))
+temperature = get_config_value('llm.agents.summarizer_agent.temperature',
+                               default=get_config_value('llm.default.temperature', default=0.3))
+max_tokens = get_config_value('llm.agents.summarizer_agent.max_output_tokens',
+                              default=get_config_value('llm.default.max_output_tokens', default=25000))
 
 summarizer_agent = Agent(
     name="SummarizerAgent",
@@ -29,5 +25,5 @@ summarizer_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
-    output_guardrails=validate_summarizer_output,  # Agency Swarm v1.2.0 - validates summary length and rejection reasons
+    output_guardrails=[validate_summarizer_output],  # Agency Swarm v1.2.0 - validates summary length and rejection reasons
 )

@@ -12,8 +12,6 @@ from unittest.mock import patch, MagicMock
 import importlib.util
 
 # Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestListDriveChangesIntegration(unittest.TestCase):
     """Integration tests for ListDriveChanges tool."""

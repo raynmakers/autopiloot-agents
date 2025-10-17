@@ -11,16 +11,12 @@ from typing import Optional, Dict, Any
 from pydantic import Field, field_validator
 import assemblyai as aai
 from agency_swarm.tools import BaseTool
-from dotenv import load_dotenv
 from google.cloud import firestore
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+from config.env_loader import get_required_env_var, get_optional_env_var
+from core.firestore_client import get_firestore_client
 
-from config.env_loader import get_required_env_var
-
-load_dotenv()
 
 # AssemblyAI pricing per hour (as of 2024)
 ASSEMBLYAI_COST_PER_HOUR = 0.65  # USD
@@ -88,30 +84,6 @@ class SubmitAssemblyAIJob(BaseTool):
             raise ValueError(f"Invalid webhook URL: {v}. Must start with http:// or https://")
         return v
 
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID",
-                "Google Cloud Project ID for Firestore"
-            )
-
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS",
-                "Google service account credentials file path"
-            )
-
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
     def run(self) -> str:
         """
         Submit transcription job to AssemblyAI with duration validation and cost estimation.
@@ -141,7 +113,7 @@ class SubmitAssemblyAIJob(BaseTool):
             })
 
         # Initialize AssemblyAI with API key
-        api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        api_key = get_optional_env_var("ASSEMBLYAI_API_KEY", "", "AssemblyAI API key for transcription")
         if not api_key:
             return json.dumps({
                 "error": "configuration_error",
@@ -167,7 +139,7 @@ class SubmitAssemblyAIJob(BaseTool):
 
             # Add webhook configuration if provided
             if self.webhook_url:
-                webhook_secret = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
+                webhook_secret = get_optional_env_var("ASSEMBLYAI_WEBHOOK_SECRET", "", "AssemblyAI webhook secret for authentication")
                 config_params.update({
                     "webhook_url": self.webhook_url,
                     "webhook_auth_header_name": "X-AssemblyAI-Webhook-Secret" if webhook_secret else None,
@@ -194,7 +166,7 @@ class SubmitAssemblyAIJob(BaseTool):
             # Update Firestore job record if job_id provided
             if self.job_id:
                 try:
-                    db = self._initialize_firestore()
+                    db = get_firestore_client()
                     job_ref = db.collection('jobs_transcription').document(self.job_id)
 
                     # Update job with AssemblyAI details

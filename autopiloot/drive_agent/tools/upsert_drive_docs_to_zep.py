@@ -13,10 +13,7 @@ from agency_swarm.tools import BaseTool
 from pydantic import Field
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
-from env_loader import get_required_env_var, load_environment
+from env_loader import get_required_env_var, get_optional_env_var, load_environment
 from loader import load_app_config, get_config_value
 
 
@@ -59,27 +56,9 @@ class UpsertDriveDocsToZep(BaseTool):
     )
 
     def _initialize_zep_client(self, api_key: str, base_url: str):
-        """Initialize Zep client with error handling."""
-        try:
-            # Import Zep client with fallback
-            try:
-                from zep_python import ZepClient
-            except (ImportError, SyntaxError):
-                # Fallback for testing without zep-python or syntax issues
-                return None
-
-            # Initialize client
-            client = ZepClient(
-                api_key=api_key,
-                base_url=base_url
-            )
-
-            return client
-
-        except Exception as e:
-            # For testing purposes, return None instead of raising
-            # In production, this would indicate a configuration issue
-            return None
+        """Initialize Zep client using centralized factory."""
+        from core.zep import get_zep_client
+        return get_zep_client(api_key=api_key, base_url=base_url)
 
     def _generate_document_id(self, file_id: str, chunk_index: int = 0) -> str:
         """Generate unique document ID for Zep."""
@@ -258,7 +237,7 @@ class UpsertDriveDocsToZep(BaseTool):
 
             # Get Zep configuration
             zep_api_key = get_required_env_var("ZEP_API_KEY", "Zep API key for GraphRAG")
-            zep_base_url = os.getenv("ZEP_BASE_URL", "https://api.getzep.com")
+            zep_base_url = get_optional_env_var("ZEP_BASE_URL", "https://api.getzep.com", "Zep API base URL for document indexing")
 
             # Get Drive Zep namespace
             if self.namespace:

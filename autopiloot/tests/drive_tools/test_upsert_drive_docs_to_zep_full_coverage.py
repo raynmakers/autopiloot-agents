@@ -12,8 +12,6 @@ from unittest.mock import patch, MagicMock, Mock
 from datetime import datetime, timezone
 
 # Add path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
 # Mock ALL external dependencies before imports
 mock_modules = {
     'agency_swarm': MagicMock(),

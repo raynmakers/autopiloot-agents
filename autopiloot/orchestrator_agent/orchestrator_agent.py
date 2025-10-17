@@ -10,18 +10,14 @@ from agency_swarm import Agent, ModelSettings
 
 # Add config directory to path for imports
 config_dir = Path(__file__).parent.parent / "config"
-sys.path.append(str(config_dir))
-
 # Import output guardrail for Agency Swarm v1.2.0
 from core.guardrails import validate_orchestrator_output
 
 try:
-    from loader import load_app_config
-    config = load_app_config()
-    llm_config = config.get("llm", {}).get("default", {})
-    model = llm_config.get("model", "gpt-4o")
-    temperature = llm_config.get("temperature", 0.2)
-    max_tokens = llm_config.get("max_output_tokens", 25000)
+    from loader import get_config_value
+    model = get_config_value("llm.default.model", default="gpt-4o")
+    temperature = get_config_value("llm.default.temperature", default=0.2)
+    max_tokens = get_config_value("llm.default.max_output_tokens", default=25000)
 except Exception:
     # Fallback to default values if config loading fails
     model = "gpt-4o"
@@ -38,5 +34,5 @@ orchestrator_agent = Agent(
         temperature=temperature,
         max_completion_tokens=max_tokens,
     ),
-    output_guardrails=validate_orchestrator_output,  # Agency Swarm v1.2.0 - validates JSON structure and required fields
+    output_guardrails=[validate_orchestrator_output],  # Agency Swarm v1.2.0 - validates JSON structure and required fields
 )

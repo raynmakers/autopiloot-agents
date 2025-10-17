@@ -11,18 +11,14 @@ from typing import Optional
 from agency_swarm.tools import BaseTool
 from pydantic import Field
 from google.cloud import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 
 # Add core and config directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'core'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-
 from config.env_loader import get_required_env_var
 from config.loader import load_app_config
+from core.firestore_client import get_firestore_client
+from core.idempotency import FirestoreExistenceChecker
 
-load_dotenv()
 
 
 class EnqueueTranscription(BaseTool):
@@ -52,23 +48,20 @@ class EnqueueTranscription(BaseTool):
         """
         try:
             # Initialize Firestore client
-            db = self._initialize_firestore()
+            db = get_firestore_client()
             
             # Load configuration for business rules
             config = load_app_config()
             max_duration = config.get("idempotency", {}).get("max_video_duration_sec", 4200)
             
-            # Get video document
-            video_ref = db.collection('videos').document(self.video_id)
-            video_doc = video_ref.get()
-            
-            if not video_doc.exists:
+            # Get video document using centralized helper
+            video_data = FirestoreExistenceChecker.get_video_data(self.video_id, db)
+
+            if not video_data:
                 return json.dumps({
                     "error": f"Video {self.video_id} does not exist in videos collection",
                     "job_id": None
                 })
-            
-            video_data = video_doc.to_dict()
 
             # Check if video was rejected as non-business content
             video_status = video_data.get('status')
@@ -82,31 +75,22 @@ class EnqueueTranscription(BaseTool):
                     "reason": rejection_info.get('reason', 'Not applicable')
                 })
 
-            # Check if video already has a transcript
-            transcript_ref = db.collection('transcripts').document(self.video_id)
-            if transcript_ref.get().exists:
+            # Check if video already has a transcript using centralized helper
+            if FirestoreExistenceChecker.transcript_exists(self.video_id, db):
                 return json.dumps({
                     "job_id": None,
                     "message": "Video already transcribed - skipping",
                     "video_id": self.video_id
                 })
             
-            # Check if transcription job already exists
-            # Note: Firestore collection path for transcription jobs
-            jobs_collection = 'jobs_transcription'
-            existing_jobs = db.collection(jobs_collection).where(
-                filter=FieldFilter('video_id', '==', self.video_id)
-            ).where(
-                filter=FieldFilter('status', 'in', ['pending', 'processing', 'completed'])
-            ).limit(1).get()
-            
-            if len(existing_jobs) > 0:
-                existing_job = existing_jobs[0]
+            # Check if transcription job already exists using centralized helper
+            has_job, job_id = FirestoreExistenceChecker.has_active_transcription_job(self.video_id, db)
+
+            if has_job:
                 return json.dumps({
-                    "job_id": existing_job.id,
+                    "job_id": job_id,
                     "message": "Transcription job already exists - preventing duplicate",
-                    "video_id": self.video_id,
-                    "existing_status": existing_job.to_dict().get('status')
+                    "video_id": self.video_id
                 })
             
             # Validate video duration
@@ -119,7 +103,8 @@ class EnqueueTranscription(BaseTool):
                 })
             
             # Create transcription job
-            job_ref = db.collection(jobs_collection).document()
+            job_ref = db.collection('jobs_transcription').document()
+            video_ref = db.collection('videos').document(self.video_id)
             
             job_data = {
                 'job_id': job_ref.id,
@@ -164,30 +149,6 @@ class EnqueueTranscription(BaseTool):
                 "job_id": None
             })
     
-    def _initialize_firestore(self):
-        """Initialize Firestore client with proper authentication."""
-        try:
-            # Get required project ID
-            project_id = get_required_env_var(
-                "GCP_PROJECT_ID", 
-                "Google Cloud Project ID for Firestore"
-            )
-            
-            # Get service account credentials path
-            credentials_path = get_required_env_var(
-                "GOOGLE_APPLICATION_CREDENTIALS", 
-                "Google service account credentials file path"
-            )
-            
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(f"Service account file not found: {credentials_path}")
-            
-            # Initialize Firestore client with project ID
-            return firestore.Client(project=project_id)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize Firestore client: {str(e)}")
-
 
 if __name__ == "__main__":
     # Test the tool with both videos

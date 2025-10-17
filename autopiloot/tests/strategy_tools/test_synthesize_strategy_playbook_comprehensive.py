@@ -26,8 +26,6 @@ sys.modules['agency_swarm.tools'].BaseTool = mock_base_tool
 # Add current directory to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.join(current_dir, '..', '..')
-sys.path.insert(0, project_root)
-
 # Mock config imports
 sys.modules['env_loader'] = MagicMock()
 sys.modules['loader'] = MagicMock()

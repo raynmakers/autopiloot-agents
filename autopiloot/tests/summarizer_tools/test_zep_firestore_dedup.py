@@ -17,8 +17,6 @@ import os
 import importlib.util
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 
 class TestZepFirestoreDedup(unittest.TestCase):
     """Test Firestore-based deduplication for Zep message storage."""
