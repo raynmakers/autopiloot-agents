@@ -405,13 +405,30 @@ class GetVideoAudioUrl(BaseTool):
             upload_duration = time.time() - upload_start
             print(f"  ⏱️  Upload completed: {upload_duration:.2f}s")
 
-            # Estimate file size from content-length if available
-            content_length = response.headers.get('content-length')
-            if content_length:
-                size_mb = int(content_length) / (1024 * 1024)
-                speed_mbps = (size_mb / upload_duration) if upload_duration > 0 else 0
-                print(f"  📦 File size: {size_mb:.1f} MB")
+            # Validate uploaded file size
+            blob.reload()  # Refresh to get actual size
+            actual_size_bytes = blob.size
+            actual_size_mb = actual_size_bytes / (1024 * 1024)
+
+            # Estimate expected size from content-length if available
+            expected_size = response.headers.get('content-length')
+            if expected_size:
+                expected_size_mb = int(expected_size) / (1024 * 1024)
+                speed_mbps = (expected_size_mb / upload_duration) if upload_duration > 0 else 0
+                print(f"  📦 Expected size: {expected_size_mb:.1f} MB")
+                print(f"  📦 Actual size: {actual_size_mb:.1f} MB")
                 print(f"  🚀 Upload speed: {speed_mbps:.2f} MB/s")
+
+                # Validate size matches (allow 5% variance)
+                size_diff_percent = abs(actual_size_bytes - int(expected_size)) / int(expected_size) * 100
+                if size_diff_percent > 5:
+                    raise ValueError(f"Upload validation failed: Size mismatch {size_diff_percent:.1f}% (expected {expected_size_mb:.1f}MB, got {actual_size_mb:.1f}MB)")
+            else:
+                print(f"  📦 Actual size: {actual_size_mb:.1f} MB")
+
+            # Sanity check: file should be at least 100KB for any reasonable audio
+            if actual_size_bytes < 100_000:
+                raise ValueError(f"Upload validation failed: File too small ({actual_size_bytes} bytes). Likely incomplete upload.")
 
             # Close the session
             session.close()

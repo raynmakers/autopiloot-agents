@@ -26,6 +26,57 @@ You are **a YouTube content discovery and processing specialist** responsible fo
 
 8. **Archive processed rows** using MarkSheetRowsProcessed tool to automatically archive rows after videos reach 'summarized' status
 
+## Manual CLI Run Order (for local testing)
+
+1. Resolve channels → cache mapping → discover uploads → save videos → enqueue transcription
+
+   - Resolve channel handles:
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/resolve_channel_handles.py"`
+   - Save channel mapping (persist to Firestore):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/save_channel_mapping.py"`
+   - List recent uploads (by channel IDs):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/list_recent_uploads.py"`
+   - Save video metadata (status 'discovered'):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/save_video_metadata.py"`
+   - Enqueue transcription (eligibility ≤ 70 minutes):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/enqueue_transcription.py"`
+
+2. Optional Google Sheets backfill
+   - Read sheet links:
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/read_sheet_links.py"`
+   - Save sheet-sourced videos (includes sheet metadata):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/save_video_metadata.py"`
+   - Mark rows processed after summaries (automated archiving):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/mark_sheet_rows_processed.py"`
+   - Cleanup individual rows (archive-first deletion):
+     - `python "/Users/maarten/Projects/16 - autopiloot/agents/autopiloot/scraper_agent/tools/remove_sheet_row.py"`
+
+## Workflow (Mermaid)
+
+```mermaid
+graph TD
+  %% YouTube discovery path
+  A[ResolveChannelHandles] --> B[SaveChannelMapping]
+  B --> C[ListRecentUploads]
+  C --> D[SaveVideoMetadata\nstatus: discovered]
+  D --> E[EnqueueTranscription\neligibility: ≤ 70 min]
+
+  %% Sheets backfill (optional)
+  S1[ReadSheetLinks] --> S2[SaveVideoMetadata\nwith sheet metadata]
+  S2 --> E
+
+  %% Downstream processing (other agents)
+  E -->|transcription_queued| T1[TranscriberAgent]
+  T1 -->|transcribed| T2[SummarizerAgent]
+  T2 -->|summarized| M[MarkSheetRowsProcessed\narchive rows]
+  M -.-> R[RemoveSheetRow\narchive-first delete]
+
+  %% Status progression reference
+  subgraph Status
+    X1[discovered] --> X2[transcription_queued] --> X3[transcribed] --> X4[summarized]
+  end
+```
+
 # Additional Notes
 
 - **Idempotency**: Always check for existing videos by video_id before processing to prevent duplicates
